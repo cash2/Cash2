@@ -12,28 +12,104 @@
 
 using namespace CryptoNote;
 
-#define MAKE_IP( a1, a2, a3, a4 )	(a1|(a2<<8)|(a3<<16)|(a4<<24))
-
 
 TEST(peer_list, peer_list_general)
 {
   CryptoNote::PeerlistManager plm;
   plm.init(false);
-#define ADD_GRAY_NODE(ip_, port_, id_, last_seen_) {  PeerlistEntry ple; ple.last_seen=last_seen_;ple.adr.ip = ip_; ple.adr.port = port_; ple.id = id_;plm.append_with_peer_gray(ple);}  
-#define ADD_WHITE_NODE(ip_, port_, id_, last_seen_) {  PeerlistEntry ple;ple.last_seen=last_seen_; ple.adr.ip = ip_; ple.adr.port = port_; ple.id = id_;plm.append_with_peer_white(ple);}  
 
-#define PRINT_HEAD(step) {std::list<PeerlistEntry> bs_head; bool r = plm.get_peerlist_head(bs_head, 100);std::cout << "step " << step << ": " << bs_head.size() << std::endl;}
+  // Add gray peers
+  {
+    PeerlistEntry ple;
+    ple.last_seen = 34345;
+    ple.adr.ip = (123|(43<<8)|(12<<16)|(1<<24));
+    ple.adr.port = 8080;
+    ple.id = 121241;
+    plm.append_with_peer_gray(ple);
+  }
 
-  ADD_GRAY_NODE(MAKE_IP(123,43,12,1), 8080, 121241, 34345);
-  ADD_GRAY_NODE(MAKE_IP(123,43,12,2), 8080, 121241, 34345);
-  ADD_GRAY_NODE(MAKE_IP(123,43,12,3), 8080, 121241, 34345);
-  ADD_GRAY_NODE(MAKE_IP(123,43,12,4), 8080, 121241, 34345);
-  ADD_GRAY_NODE(MAKE_IP(123,43,12,5), 8080, 121241, 34345);
+  {
+    PeerlistEntry ple;
+    ple.last_seen = 34345;
+    ple.adr.ip = (123|(43<<8)|(12<<16)|(2<<24));
+    ple.adr.port = 8080;
+    ple.id = 121241;
+    plm.append_with_peer_gray(ple);
+  }
 
-  ADD_WHITE_NODE(MAKE_IP(123,43,12,1), 8080, 121241, 34345);
-  ADD_WHITE_NODE(MAKE_IP(123,43,12,2), 8080, 121241, 34345);
-  ADD_WHITE_NODE(MAKE_IP(123,43,12,3), 8080, 121241, 34345);
-  ADD_WHITE_NODE(MAKE_IP(123,43,12,4), 8080, 121241, 34345);
+  {
+    PeerlistEntry ple;
+    ple.last_seen = 34345;
+    ple.adr.ip = (123|(43<<8)|(12<<16)|(3<<24));
+    ple.adr.port = 8080;
+    ple.id = 121241;
+    plm.append_with_peer_gray(ple);
+  }
+
+  {
+    PeerlistEntry ple;
+    ple.last_seen = 34345;
+    ple.adr.ip = (123|(43<<8)|(12<<16)|(4<<24));
+    ple.adr.port = 8080;
+    ple.id = 121241;
+    plm.append_with_peer_gray(ple);
+  }
+
+  {
+    PeerlistEntry ple;
+    ple.last_seen = 34345;
+    ple.adr.ip = (123|(43<<8)|(12<<16)|(5<<24));
+    ple.adr.port = 8080;
+    ple.id = 121241;
+    plm.append_with_peer_gray(ple);
+  }
+
+  // Add white peers
+  {
+    PeerlistEntry ple;
+    ple.last_seen = 34345;
+    ple.adr.ip = (123|(43<<8)|(12<<16)|(1<<24));
+    ple.adr.port = 8080;
+    ple.id = 121241;
+    plm.append_with_peer_white(ple);
+  }
+
+  {
+    PeerlistEntry ple;
+    ple.last_seen = 34345;
+    ple.adr.ip = (123|(43<<8)|(12<<16)|(2<<24));
+    ple.adr.port = 8080;
+    ple.id = 121241;
+    plm.append_with_peer_white(ple);
+  }
+
+  {
+    PeerlistEntry ple;
+    ple.last_seen = 34345;
+    ple.adr.ip = (123|(43<<8)|(12<<16)|(3<<24));
+    ple.adr.port = 8080;
+    ple.id = 121241;
+    plm.append_with_peer_white(ple);
+  }
+
+  {
+    PeerlistEntry ple;
+    ple.last_seen = 34345;
+    ple.adr.ip = (123|(43<<8)|(12<<16)|(4<<24));
+    ple.adr.port = 8080;
+    ple.id = 121241;
+    plm.append_with_peer_white(ple);
+  }
+
+  {
+    PeerlistEntry ple;
+    ple.last_seen = 34345;
+    ple.adr.ip = (123|(43<<8)|(12<<16)|(5<<24));
+    ple.adr.port = 8080;
+    ple.id = 121241;
+    plm.append_with_peer_white(ple);
+  }
+
 
   size_t gray_list_size = plm.get_gray_peers_count();
   ASSERT_EQ(gray_list_size, 1);
@@ -45,8 +121,15 @@ TEST(peer_list, peer_list_general)
 
   ASSERT_EQ(bs_head.size(), 4);
 
+  {
+    PeerlistEntry ple;
+    ple.last_seen = 34345;
+    ple.adr.ip = (123|(43<<8)|(12<<16)|(5<<24));
+    ple.adr.port = 8080;
+    ple.id = 121241;
+    plm.append_with_peer_gray(ple);
+  }
 
-  ADD_GRAY_NODE(MAKE_IP(123,43,12,5), 8080, 121241, 34345);
   ASSERT_EQ(plm.get_gray_peers_count(), 1);
   ASSERT_EQ(plm.get_white_peers_count(), 4);
 }
@@ -59,6 +142,4 @@ TEST(peer_list, merge_peer_lists)
   PeerlistManager plm;
   plm.init(false);
   std::list<PeerlistEntry> outer_bs;
-
-
 }

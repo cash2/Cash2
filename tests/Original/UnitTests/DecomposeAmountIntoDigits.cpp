@@ -10,13 +10,6 @@
 
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 
-#define VEC_FROM_ARR(vec)                                               \
-  std::vector<uint64_t> vec;                                            \
-  for (size_t i = 0; i < sizeof(vec##_arr) / sizeof(vec##_arr[0]); ++i) \
-  {                                                                     \
-    vec.push_back(vec##_arr[i]);                                        \
-  }
-
 namespace
 {
   struct chunk_handler_t

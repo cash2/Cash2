@@ -710,40 +710,40 @@ TEST_F(WalletApi, transferNegativeAmount) {
   ASSERT_ANY_THROW(sendMoney(RANDOM_ADDRESS, -static_cast<int64_t>(SENT), FEE));
 }
 
-// TEST_F(WalletApi, transferFromTwoAddresses) {
-  // generateBlockReward();
-  // generateBlockReward(alice.createAddress());
-  // generator.generateEmptyBlocks(currency.minedMoneyUnlockWindow());
-  // node.updateObservers();
+TEST_F(WalletApi, transferFromTwoAddresses) {
+  generateBlockReward();
+  generateBlockReward(alice.createAddress());
+  generator.generateEmptyBlocks(currency.minedMoneyUnlockWindow());
+  node.updateObservers();
 
-  // waitForActualBalance(2 * TEST_BLOCK_REWARD);
+  waitForActualBalance(2 * TEST_BLOCK_REWARD);
 
-  // CryptoNote::WalletGreen bob(dispatcher, currency, node, TRANSACTION_SOFTLOCK_TIME);
-  // bob.initialize("pass2");
-  // std::string bobAddress = bob.createAddress();
+  CryptoNote::WalletGreen bob(dispatcher, currency, node, TRANSACTION_SOFTLOCK_TIME);
+  bob.initialize("pass2");
+  std::string bobAddress = bob.createAddress();
 
-  // const uint64_t sent = 2 * TEST_BLOCK_REWARD - 10 * FEE;
+  const uint64_t sent = 2 * TEST_BLOCK_REWARD - 10 * FEE;
 
-  // auto bobPrev = bob.getPendingBalance();
-  // auto alicePendingPrev = alice.getPendingBalance();
-  // auto aliceActualPrev = alice.getActualBalance();
+  auto bobPrev = bob.getPendingBalance();
+  auto alicePendingPrev = alice.getPendingBalance();
+  auto aliceActualPrev = alice.getActualBalance();
 
-  // sendMoney(bobAddress, sent, FEE);
+  sendMoney(bobAddress, sent, FEE);
 
-  // node.updateObservers();
+  node.updateObservers();
 
-  // waitActualBalanceUpdated(aliceActualPrev);
-  // waitPendingBalanceUpdated(bob, bobPrev);
-  // waitPendingBalanceUpdated(alicePendingPrev);
+  waitActualBalanceUpdated(aliceActualPrev);
+  waitPendingBalanceUpdated(bob, bobPrev);
+  waitPendingBalanceUpdated(alicePendingPrev);
 
-  // ASSERT_EQ(0, bob.getActualBalance());
-  // ASSERT_EQ(sent, bob.getPendingBalance());
+  ASSERT_EQ(0, bob.getActualBalance());
+  ASSERT_EQ(sent, bob.getPendingBalance());
 
-  // ASSERT_EQ(2 * TEST_BLOCK_REWARD - sent - FEE, alice.getActualBalance() + alice.getPendingBalance());
+  ASSERT_EQ(2 * TEST_BLOCK_REWARD - sent - FEE, alice.getActualBalance() + alice.getPendingBalance());
 
-  // bob.shutdown();
-  // wait(100);
-// }
+  bob.shutdown();
+  wait(100);
+}
 
 TEST_F(WalletApi, transferTooBigTransaction) {
   const size_t testBlockGrantedFullRewardZone = 2000;

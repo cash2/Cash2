@@ -193,9 +193,6 @@ TEST(reverse_alphabet, is_correct)
 // encode block
 
 
-
-#define MAKE_STR(arr) std::string(arr, sizeof(arr) - 1)
-
 #include <iostream>
 
 TEST(base58_encode_block, 11)

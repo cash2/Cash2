@@ -17,8 +17,6 @@
 
 #include <Logging/LoggerGroup.h>
 
-#define AUTO_VAL_INIT(n) boost::value_initialized<decltype(n)>()
-
 TEST(parseTransactionExtra, handles_empty_extra)
 {
   std::vector<uint8_t> extra;;
@@ -116,7 +114,7 @@ TEST(parse_and_validate_tx_extra, is_valid_tx_extra_parsed)
 {
   Logging::LoggerGroup logger;
   CryptoNote::Currency currency = CryptoNote::CurrencyBuilder(logger).currency();
-  CryptoNote::Transaction tx = AUTO_VAL_INIT(tx);
+  CryptoNote::Transaction tx = boost::value_initialized<decltype(tx)>();
   CryptoNote::AccountBase acc;
   acc.generate();
   CryptoNote::BinaryArray b = Common::asBinaryArray("dsdsdfsdfsf");
@@ -128,7 +126,7 @@ TEST(parse_and_validate_tx_extra, fails_on_big_extra_nonce)
 {
   Logging::LoggerGroup logger;
   CryptoNote::Currency currency = CryptoNote::CurrencyBuilder(logger).currency();
-  CryptoNote::Transaction tx = AUTO_VAL_INIT(tx);
+  CryptoNote::Transaction tx = boost::value_initialized<decltype(tx)>();
   CryptoNote::AccountBase acc;
   acc.generate();
   CryptoNote::BinaryArray b(TX_EXTRA_NONCE_MAX_COUNT + 1, 0);
@@ -136,7 +134,7 @@ TEST(parse_and_validate_tx_extra, fails_on_big_extra_nonce)
 }
 TEST(parse_and_validate_tx_extra, fails_on_wrong_size_in_extra_nonce)
 {
-  CryptoNote::Transaction tx = AUTO_VAL_INIT(tx);
+  CryptoNote::Transaction tx = boost::value_initialized<decltype(tx)>();
   tx.extra.resize(20, 0);
   tx.extra[0] = TX_EXTRA_NONCE;
   tx.extra[1] = 255;
