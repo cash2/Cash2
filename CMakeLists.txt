@@ -78,7 +78,7 @@ else()
   else()
     set(ARCH_FLAG "-march=${ARCH}")
   endif()
-  
+
   if (APPLE)
 	set(WARNINGS "-Wall -Wextra -Wpointer-arith -Wundef -Wvla -Wwrite-strings")
   else()
@@ -152,7 +152,7 @@ endif()
 
 if(APPLE)
 	find_package(Boost 1.55 REQUIRED COMPONENTS system filesystem thread-mt date_time chrono regex serialization program_options)
-else()	
+else()
 	find_package(Boost 1.55 REQUIRED COMPONENTS system filesystem thread date_time chrono regex serialization program_options)
 endif()
 
@@ -195,3 +195,11 @@ endif()
 add_subdirectory(external)
 add_subdirectory(src)
 add_subdirectory(tests)
+
+# RocksDB
+if (NOT MSVC)
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} ${CMAKE_CURRENT_SOURCE_DIR}/external/rocksdb -DWITH_GFLAGS=0 -DCMAKE_BUILD_TYPE=MinSizeRel -DWITH_TESTS=OFF -DWITH_TOOLS=OFF -DPORTABLE=ON -B${PROJECT_BINARY_DIR}/rocksdb
+  )
+  set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${PROJECT_BINARY_DIR}/rocksdb/librocksdb.a")
+endif ()

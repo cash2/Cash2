@@ -1,5 +1,7 @@
 add_definitions(-DSTATICLIB)
 
+include_directories(${CMAKE_SOURCE_DIR}/external/rocksdb/include)
+
 file(GLOB_RECURSE BlockchainExplorer BlockchainExplorer/*)
 file(GLOB_RECURSE Common Common/*)
 file(GLOB_RECURSE ConnectivityTool ConnectivityTool/*)
@@ -62,7 +64,7 @@ if (MSVC)
 endif ()
 
 target_link_libraries(ConnectivityTool CryptoNoteCore Logging Crypto P2p Rpc Http Serialization Common System ${Boost_LIBRARIES})
-target_link_libraries(Daemon CryptoNoteCore P2p Rpc Serialization System Http Logging Common Crypto upnpc-static BlockchainExplorer ${Boost_LIBRARIES})
+target_link_libraries(Daemon CryptoNoteCore P2p Rpc Serialization System Http Logging Common Crypto upnpc-static BlockchainExplorer rocksdblib ${Boost_LIBRARIES})
 target_link_libraries(SimpleWallet Wallet NodeRpcProxy Transfers Rpc Http Serialization CryptoNoteCore System Logging Common Crypto ${Boost_LIBRARIES})
 target_link_libraries(PaymentGateService PaymentGate JsonRpcServer Wallet NodeRpcProxy Transfers CryptoNoteCore Crypto P2p Rpc Http Serialization System Logging Common InProcessNode upnpc-static BlockchainExplorer ${Boost_LIBRARIES})
 target_link_libraries(Miner CryptoNoteCore Rpc Serialization System Http Logging Common Crypto ${Boost_LIBRARIES})
