@@ -1001,7 +1001,7 @@ namespace CryptoNote
     rsp.incoming_connections_count = rsp.connections_count - get_outgoing_connections_count();
     rsp.version = PROJECT_VERSION_LONG;
     rsp.os_version = Tools::get_os_version_string();
-    m_payload_handler.get_stat_info(rsp.payload_info);
+    rsp.payload_info = m_payload_handler.getStatistics();
     return 1;
   }
   //-----------------------------------------------------------------------------------
@@ -1301,16 +1301,16 @@ namespace CryptoNote
   void NodeServer::onIdle() {
     logger(DEBUGGING) << "onIdle started";
 
-    try {
-      while (!m_stop) {
-        idle_worker();
-        m_payload_handler.on_idle();
-        m_idleTimer.sleep(std::chrono::seconds(1));
+    while (!m_stop) {
+      try {
+          idle_worker();
+          m_idleTimer.sleep(std::chrono::seconds(1));
+      } catch (System::InterruptedException&) {
+        logger(DEBUGGING) << "onIdle() is interrupted";
+        break;
+      } catch (std::exception& e) {
+        logger(WARNING) << "Exception in onIdle: " << e.what();
       }
-    } catch (System::InterruptedException&) {
-      logger(DEBUGGING) << "onIdle() is interrupted";
-    } catch (std::exception& e) {
-      logger(WARNING) << "Exception in onIdle: " << e.what();
     }
 
     logger(DEBUGGING) << "onIdle finished";

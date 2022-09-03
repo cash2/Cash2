@@ -34,7 +34,7 @@ public:
     currency(CurrencyBuilder(m_logger).currency()),
     account(generateAccountKeys()),
     syncStart(SynchronizationStart{ 0, 0 }),
-    sub(currency, AccountSubscription{ account, syncStart, 10 }) {
+    sub(currency, m_logger, AccountSubscription{ account, syncStart, 10 }) {
     sub.addObserver(&observer);
   }
 

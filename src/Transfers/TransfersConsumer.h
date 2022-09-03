@@ -25,7 +25,7 @@ class INode;
 class TransfersConsumer: public IObservableImpl<IBlockchainConsumerObserver, IBlockchainConsumer> {
 public:
 
-  TransfersConsumer(const CryptoNote::Currency& currency, INode& node, const Crypto::SecretKey& viewSecret);
+  TransfersConsumer(const CryptoNote::Currency& currency, INode& node, Logging::ILogger& logger, const Crypto::SecretKey& viewSecret);
 
   ITransfersSubscription& addSubscription(const AccountSubscription& subscription);
   // returns true if no subscribers left
@@ -41,7 +41,7 @@ public:
   // IBlockchainConsumer
   virtual SynchronizationStart getSyncStart() override;
   virtual void onBlockchainDetach(uint32_t height) override;
-  virtual bool onNewBlocks(const CompleteBlock* blocks, uint32_t startHeight, uint32_t count) override;
+  virtual uint32_t onNewBlocks(const CompleteBlock* blocks, uint32_t startHeight, uint32_t count) override;
   virtual std::error_code onPoolUpdated(const std::vector<std::unique_ptr<ITransactionReader>>& addedTransactions, const std::vector<Crypto::Hash>& deletedTransactions) override;
   virtual const std::unordered_set<Crypto::Hash>& getKnownPoolTxIds() const override;
 
@@ -83,6 +83,7 @@ private:
 
   INode& m_node;
   const CryptoNote::Currency& m_currency;
+  Logging::LoggerRef m_logger;
 };
 
 }

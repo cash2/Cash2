@@ -7,7 +7,6 @@
 
 #include "gtest/gtest.h"
 
-#include "CryptoNoteCore/CoreConfig.h"
 #include "Common/CommandLine.h"
 #include <string>
 

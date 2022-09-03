@@ -15,7 +15,8 @@ enum class WalletServiceErrorCode {
   WRONG_KEY_FORMAT = 1,
   WRONG_PAYMENT_ID_FORMAT,
   WRONG_HASH_FORMAT,
-  OBJECT_NOT_FOUND
+  OBJECT_NOT_FOUND,
+  DUPLICATE_KEY
 };
 
 // custom category:

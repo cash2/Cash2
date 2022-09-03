@@ -170,7 +170,8 @@ void BlockchainExplorer::init() {
     throw std::system_error(make_error_code(CryptoNote::error::BlockchainExplorerErrorCodes::INTERNAL_ERROR));
   }
   if (getBlockchainTop(knownBlockchainTop)) {
-    knownBlockchainTopHeight = knownBlockchainTop.height;
+    // changed height to index here
+    knownBlockchainTopHeight = knownBlockchainTop.index;
   } else {
     logger(ERROR) << "Can't get blockchain top.";
     state.store(NOT_INITIALIZED);
@@ -253,35 +254,33 @@ bool BlockchainExplorer::getBlocks(uint64_t timestampBegin, uint64_t timestampEn
     throw std::system_error(make_error_code(CryptoNote::error::BlockchainExplorerErrorCodes::NOT_INITIALIZED));
   }
 
-  logger(DEBUGGING) << "Get blocks by timestamp request came.";
-  NodeRequest request(
-    std::bind(
-      static_cast<
-        void(INode::*)(
-          uint64_t,
-          uint64_t, 
-          uint32_t,
-          std::vector<BlockDetails>&, 
-          uint32_t&,
-          const INode::Callback&
-        )
-      >(&INode::getBlocks), 
-      std::ref(node), 
-      timestampBegin,
-      timestampEnd,
-      blocksNumberLimit,
-      std::ref(blocks),
-      std::ref(blocksNumberWithinTimestamps),
-      std::placeholders::_1
-    )
-  );
-  std::error_code ec = request.performBlocking();
+  if (timestampBegin > timestampEnd) {
+    throw std::system_error(make_error_code(CryptoNote::error::BlockchainExplorerErrorCodes::REQUEST_ERROR), "timestampBegin must not be greater than timestampEnd");
+  }
+
+  logger(DEBUGGING) << "Get blocks by timestamp " << timestampBegin << " - " << timestampEnd << " request came.";
+
+  std::vector<Hash> blockHashes;
+  NodeRequest request([&](const INode::Callback& cb) { node.getBlockHashesByTimestamps(timestampBegin, timestampEnd - timestampBegin + 1, blockHashes, cb); });
+  auto ec = request.performBlocking();
   if (ec) {
-    logger(ERROR) << "Can't get blocks by timestamp: " << ec.message();
+    logger(ERROR) << "Can't get blocks hashes by timestamps: " << ec.message();
     throw std::system_error(ec);
   }
-  return true;
+
+  blocksNumberWithinTimestamps = static_cast<uint32_t>(blockHashes.size());
+
+  if (blocksNumberLimit < blocksNumberWithinTimestamps) {
+    blockHashes.erase(std::next(blockHashes.begin(), blocksNumberLimit), blockHashes.end());
+  }
+
+  if (blockHashes.empty()) {
+    throw std::runtime_error("block hashes not found");
+  }
+
+  return getBlocks(blockHashes, blocks);
 }
+
 
 bool BlockchainExplorer::getBlockchainTop(BlockDetails& topBlock) {
   if (state.load() != INITIALIZED) {
@@ -303,7 +302,7 @@ bool BlockchainExplorer::getBlockchainTop(BlockDetails& topBlock) {
 
   bool gotMainchainBlock = false;
   for (const BlockDetails& block : blocks.back()) {
-    if (!block.isOrphaned) {
+    if (!block.isAlternative) {
       topBlock = block;
       gotMainchainBlock = true;
       break;
@@ -346,6 +345,8 @@ bool BlockchainExplorer::getTransactions(const std::vector<Hash>& transactionHas
   return true;
 }
 
+// TODO: see if we can remove the function below
+/*
 bool BlockchainExplorer::getPoolTransactions(uint64_t timestampBegin, uint64_t timestampEnd, uint32_t transactionsNumberLimit, std::vector<TransactionDetails>& transactions, uint64_t& transactionsNumberWithinTimestamps) {
   if (state.load() != INITIALIZED) {
     throw std::system_error(make_error_code(CryptoNote::error::BlockchainExplorerErrorCodes::NOT_INITIALIZED));
@@ -371,28 +372,30 @@ bool BlockchainExplorer::getPoolTransactions(uint64_t timestampBegin, uint64_t t
   }
   return true;
 }
+*/
 
 bool BlockchainExplorer::getTransactionsByPaymentId(const Hash& paymentId, std::vector<TransactionDetails>& transactions) {
   if (state.load() != INITIALIZED) {
     throw std::system_error(make_error_code(CryptoNote::error::BlockchainExplorerErrorCodes::NOT_INITIALIZED));
   }
 
-  logger(DEBUGGING) << "Get transactions by payment id request came.";
-  NodeRequest request(
-    std::bind(
-      &INode::getTransactionsByPaymentId, 
-      std::ref(node), 
-      std::cref(reinterpret_cast<const Hash&>(paymentId)), 
-      std::ref(transactions),
-      std::placeholders::_1
-    )
-  );
-  std::error_code ec = request.performBlocking();
+  // TODO: fix this error
+  // logger(DEBUGGING) << "Get transactions by payment id " << paymentId << " request came.";
+
+  std::vector<Crypto::Hash> transactionHashes;
+  NodeRequest request([&](const INode::Callback& cb) { return node.getTransactionHashesByPaymentId(paymentId, transactionHashes, cb); });
+
+  auto ec = request.performBlocking();
   if (ec) {
-    logger(ERROR) << "Can't get transactions by payment id: " << ec.message();
+    logger(ERROR) << "Can't get transaction hashes: " << ec.message();
     throw std::system_error(ec);
   }
-  return true;
+
+  if (transactionHashes.empty()) {
+    return false;
+  }
+
+  return getTransactions(transactionHashes, transactions);
 }
 
 bool BlockchainExplorer::getPoolState(const std::vector<Hash>& knownPoolTransactionHashes, Hash knownBlockchainTopHash, bool& isBlockchainActual, std::vector<TransactionDetails>& newTransactions, std::vector<Hash>& removedTransactions) {
@@ -442,12 +445,18 @@ uint64_t BlockchainExplorer::getRewardBlocksWindow() {
   return parameters::CRYPTONOTE_REWARD_BLOCKS_WINDOW;
 }
 
-uint64_t BlockchainExplorer::getFullRewardMaxBlockSize() {
+uint64_t BlockchainExplorer::getFullRewardMaxBlockSize(uint8_t majorVersion) {
   if (state.load() != INITIALIZED) {
     throw std::system_error(make_error_code(CryptoNote::error::BlockchainExplorerErrorCodes::NOT_INITIALIZED));
   }
 
-  return parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
+  if (majorVersion >= BLOCK_MAJOR_VERSION_3) {
+    return parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
+  } else if (majorVersion == BLOCK_MAJOR_VERSION_2) {
+    return parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2;
+  } else {
+    return parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1;
+  }
 }
 
 bool BlockchainExplorer::isSynchronized() {
@@ -630,7 +639,7 @@ void BlockchainExplorer::blockchainSynchronized(uint32_t topHeight) {
       BlockDetails topMainchainBlock;
       bool gotMainchainBlock = false;
       for (const BlockDetails& block : blocksPtr->back()) {
-        if (!block.isOrphaned) {
+        if (!block.isAlternative) {
           topMainchainBlock = block;
           gotMainchainBlock = true;
           break;
@@ -703,14 +712,17 @@ void BlockchainExplorer::localBlockchainUpdated(uint32_t height) {
       std::vector<BlockDetails> orphanedBlocks;
       for (const std::vector<BlockDetails>& sameHeightBlocks : *blocksPtr) {
         for (const BlockDetails& block : sameHeightBlocks) {
-          if (topHeight < block.height) {
-            topHeight = block.height;
+          // changed height to index here
+          if (topHeight < block.index) {
+            // changed height to index here
+            topHeight = block.index;
             gotTopMainchainBlock = false;
           }
-          if (block.isOrphaned) {
+          if (block.isAlternative) {
             orphanedBlocks.push_back(block);
           } else {
-            if (block.height > knownBlockchainTop.height || block.hash != knownBlockchainTop.hash) {
+            // changed height to index here
+            if (block.index > knownBlockchainTop.index || block.hash != knownBlockchainTop.hash) {
               newBlocks.push_back(block);
             }
             if (!gotTopMainchainBlock) {

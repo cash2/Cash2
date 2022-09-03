@@ -327,7 +327,7 @@ bool addBlock1(Blockchain& blockchain, Currency& currency, tx_memory_pool& tx_me
   // Must use a while loop find the actual current block size so that the coinbase transaction output amount is correct
   while (true)
   {
-    currency.constructMinerTx1(currentBlockchainHeight, medianBlockSize, alreadyGeneratedCoins, currentBlockSize,
+    currency.constructMinerTx(currentBlockchainHeight, medianBlockSize, alreadyGeneratedCoins, currentBlockSize,
     fee, AccountPublicAddress(), block.baseTransaction, BinaryArray(), maxOuts);
 
     size_t actualBlockSize = getBlockSize(block.baseTransaction, transactions);
@@ -343,7 +343,7 @@ bool addBlock1(Blockchain& blockchain, Currency& currency, tx_memory_pool& tx_me
   // add merkle root
   block.merkleRoot = get_tx_tree_hash(block);
 
-  difficulty_type difficulty = blockchain.getDifficultyForNextBlock();
+  Difficulty difficulty = blockchain.getDifficultyForNextBlock();
 
   // find nonce appropriate for current difficulty
   Crypto::Hash proofOfWorkIgnore = NULL_HASH;
@@ -365,7 +365,7 @@ bool addBlock1(Blockchain& blockchain, Currency& currency, tx_memory_pool& tx_me
 // Adds a new block to the blockchain
 // Finds nonce appropriate for difficulty
 // Able to set the block timestamp
-bool addBlock2(Blockchain& blockchain, Currency& currency, tx_memory_pool& tx_memory_pool, const uint64_t timestamp = time(nullptr), const difficulty_type difficulty = 1)
+bool addBlock2(Blockchain& blockchain, Currency& currency, tx_memory_pool& tx_memory_pool, const uint64_t timestamp = time(nullptr), const Difficulty difficulty = 1)
 {
   uint32_t currentBlockchainHeight = blockchain.getCurrentBlockchainHeight();
 
@@ -420,7 +420,7 @@ bool addBlock2(Blockchain& blockchain, Currency& currency, tx_memory_pool& tx_me
   // Must use a while loop find the actual current block size so that the coinbase transaction output amount is correct
   while (true)
   {
-    currency.constructMinerTx1(currentBlockchainHeight, medianBlockSize, alreadyGeneratedCoins, currentBlockSize,
+    currency.constructMinerTx(currentBlockchainHeight, medianBlockSize, alreadyGeneratedCoins, currentBlockSize,
     fee, AccountPublicAddress(), block.baseTransaction, BinaryArray(), maxOuts);
 
     size_t actualBlockSize = getBlockSize(block.baseTransaction, transactions);
@@ -508,7 +508,7 @@ bool addBlock3(Blockchain& blockchain, Currency& currency, tx_memory_pool& tx_me
   // Must use a while loop find the actual current block size so that the coinbase transaction output amount is correct
   while (true)
   {
-    currency.constructMinerTx1(currentBlockchainHeight, medianBlockSize, alreadyGeneratedCoins, currentBlockSize,
+    currency.constructMinerTx(currentBlockchainHeight, medianBlockSize, alreadyGeneratedCoins, currentBlockSize,
     fee, AccountPublicAddress(), block.baseTransaction, BinaryArray(), maxOuts);
 
     size_t actualBlockSize = getBlockSize(block.baseTransaction, transactions);
@@ -524,7 +524,7 @@ bool addBlock3(Blockchain& blockchain, Currency& currency, tx_memory_pool& tx_me
   // add merkle root
   block.merkleRoot = get_tx_tree_hash(block);
 
-  difficulty_type difficulty = blockchain.getDifficultyForNextBlock();
+  Difficulty difficulty = blockchain.getDifficultyForNextBlock();
 
   // find nonce appropriate for current difficulty
   Crypto::Hash proofOfWorkIgnore = NULL_HASH;
@@ -658,7 +658,7 @@ bool addBlock4(Blockchain& blockchain, Currency& currency, tx_memory_pool& tx_me
   // add merkle root
   block1.merkleRoot = get_tx_tree_hash(block1);
 
-  difficulty_type difficulty = blockchain.getDifficultyForNextBlock();
+  Difficulty difficulty = blockchain.getDifficultyForNextBlock();
 
   // find nonce appropriate for current difficulty
   Crypto::Hash proofOfWorkIgnore = NULL_HASH;
@@ -965,7 +965,7 @@ bool addBlock5(Blockchain& blockchain, Currency& currency, tx_memory_pool& tx_me
   // add merkle root
   block1.merkleRoot = get_tx_tree_hash(block1);
 
-  difficulty_type difficulty = blockchain.getDifficultyForNextBlock();
+  Difficulty difficulty = blockchain.getDifficultyForNextBlock();
 
   // find nonce appropriate for current difficulty
   Crypto::Hash proofOfWorkIgnore = NULL_HASH;
@@ -1213,7 +1213,7 @@ bool addBlock7(Blockchain& blockchain, Currency& currency, tx_memory_pool& tx_me
   // Must use a while loop find the actual current block size so that the coinbase transaction output amount is correct
   while (true)
   {
-    currency.constructMinerTx1(currentBlockchainHeight, medianBlockSize, alreadyGeneratedCoins, currentBlockSize,
+    currency.constructMinerTx(currentBlockchainHeight, medianBlockSize, alreadyGeneratedCoins, currentBlockSize,
     fee, AccountPublicAddress(), block.baseTransaction, BinaryArray(), maxOuts);
 
     size_t actualBlockSize = getBlockSize(block.baseTransaction, transactions);
@@ -1229,7 +1229,7 @@ bool addBlock7(Blockchain& blockchain, Currency& currency, tx_memory_pool& tx_me
   // add merkle root
   block.merkleRoot = get_tx_tree_hash(block);
 
-  difficulty_type difficulty = blockchain.getDifficultyForNextBlock();
+  Difficulty difficulty = blockchain.getDifficultyForNextBlock();
 
   // find nonce appropriate for current difficulty
   Crypto::Hash proofOfWorkIgnore = NULL_HASH;
@@ -1310,7 +1310,7 @@ bool addBlock8(Blockchain& blockchain, Currency& currency, tx_memory_pool& tx_me
   // Must use a while loop find the actual current block size so that the coinbase transaction output amount is correct
   while (true)
   {
-    currency.constructMinerTx1(currentBlockchainHeight, medianBlockSize, alreadyGeneratedCoins, currentBlockSize,
+    currency.constructMinerTx(currentBlockchainHeight, medianBlockSize, alreadyGeneratedCoins, currentBlockSize,
     fee, AccountPublicAddress(), block.baseTransaction, BinaryArray(), maxOuts);
 
     size_t actualBlockSize = getBlockSize(block.baseTransaction, transactions);
@@ -1326,7 +1326,7 @@ bool addBlock8(Blockchain& blockchain, Currency& currency, tx_memory_pool& tx_me
   // add merkle root
   block.merkleRoot = get_tx_tree_hash(block);
 
-  difficulty_type difficulty = blockchain.getDifficultyForNextBlock();
+  Difficulty difficulty = blockchain.getDifficultyForNextBlock();
 
   // find nonce appropriate for current difficulty
   Crypto::Hash proofOfWorkIgnore = NULL_HASH;
@@ -1438,7 +1438,7 @@ bool addBlock9(Blockchain& blockchain, Currency& currency, tx_memory_pool& tx_me
   // add merkle root
   block.merkleRoot = get_tx_tree_hash(block);
 
-  difficulty_type difficulty = blockchain.getDifficultyForNextBlock();
+  Difficulty difficulty = blockchain.getDifficultyForNextBlock();
 
   // find nonce appropriate for current difficulty
   Crypto::Hash proofOfWorkIgnore = NULL_HASH;
@@ -1514,7 +1514,7 @@ bool addAlternativeBlock(Blockchain& blockchain, Currency& currency, tx_memory_p
 
   while (true)
   {
-    currency.constructMinerTx1(blockHeight, medianBlockSize, alreadyGeneratedCoins, currentBlockSize,
+    currency.constructMinerTx(blockHeight, medianBlockSize, alreadyGeneratedCoins, currentBlockSize,
     fee, AccountPublicAddress(), block.baseTransaction, BinaryArray(), maxOuts);
 
     size_t actualBlockSize = getBlockSize(block.baseTransaction, transactions);
@@ -1530,7 +1530,7 @@ bool addAlternativeBlock(Blockchain& blockchain, Currency& currency, tx_memory_p
   // add merkle root
   block.merkleRoot = get_tx_tree_hash(block);
 
-  difficulty_type difficulty = blockchain.getDifficultyForNextBlock();
+  Difficulty difficulty = blockchain.getDifficultyForNextBlock();
 
   // find nonce appropriate for difficulty
   Crypto::Hash proofOfWorkIgnore = NULL_HASH;
@@ -2155,7 +2155,7 @@ TEST(Blockchain, 19)
   // add merkle root
   block1.merkleRoot = get_tx_tree_hash(block1);
 
-  difficulty_type difficulty = blockchain.getDifficultyForNextBlock();
+  Difficulty difficulty = blockchain.getDifficultyForNextBlock();
 
   // find nonce appropriate for current difficulty
   Crypto::Hash proofOfWorkIgnore = NULL_HASH;
@@ -2624,7 +2624,7 @@ TEST(Blockchain, 26)
   block1.merkleRoot = get_tx_tree_hash(block1);
 
   // find nonce appropriate for current difficulty
-  difficulty_type difficulty = blockchain.getDifficultyForNextBlock();
+  Difficulty difficulty = blockchain.getDifficultyForNextBlock();
   Crypto::Hash proofOfWorkIgnore = NULL_HASH;
   Crypto::cn_context context;
   while(!currency.checkProofOfWork1(context, block1, difficulty, proofOfWorkIgnore))
@@ -2873,7 +2873,7 @@ TEST(Blockchain, 27)
   std::string config_folder = Tools::getDefaultDataDirectory();
   ASSERT_TRUE(blockchain.init(config_folder, false));
 
-  difficulty_type difficulty = blockchain.getDifficultyForNextBlock();
+  Difficulty difficulty = blockchain.getDifficultyForNextBlock();
 
   ASSERT_EQ(1, difficulty);
 

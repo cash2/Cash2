@@ -152,9 +152,8 @@ namespace Tests {
       bool waitForPoolSize(size_t nodeIndex, CryptoNote::INode& node, size_t expectedPoolSize,
         std::vector<std::unique_ptr<CryptoNote::ITransactionReader>>& txPool);
 
-      bool prepareAndSubmitBlock(TestNode& node, CryptoNote::Block&& blockTemplate);
+      bool prepareAndSubmitBlock(TestNode& node, CryptoNote::BlockTemplate&& blockTemplate);
 
-    private:
 #ifdef __linux__
       std::vector<__pid_t> pids;
 #endif

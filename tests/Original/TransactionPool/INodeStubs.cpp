@@ -50,7 +50,7 @@ bool INodeDummyStub::removeObserver(INodeObserver* observer) {
   return observerManager.remove(observer);
 }
 
-void INodeTrivialRefreshStub::getNewBlocks(std::vector<Crypto::Hash>&& knownBlockIds, std::vector<block_complete_entry>& newBlocks, uint32_t& startHeight, const Callback& callback)
+void INodeTrivialRefreshStub::getNewBlocks(std::vector<Crypto::Hash>&& knownBlockIds, std::vector<RawBlock>& newBlocks, uint32_t& startHeight, const Callback& callback)
 {
   m_asyncCounter.addAsyncContext();
 
@@ -67,7 +67,7 @@ void INodeTrivialRefreshStub::waitForAsyncContexts() {
   m_asyncCounter.waitAsyncContextsFinish();
 }
 
-void INodeTrivialRefreshStub::doGetNewBlocks(std::vector<Crypto::Hash> knownBlockIds, std::vector<block_complete_entry>& newBlocks,
+void INodeTrivialRefreshStub::doGetNewBlocks(std::vector<Crypto::Hash> knownBlockIds, std::vector<RawBlock>& newBlocks,
         uint32_t& startHeight, std::vector<Block> blockchain, const Callback& callback)
 {
   ContextCounterHolder counterHolder(m_asyncCounter);
@@ -77,7 +77,7 @@ void INodeTrivialRefreshStub::doGetNewBlocks(std::vector<Crypto::Hash> knownBloc
 
   for (const auto& id : knownBlockIds) {
     start = std::find_if(blockchain.begin(), blockchain.end(), 
-      [&id](Block& block) { return get_block_hash(block) == id; });
+      [&id](BlockTemplate& block) { return get_block_hash(block) == id; });
     if (start != blockchain.end())
       break;
   }
@@ -119,7 +119,7 @@ void INodeTrivialRefreshStub::doGetNewBlocks(std::vector<Crypto::Hash> knownBloc
   callback(std::error_code());
 }
 
-void INodeTrivialRefreshStub::getTransactionOutsGlobalIndexes(const Crypto::Hash& transactionHash, std::vector<uint32_t>& outsGlobalIndexes, const Callback& callback)
+void INodeTrivialRefreshStub::getTransactionOutsGlobalIndices(const Crypto::Hash& transactionHash, std::vector<uint32_t>& outsGlobalIndexes, const Callback& callback)
 {
   m_asyncCounter.addAsyncContext();
   std::unique_lock<std::mutex> lock(m_walletLock);
@@ -226,7 +226,7 @@ void INodeTrivialRefreshStub::doGetRandomOutsByAmounts(std::vector<uint64_t> amo
 
 void INodeTrivialRefreshStub::queryBlocks(std::vector<Crypto::Hash>&& knownBlockIds, uint64_t timestamp,
         std::vector<BlockShortEntry>& newBlocks, uint32_t& startHeight, const Callback& callback) {
-  auto resultHolder = std::make_shared<std::vector<block_complete_entry>>();
+  auto resultHolder = std::make_shared<std::vector<RawBlock>>();
 
   getNewBlocks(std::move(knownBlockIds), *resultHolder, startHeight, [resultHolder, callback, &startHeight, &newBlocks](std::error_code ec)
   {
@@ -368,7 +368,7 @@ void INodeTrivialRefreshStub::doGetBlocks(const std::vector<uint32_t>& blockHeig
     }
     BlockDetails b = BlockDetails();
     b.height = height;
-    b.isOrphaned = false;
+    b.isAlternative = false;
     Crypto::Hash hash = get_block_hash(m_blockchainGenerator.getBlockchain()[height]);
     b.hash = hash;
     if (!m_blockchainGenerator.getGeneratedTransactionsNumber(height, b.alreadyGeneratedTransactions)) {
@@ -413,7 +413,7 @@ void INodeTrivialRefreshStub::doGetBlocks(const std::vector<Crypto::Hash>& block
     auto iter = std::find_if(
         m_blockchainGenerator.getBlockchain().begin(), 
         m_blockchainGenerator.getBlockchain().end(), 
-        [&hash](const Block& block) -> bool {
+        [&hash](const BlockTemplate& block) -> bool {
           return hash == get_block_hash(block);
         }
     );
@@ -425,7 +425,7 @@ void INodeTrivialRefreshStub::doGetBlocks(const std::vector<Crypto::Hash>& block
     BlockDetails b = BlockDetails();
     Crypto::Hash actualHash = get_block_hash(*iter);
     b.hash = actualHash;
-    b.isOrphaned = false;
+    b.isAlternative = false;
     blocks.push_back(b);
   }
 
@@ -474,7 +474,7 @@ void INodeTrivialRefreshStub::doGetBlocks(uint64_t timestampBegin, uint64_t time
     auto iter = std::find_if(
         m_blockchainGenerator.getBlockchain().begin(), 
         m_blockchainGenerator.getBlockchain().end(), 
-        [&hash](const Block& block) -> bool {
+        [&hash](const BlockTemplate& block) -> bool {
           return hash == get_block_hash(block);
         }
     );
@@ -485,7 +485,7 @@ void INodeTrivialRefreshStub::doGetBlocks(uint64_t timestampBegin, uint64_t time
     BlockDetails b = BlockDetails();
     Crypto::Hash actualHash = get_block_hash(*iter);
     b.hash = actualHash;
-    b.isOrphaned = false;
+    b.isAlternative = false;
     b.timestamp = iter->timestamp;
     blocks.push_back(b);
   }

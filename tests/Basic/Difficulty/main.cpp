@@ -91,7 +91,7 @@ TEST(Difficulty, 4)
 {
   // check that there are at least 10 leading zeros
 
-  difficulty_type difficulty = 1;
+  Difficulty difficulty = 1;
 
   Crypto::Hash hash =
   {
@@ -237,7 +237,7 @@ TEST(Difficulty, 5)
     0xFF, 0xFF
   };
 
-  difficulty_type difficulty = 100;
+  Difficulty difficulty = 100;
   ASSERT_TRUE(check_hash2(hash, difficulty));
 }
 
@@ -254,7 +254,7 @@ TEST(Difficulty, 6)
     0xFF, 0xFF
   };
 
-  difficulty_type difficulty = 500;
+  Difficulty difficulty = 500;
   ASSERT_TRUE(check_hash2(hash, difficulty));
 }
 
@@ -269,7 +269,7 @@ TEST(Difficulty, 7)
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     0xFF, 0xFF
   };
-  difficulty_type difficulty = 109951162777600;
+  Difficulty difficulty = 109951162777600;
   ASSERT_TRUE(check_hash1(hash, difficulty));
 }
 
@@ -284,7 +284,7 @@ TEST(Difficulty, 8)
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     0xFF, 0xFF
   };
-  difficulty_type difficulty = 549755813888000;
+  Difficulty difficulty = 549755813888000;
   ASSERT_TRUE(check_hash1(hash, difficulty));
 }
 
@@ -302,7 +302,7 @@ TEST(Difficulty, 9)
     0xFF, 0xFF
   };
 
-  difficulty_type difficulty = 1000000;
+  Difficulty difficulty = 1000000;
   ASSERT_TRUE(check_hash2(hash, difficulty));
 }
 
@@ -320,7 +320,7 @@ TEST(Difficulty, 10)
     0xFF, 0xFF
   };
 
-  difficulty_type difficulty = 1000000000;
+  Difficulty difficulty = 1000000000;
   ASSERT_TRUE(check_hash2(hash, difficulty));
 }
 
@@ -338,7 +338,7 @@ TEST(Difficulty, 11)
     0xFF, 0xFF
   };
 
-  difficulty_type difficulty = 1000000000000;
+  Difficulty difficulty = 1000000000000;
   ASSERT_TRUE(check_hash2(hash, difficulty));
 }
 
@@ -356,7 +356,7 @@ TEST(Difficulty, 12)
     0xFF, 0xFF
   };
 
-  difficulty_type difficulty = 1000000000000000;
+  Difficulty difficulty = 1000000000000000;
   ASSERT_TRUE(check_hash2(hash, difficulty));
 }
 
@@ -374,7 +374,7 @@ TEST(Difficulty, 13)
     0xFF, 0xFF
   };
 
-  difficulty_type difficulty = 1000000000000000000;
+  Difficulty difficulty = 1000000000000000000;
   ASSERT_TRUE(check_hash2(hash, difficulty));
 }
 
@@ -392,7 +392,7 @@ TEST(Difficulty, 14)
     0xFF, 0xFF
   };
 
-  difficulty_type difficulty = 18446744073709551615ul;
+  Difficulty difficulty = 18446744073709551615ul;
   ASSERT_TRUE(check_hash2(hash, difficulty));
 }
 
@@ -411,7 +411,7 @@ TEST(Difficulty, 15)
   // Original difficulty for this hash is 561,040,591,725,467
   // 561,040,591,725,467 / 1,099,511,627,776 = 510
 
-  difficulty_type difficulty = 510;
+  Difficulty difficulty = 510;
   ASSERT_TRUE(check_hash2(hash, difficulty));
 }
 

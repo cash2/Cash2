@@ -63,13 +63,13 @@ void CreateAddress::Response::serialize(CryptoNote::ISerializer& serializer) {
   serializer(address, "address");
 }
 
-void CreateAddresses::Request::serialize(CryptoNote::ISerializer& serializer) {
+void CreateAddressList::Request::serialize(CryptoNote::ISerializer& serializer) {
   if (!serializer(spendPrivateKeys, "spendPrivateKeys")) {
     throw RequestSerializationError();
   }
 }
 
-void CreateAddresses::Response::serialize(CryptoNote::ISerializer& serializer) {
+void CreateAddressList::Response::serialize(CryptoNote::ISerializer& serializer) {
   serializer(addresses, "addresses");
 }
 

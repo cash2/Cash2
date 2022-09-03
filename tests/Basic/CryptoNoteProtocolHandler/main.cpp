@@ -11,7 +11,6 @@
 #include "CryptoNoteCore/Currency.h"
 #include "Logging/ConsoleLogger.h"
 #include "System/Dispatcher.h"
-#include "CryptoNoteCore/CoreConfig.h"
 #include "CryptoNoteCore/MinerConfig.h"
 #include <random>
 #include <iostream>
@@ -109,7 +108,7 @@ bool addBlock1(core& core, Currency& currency)
   BinaryArray extraNonce;
 
   Block block;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint32_t height;
 
   core.get_block_template(block, accountPublicAddress, difficulty, height, extraNonce);

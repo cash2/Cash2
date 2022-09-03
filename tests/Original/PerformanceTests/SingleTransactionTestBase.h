@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "CryptoNoteConfig.h"
 #include "CryptoNoteCore/Account.h"
 #include "CryptoNoteCore/CryptoNoteBasic.h"
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
@@ -21,7 +22,7 @@ public:
     Currency currency = CurrencyBuilder(m_nullLog).currency();
     m_bob.generate();
 
-    if (!currency.constructMinerTx1(0, 0, 0, 2, 0, m_bob.getAccountKeys().address, m_tx))
+    if (!currency.constructMinerTx(CryptoNote::BLOCK_MAJOR_VERSION_1, 0, 0, 0, 2, 0, m_bob.getAccountKeys().address, m_tx))
       return false;
 
     m_tx_pub_key = getTransactionPublicKeyFromExtra(m_tx.extra);

@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <ostream>
 #include <vector>
 #include <string>
 
@@ -59,6 +60,37 @@ template<typename T> T readVarint(IInputStream& in) {
   T value;
   readVarint(in, value);
   return value;
+}
+
+template<typename T>
+class ContainerFormatter {
+public:
+  explicit ContainerFormatter(const T& container) :
+    m_container(container) {
+  }
+
+  friend std::ostream& operator<<(std::ostream& os, const ContainerFormatter<T>& formatter) {
+    os << '{';
+
+    if (!formatter.m_container.empty()) {
+      os << formatter.m_container.front();
+      for (auto it = std::next(formatter.m_container.begin()); it != formatter.m_container.end(); ++it) {
+        os << ", " << *it;
+      }
+    }
+
+    os << '}';
+
+    return os;
+  }
+
+private:
+  const T& m_container;
+};
+
+template<typename T>
+ContainerFormatter<T> makeContainerFormatter(const T& container) {
+  return ContainerFormatter<T>(container);
 }
 
 };

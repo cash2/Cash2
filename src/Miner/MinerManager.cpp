@@ -178,7 +178,7 @@ void MinerManager::stopBlockchainMonitoring() {
   m_blockchainMonitor.stop();
 }
 
-bool MinerManager::submitBlock(const Block& minedBlock, const std::string& daemonHost, uint16_t daemonPort) {
+bool MinerManager::submitBlock(const BlockTemplate& minedBlock, const std::string& daemonHost, uint16_t daemonPort) {
   try {
     HttpClient client(m_dispatcher, daemonHost, daemonPort);
 
@@ -231,7 +231,7 @@ BlockMiningParameters MinerManager::requestMiningParameters(System::Dispatcher& 
 }
 
 
-void MinerManager::adjustBlockTemplate(CryptoNote::Block& blockTemplate) const {
+void MinerManager::adjustBlockTemplate(CryptoNote::BlockTemplate& blockTemplate) const {
   if (m_config.firstBlockTimestamp == 0) {
     //no need to fix timestamp
     return;

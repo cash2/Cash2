@@ -40,17 +40,17 @@ bool test_transaction_generation_and_ring_signature()
   AccountBase rv_acc2;
   rv_acc2.generate();
   Transaction tx_mine_1;
-  currency.constructMinerTx1(0, 0, 0, 10, 0, miner_acc1.getAccountKeys().address, tx_mine_1);
+  currency.constructMinerTx(BLOCK_MAJOR_VERSION_1, 0, 0, 0, 10, 0, miner_acc1.getAccountKeys().address, tx_mine_1);
   Transaction tx_mine_2;
-  currency.constructMinerTx1(0, 0, 0, 0, 0, miner_acc2.getAccountKeys().address, tx_mine_2);
+  currency.constructMinerTx(BLOCK_MAJOR_VERSION_1, 0, 0, 0, 0, 0, miner_acc2.getAccountKeys().address, tx_mine_2);
   Transaction tx_mine_3;
-  currency.constructMinerTx1(0, 0, 0, 0, 0, miner_acc3.getAccountKeys().address, tx_mine_3);
+  currency.constructMinerTx(BLOCK_MAJOR_VERSION_1, 0, 0, 0, 0, 0, miner_acc3.getAccountKeys().address, tx_mine_3);
   Transaction tx_mine_4;
-  currency.constructMinerTx1(0, 0, 0, 0, 0, miner_acc4.getAccountKeys().address, tx_mine_4);
+  currency.constructMinerTx(BLOCK_MAJOR_VERSION_1, 0, 0, 0, 0, 0, miner_acc4.getAccountKeys().address, tx_mine_4);
   Transaction tx_mine_5;
-  currency.constructMinerTx1(0, 0, 0, 0, 0, miner_acc5.getAccountKeys().address, tx_mine_5);
+  currency.constructMinerTx(BLOCK_MAJOR_VERSION_1, 0, 0, 0, 0, 0, miner_acc5.getAccountKeys().address, tx_mine_5);
   Transaction tx_mine_6;
-  currency.constructMinerTx1(0, 0, 0, 0, 0, miner_acc6.getAccountKeys().address, tx_mine_6);
+  currency.constructMinerTx(BLOCK_MAJOR_VERSION_1, 0, 0, 0, 0, 0, miner_acc6.getAccountKeys().address, tx_mine_6);
 
   //fill inputs entry
   typedef TransactionSourceEntry::OutputEntry tx_output_entry;
@@ -109,7 +109,7 @@ bool test_transaction_generation_and_ring_signature()
   output_keys.push_back(&boost::get<KeyOutput>(tx_mine_5.outputs[0].target).key);
   output_keys.push_back(&boost::get<KeyOutput>(tx_mine_6.outputs[0].target).key);
   r = Crypto::check_ring_signature(pref_hash, boost::get<KeyInput>(tx_rc1.inputs[0]).keyImage,
-    output_keys, &tx_rc1.signatures[0][0]);
+    output_keys, &tx_rc1.signatures[0][0], true);
   CHECK_AND_ASSERT_MES(r, false, "failed to check ring signature");
 
   std::vector<size_t> outs;
@@ -136,8 +136,8 @@ bool test_block_creation()
   AccountPublicAddress adr;
   bool r = currency.parseAccountAddressString("272xWzbWsP4cfNFfxY5ETN5moU8x81PKfWPwynrrqsNGDBQGLmD1kCkKCvPeDUXu5XfmZkCrQ53wsWmdfvHBGLNjGcRiDcK", adr);
   CHECK_AND_ASSERT_MES(r, false, "failed to import");
-  Block b;
-  r = currency.constructMinerTx1(90, Common::medianValue(szs), 3553616528562147, 33094, 10000000, adr, b.baseTransaction, BinaryArray(), 11);
+  BlockTemplate b;
+  r = currency.constructMinerTx(BLOCK_MAJOR_VERSION_1, 90, Common::medianValue(szs), 3553616528562147, 33094, 10000000, adr, b.baseTransaction, BinaryArray(), 11);
   return r;
 }
 

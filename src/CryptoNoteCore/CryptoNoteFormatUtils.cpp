@@ -112,7 +112,7 @@ bool constructTransaction(
   std::vector<uint8_t> extra,
   Transaction& tx,
   uint64_t unlock_time,
-  Crypto::SecretKey &tx_key,                          
+  Crypto::SecretKey &tx_key,
   Logging::ILogger& log) {
   LoggerRef logger(log, "construct_tx");
 
@@ -261,7 +261,7 @@ bool get_inputs_money_amount(const Transaction& tx, uint64_t& money) {
   return true;
 }
 
-uint32_t get_block_height(const Block& b) {
+uint32_t get_block_height(const BlockTemplate& b) {
   if (b.baseTransaction.inputs.size() != 1) {
     return 0;
   }
@@ -456,7 +456,7 @@ bool lookup_acc_outs(const AccountKeys& acc, const Transaction& tx, const Public
   return true;
 }
 
-bool get_block_hashing_blob(const Block& b, BinaryArray& ba) {
+bool get_block_hashing_blob(const BlockTemplate& b, BinaryArray& ba) {
   BlockHeader blockHeader;
 
   blockHeader.previousBlockHash = b.previousBlockHash;
@@ -471,7 +471,7 @@ bool get_block_hashing_blob(const Block& b, BinaryArray& ba) {
   return true;
 }
 
-bool get_block_hash(const Block& b, Hash& res) {
+bool get_block_hash(const BlockTemplate& b, Hash& res) {
   BinaryArray ba;
   if (!get_block_hashing_blob(b, ba)) {
     return false;
@@ -480,13 +480,13 @@ bool get_block_hash(const Block& b, Hash& res) {
   return getObjectHash(ba, res);
 }
 
-Hash get_block_hash(const Block& b) {
+Hash get_block_hash(const BlockTemplate& b) {
   Hash p = NULL_HASH;
   get_block_hash(b, p);
   return p;
 }
 
-bool get_aux_block_header_hash(const Block& b, Hash& res) {
+bool get_aux_block_header_hash(const BlockTemplate& b, Hash& res) {
   BinaryArray blob;
   if (!get_block_hashing_blob(b, blob)) {
     return false;
@@ -495,7 +495,7 @@ bool get_aux_block_header_hash(const Block& b, Hash& res) {
   return getObjectHash(blob, res);
 }
 
-bool get_block_longhash(cn_context &context, const Block& b, Hash& res) {
+bool get_block_longhash(cn_context &context, const BlockTemplate& b, Hash& res) {
   BinaryArray bd;
   if (!get_block_hashing_blob(b, bd)) {
     return false;
@@ -512,7 +512,7 @@ bool get_block_longhash(cn_context &context, const Block& b, Hash& res) {
   return true;
 }
 
-std::vector<uint32_t> relative_output_offsets_to_absolute(const std::vector<uint32_t>& off) {
+std::vector<uint32_t> relativeOutputOffsetsToAbsolute(const std::vector<uint32_t>& off) {
   std::vector<uint32_t> res = off;
   for (size_t i = 1; i < res.size(); i++)
     res[i] += res[i - 1];
@@ -540,7 +540,7 @@ Hash get_tx_tree_hash(const std::vector<Hash>& tx_hashes) {
   return h;
 }
 
-Hash get_tx_tree_hash(const Block& b) {
+Hash get_tx_tree_hash(const BlockTemplate& b) {
   BinaryArray baseTransactionBA;
  
   toBinaryArray(b.baseTransaction, baseTransactionBA);

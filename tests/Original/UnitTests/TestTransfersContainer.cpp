@@ -30,10 +30,10 @@ namespace {
       TEST_CONTAINER_CURRENT_HEIGHT = 1000
     };
 
-    TransfersContainerTest() : 
-      currency(CurrencyBuilder(logger).currency()), 
-      container(currency, TEST_TRANSACTION_SPENDABLE_AGE), 
-      account(generateAccountKeys()) {   
+    TransfersContainerTest() :
+      currency(CurrencyBuilder(logger).currency()),
+      container(currency, logger, TEST_TRANSACTION_SPENDABLE_AGE),
+      account(generateAccountKeys()) {
     }
 
   protected:

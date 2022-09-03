@@ -21,14 +21,14 @@ struct KeyInput {
   Crypto::KeyImage keyImage;
 };
 
+struct KeyOutput {
+  Crypto::PublicKey key;
+};
+
 struct MultisignatureInput {
   uint64_t amount;
   uint8_t signatureCount;
   uint32_t outputIndex;
-};
-
-struct KeyOutput {
-  Crypto::PublicKey key;
 };
 
 struct MultisignatureOutput {
@@ -57,14 +57,30 @@ struct Transaction : public TransactionPrefix {
   std::vector<std::vector<Crypto::Signature>> signatures;
 };
 
+struct BaseTransaction : public TransactionPrefix {
+};
+
+struct ParentBlock {
+  uint8_t majorVersion;
+  uint8_t minorVersion;
+  Crypto::Hash previousBlockHash;
+  uint16_t transactionCount;
+  std::vector<Crypto::Hash> baseTransactionBranch;
+  BaseTransaction baseTransaction;
+  std::vector<Crypto::Hash> blockchainBranch;
+};
+
 struct BlockHeader {
-  uint64_t nonce;
+  uint8_t majorVersion;
+  uint8_t minorVersion;
+  uint32_t nonce;
   uint64_t timestamp;
   Crypto::Hash previousBlockHash;
   Crypto::Hash merkleRoot;
 };
 
-struct Block : public BlockHeader {
+struct BlockTemplate : public BlockHeader {
+  ParentBlock parentBlock;
   Transaction baseTransaction;
   std::vector<Crypto::Hash> transactionHashes;
 };
@@ -86,5 +102,10 @@ struct KeyPair {
 };
 
 using BinaryArray = std::vector<uint8_t>;
+
+struct RawBlock {
+  BinaryArray block; //BlockTemplate
+  std::vector<BinaryArray> transactions;
+};
 
 }

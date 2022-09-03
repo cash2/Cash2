@@ -22,4 +22,8 @@ void ScopeExit::cancel() {
   m_cancelled = true;
 }
 
+void ScopeExit::resume() {
+  m_cancelled = false;
+}
+
 }

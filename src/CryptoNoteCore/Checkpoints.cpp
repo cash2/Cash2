@@ -29,11 +29,11 @@ bool Checkpoints::add_checkpoint(uint32_t height, const std::string &hash_str) {
   return true;
 }
 //---------------------------------------------------------------------------
-bool Checkpoints::is_in_checkpoint_zone(uint32_t  height) const {
+bool Checkpoints::isInCheckpointZone(uint32_t  height) const {
   return !m_points.empty() && (height <= (--m_points.end())->first);
 }
 //---------------------------------------------------------------------------
-bool Checkpoints::check_block(uint32_t  height, const Crypto::Hash &h,
+bool Checkpoints::checkBlock(uint32_t  height, const Crypto::Hash &h,
                               bool &is_a_checkpoint) const {
   auto it = m_points.find(height);
   is_a_checkpoint = it != m_points.end();
@@ -52,9 +52,9 @@ bool Checkpoints::check_block(uint32_t  height, const Crypto::Hash &h,
   }
 }
 //---------------------------------------------------------------------------
-bool Checkpoints::check_block(uint32_t  height, const Crypto::Hash &h) const {
+bool Checkpoints::checkBlock(uint32_t  height, const Crypto::Hash &h) const {
   bool ignored;
-  return check_block(height, h, ignored);
+  return checkBlock(height, h, ignored);
 }
 //---------------------------------------------------------------------------
 bool Checkpoints::is_alternative_block_allowed(uint32_t  blockchain_height,

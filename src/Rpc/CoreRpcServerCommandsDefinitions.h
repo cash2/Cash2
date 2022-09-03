@@ -11,7 +11,11 @@
 #include "CryptoNoteCore/Difficulty.h"
 #include "crypto/hash.h"
 
+#include "BlockchainExplorerData.h"
+
 #include "Serialization/SerializationOverloads.h"
+#include "Serialization/BlockchainExplorerDataSerialization.h"
+#include <CryptoNoteCore/ICoreDefinitions.h>
 
 namespace CryptoNote {
 //-----------------------------------------------
@@ -55,7 +59,7 @@ struct COMMAND_RPC_GET_BLOCKS_FAST {
   };
 
   struct response {
-    std::vector<block_complete_entry> blocks;
+    std::vector<RawBlock> blocks;
     uint64_t start_height;
     uint64_t current_height;
     std::string status;
@@ -372,6 +376,10 @@ struct COMMAND_RPC_SUBMITBLOCK {
 };
 
 struct block_header_response {
+  // TODO: figure out what to do with major_version and minor_version
+  // because Cash2 does not originally have these 2 values
+  uint8_t major_version;
+  uint8_t minor_version;
   uint64_t timestamp;
   std::string prev_hash;
   std::string merkle_root;
@@ -380,7 +388,7 @@ struct block_header_response {
   uint64_t height;
   uint64_t depth;
   std::string hash;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint64_t reward;
 
   void serialize(ISerializer &s) {
@@ -501,7 +509,7 @@ struct f_block_short_response {
   std::string hash;
   uint64_t tx_count;
   uint64_t cumul_size;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint64_t min_tx_fee;
 
   void serialize(ISerializer &s) {
@@ -538,7 +546,7 @@ struct f_block_details_response {
   uint64_t height;
   uint64_t depth;
   std::string hash;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint64_t reward;
   uint64_t blockSize;
   size_t sizeMedian;
@@ -741,6 +749,88 @@ struct COMMAND_RPC_VALIDATE_ADDRESS {
 			KV_MEMBER(status)
 		}
 	};
+};
+
+struct COMMAND_RPC_GET_BLOCKS_DETAILS_BY_HASHES {
+  struct request {
+    std::vector<Crypto::Hash> blockHashes;
+
+    void serialize(ISerializer& s) {
+      serializeAsBinary(blockHashes, "blockHashes", s);
+    }
+  };
+
+  struct response {
+    std::vector<BlockDetails> blocks;
+    std::string status;
+
+    void serialize(ISerializer& s) {
+      KV_MEMBER(status)
+      KV_MEMBER(blocks)
+    }
+  };
+};
+
+struct COMMAND_RPC_GET_BLOCKS_HASHES_BY_TIMESTAMPS {
+  struct request {
+    uint64_t timestampBegin;
+    uint64_t secondsCount;
+
+    void serialize(ISerializer &s) {
+      KV_MEMBER(timestampBegin)
+      KV_MEMBER(secondsCount)
+    }
+  };
+
+  struct response {
+    std::vector<Crypto::Hash> blockHashes;
+    std::string status;
+
+    void serialize(ISerializer &s) {
+      KV_MEMBER(status)
+      KV_MEMBER(blockHashes)
+    }
+  };
+};
+
+struct COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID {
+  struct request {
+    Crypto::Hash paymentId;
+
+    void serialize(ISerializer &s) {
+      KV_MEMBER(paymentId)
+    }
+  };
+
+  struct response {
+    std::vector<Crypto::Hash> transactionHashes;
+    std::string status;
+
+    void serialize(ISerializer &s) {
+      KV_MEMBER(status)
+      serializeAsBinary(transactionHashes, "transactionHashes", s);
+    }
+  };
+};
+
+struct COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASHES {
+  struct request {
+    std::vector<Crypto::Hash> transactionHashes;
+
+    void serialize(ISerializer &s) {
+      serializeAsBinary(transactionHashes, "transactionHashes", s);
+    }
+  };
+
+  struct response {
+    std::vector<TransactionDetails> transactions;
+    std::string status;
+
+    void serialize(ISerializer &s) {
+      KV_MEMBER(status)
+      KV_MEMBER(transactions)
+    }
+  };
 };
 
 } // end namespace CryptoNote

@@ -75,7 +75,7 @@ public:
     {
       m_miners[i].generate();
 
-      if (!m_currency.constructMinerTx1(0, 0, 0, 2, 0, m_miners[i].getAccountKeys().address, m_miner_txs[i])) {
+      if (!m_currency.constructMinerTx(0, 0, 0, 2, 0, m_miners[i].getAccountKeys().address, m_miner_txs[i])) {
         return false;
       }
 
@@ -194,7 +194,7 @@ namespace
     tx_memory_pool pool;
   };
 
-  void InitBlock(Block& bl) {
+  void InitBlock(BlockTemplate& bl) {
     bl.nonce = 0;
     bl.timestamp = time(0);
     bl.previousBlockHash = NULL_HASH;

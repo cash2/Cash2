@@ -59,16 +59,16 @@ TestBlockchainGenerator::TestBlockchainGenerator(const CryptoNote::Currency& cur
   addMiningBlock();
 }
 
-std::vector<CryptoNote::Block>& TestBlockchainGenerator::getBlockchain()
+std::vector<CryptoNote::BlockTemplate>& TestBlockchainGenerator::getBlockchain()
 {
   std::unique_lock<std::mutex> lock(m_mutex);
   return m_blockchain;
 }
 
-std::vector<CryptoNote::Block> TestBlockchainGenerator::getBlockchainCopy() {
+std::vector<CryptoNote::BlockTemplate> TestBlockchainGenerator::getBlockchainCopy() {
   std::unique_lock<std::mutex> lock(m_mutex);
 
-  std::vector<CryptoNote::Block> blockchain(m_blockchain);
+  std::vector<CryptoNote::BlockTemplate> blockchain(m_blockchain);
   return blockchain;
 }
 
@@ -110,7 +110,7 @@ void TestBlockchainGenerator::addMiningBlock() {
   CryptoNote::Block block;
 
   uint64_t timestamp = time(NULL);
-  CryptoNote::Block& prev_block = m_blockchain.back();
+  CryptoNote::BlockTemplate& prev_block = m_blockchain.back();
   uint32_t height = boost::get<BaseInput>(prev_block.baseTransaction.inputs.front()).blockIndex + 1;
   Crypto::Hash prev_id = get_block_hash(prev_block);
 
@@ -131,7 +131,7 @@ void TestBlockchainGenerator::generateEmptyBlocks(size_t count)
 
   for (size_t i = 0; i < count; ++i)
   {
-    CryptoNote::Block& prev_block = m_blockchain.back();
+    CryptoNote::BlockTemplate& prev_block = m_blockchain.back();
     CryptoNote::Block block;
     generator.constructBlock(block, prev_block, miner_acc);
     m_blockchain.push_back(block);
@@ -214,7 +214,7 @@ void TestBlockchainGenerator::addToBlockchain(const std::vector<CryptoNote::Tran
     m_paymentIdIndex.add(tx);
   }
 
-  CryptoNote::Block& prev_block = m_blockchain.back();
+  CryptoNote::BlockTemplate& prev_block = m_blockchain.back();
   CryptoNote::Block block;
 
   generator.constructBlock(block, prev_block, minerAddress, txsToBlock);

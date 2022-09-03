@@ -89,7 +89,7 @@ namespace CryptoNote {
     return getObjectHash(a) == getObjectHash(b);
   }
   //-----------------------------------------------------------------------
-  bool operator ==(const CryptoNote::Block& a, const CryptoNote::Block& b) {
+  bool operator ==(const CryptoNote::BlockTemplate& a, const CryptoNote::BlockTemplate& b) {
     return CryptoNote::get_block_hash(a) == CryptoNote::get_block_hash(b);
   }
 }

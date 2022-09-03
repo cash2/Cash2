@@ -44,7 +44,7 @@ check_money_overflow()
 check_outs_overflow()
 check_inputs_overflow()
 get_block_height()
-relative_output_offsets_to_absolute()
+relativeOutputOffsetsToAbsolute()
 absolute_output_offsets_to_relative()
 
 decompose_amount_into_digits()
@@ -901,13 +901,13 @@ TEST(cryptoNoteFormatUtils, 27)
   ASSERT_EQ(shortHashStr, "01020304....1d1e1f20");
 }
 
-// relative_output_offsets_to_absolute()
+// relativeOutputOffsetsToAbsolute()
 TEST(cryptoNoteFormatUtils, 28)
 {
   std::vector<uint32_t> vectorInput = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
   // starting at position 1, change the value to itself plus previous position's value
-  std::vector<uint32_t> vectorOutput = relative_output_offsets_to_absolute(vectorInput);
+  std::vector<uint32_t> vectorOutput = relativeOutputOffsetsToAbsolute(vectorInput);
 
   std::vector<uint32_t> expectedOutput = {1, 3, 6, 10, 15, 21, 28, 36, 45, 55};
 

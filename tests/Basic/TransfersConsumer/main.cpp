@@ -64,12 +64,13 @@ public:
   virtual uint32_t getLocalBlockCount() const override { return 0; };
   virtual uint32_t getKnownBlockCount() const override { return 0; };
   virtual uint64_t getLastLocalBlockTimestamp() const override { return 0; }
+  virtual uint64_t getMinimalFee() const override{ return 0; }
 
-  virtual void getNewBlocks(std::vector<Crypto::Hash>&& knownBlockIds, std::vector<CryptoNote::block_complete_entry>& newBlocks, uint32_t& height, const Callback& callback) override { callback(std::error_code()); };
+  virtual void getNewBlocks(std::vector<Crypto::Hash>&& knownBlockIds, std::vector<CryptoNote::RawBlock>& newBlocks, uint32_t& height, const Callback& callback) override { callback(std::error_code()); };
 
   virtual void relayTransaction(const CryptoNote::Transaction& transaction, const Callback& callback) override { callback(std::error_code()); };
   virtual void getRandomOutsByAmounts(std::vector<uint64_t>&& amounts, uint64_t outsCount, std::vector<CryptoNote::COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS::outs_for_amount>& result, const Callback& callback) override { callback(std::error_code()); };
-  virtual void getTransactionOutsGlobalIndexes(const Crypto::Hash& transactionHash, std::vector<uint32_t>& outsGlobalIndexes, const Callback& callback) override { callback(std::error_code()); };
+  virtual void getTransactionOutsGlobalIndices(const Crypto::Hash& transactionHash, std::vector<uint32_t>& outsGlobalIndexes, const Callback& callback) override { callback(std::error_code()); };
   virtual void getPoolSymmetricDifference(std::vector<Crypto::Hash>&& known_pool_tx_ids, Crypto::Hash known_block_id, bool& is_bc_actual,
           std::vector<std::unique_ptr<CryptoNote::ITransactionReader>>& new_txs, std::vector<Crypto::Hash>& deleted_tx_ids, const Callback& callback) override {
     is_bc_actual = true; callback(std::error_code());
@@ -293,6 +294,8 @@ TEST(TransfersConsumer, 8)
 }
 
 // onNewBlocks()
+/*
+
 TEST(TransfersConsumer, 9)
 {
   Logging::ConsoleLogger logger;
@@ -310,6 +313,8 @@ TEST(TransfersConsumer, 9)
   uint32_t count = 3;
   ASSERT_TRUE(transfersConsumer.onNewBlocks(&completeBlocks, startHeight, count));
 }
+
+*/
 
 // onPoolUpdated()
 TEST(TransfersConsumer, 10)

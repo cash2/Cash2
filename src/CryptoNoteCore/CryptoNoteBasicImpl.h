@@ -32,7 +32,7 @@ namespace CryptoNote {
   bool is_coinbase(const Transaction& tx);
 
   bool operator ==(const CryptoNote::Transaction& a, const CryptoNote::Transaction& b);
-  bool operator ==(const CryptoNote::Block& a, const CryptoNote::Block& b);
+  bool operator ==(const CryptoNote::BlockTemplate& a, const CryptoNote::BlockTemplate& b);
 }
 
 template <class T>

@@ -104,7 +104,7 @@ struct CreateAddress {
   };
 };
 
-struct CreateAddresses {
+struct CreateAddressList {
   struct Request {
     std::vector<std::string> spendPrivateKeys;
 

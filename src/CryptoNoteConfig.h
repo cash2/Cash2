@@ -31,6 +31,9 @@ static_assert(EMISSION_SPEED_FACTOR <= 8 * sizeof(uint64_t), "Bad EMISSION_SPEED
 
 const size_t   CRYPTONOTE_REWARD_BLOCKS_WINDOW               = 60 * 24 * 60 * 60 / DIFFICULTY_TARGET; // number of blocks produced in 60 days
 const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE     = 200 * 1024; //size of block (bytes) after which reward for block calculated using block size, 200 kb
+const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2  = 20000;
+const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1  = 10000;
+const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_CURRENT = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
 const size_t   CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE        = 600;
 const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT              = 9; // number of digits after decimal point
 
@@ -62,6 +65,14 @@ const uint64_t CRYPTONOTE_NUMBER_OF_PERIODS_TO_FORGET_TX_DELETED_FROM_POOL = 1; 
 const size_t   FUSION_TX_MAX_SIZE                            = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE * 30 / 100;
 const size_t   FUSION_TX_MIN_INPUT_COUNT                     = 12;
 const size_t   FUSION_TX_MIN_IN_OUT_COUNT_RATIO              = 4;
+
+const uint32_t KEY_IMAGE_CHECKING_BLOCK_INDEX                = 1267000;
+const uint32_t UPGRADE_HEIGHT_V2                             = 0;
+const uint32_t UPGRADE_HEIGHT_V3                             = 0;
+const unsigned UPGRADE_VOTING_THRESHOLD                      = 0;
+const uint32_t UPGRADE_VOTING_WINDOW                         = 0;
+const uint32_t UPGRADE_WINDOW                                = 0;
+
 const char     CRYPTONOTE_BLOCKS_FILENAME[]                  = "blocks.dat";
 const char     CRYPTONOTE_BLOCKINDEXES_FILENAME[]            = "blockindexes.dat";
 const char     CRYPTONOTE_BLOCKSCACHE_FILENAME[]             = "blockscache.dat";
@@ -88,8 +99,18 @@ const uint64_t HARD_FORK_HEIGHT_3                            = 1700000;
 } // end namespace parameters
 
 const char     CRYPTONOTE_NAME[]                             = "cash2";
+
 const char     GENESIS_COINBASE_TX_HEX[]                     = "013c01ff0001a7d7a9aa03028037deeee59fb526b6474696bd4246c21b2e7dbd4fc17a02a6037ca6835e3a4f2101f6632c8a6d6102c85597eaccb5c0be3880b7220aee0d0e4c5b852d8757f5b67f";
+const uint8_t  TRANSACTION_VERSION_1                         =  1;
+const uint8_t  TRANSACTION_VERSION_2                         =  2;
 const uint8_t  CURRENT_TRANSACTION_VERSION                   = 1;
+const uint8_t  BLOCK_MAJOR_VERSION_1                         =  1;
+const uint8_t  BLOCK_MAJOR_VERSION_2                         =  2;
+const uint8_t  BLOCK_MAJOR_VERSION_3                         =  3;
+const uint8_t  BLOCK_MINOR_VERSION_0                         =  0;
+const uint8_t  BLOCK_MINOR_VERSION_1                         =  1;
+
+
 const size_t   BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT        = 10000;  //by default, blocks ids count in synchronizing
 const size_t   BLOCKS_SYNCHRONIZING_DEFAULT_COUNT            = 20;    //by default, blocks count in blocks downloading
 const size_t   COMMAND_RPC_GET_BLOCKS_FAST_MAX_COUNT         = 1000;
@@ -131,7 +152,7 @@ struct CheckpointData {
 __attribute__((unused))
 #endif
 
-const std::initializer_list<CheckpointData> CHECKPOINTS = {
+const CheckpointData CHECKPOINTS[] = {
   {  1,  "114201ae0751311ef8789b5c681829c51fd9a30116501326ebb45460f617e4e4" },
   {  100000,  "be3883bb414d9de59d6e26ffb832cdcd376de8c7cdf5c1540217ad83b6809c4a" },
   {  200000,  "2ec04fb7bcb6528b969d4bc1b5a214d6ed403da75e0555815a642d83502fa295" },

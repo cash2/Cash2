@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2016 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018, Karbo developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -9,7 +9,6 @@
 #include <limits>
 #include <string>
 #include <vector>
-#include <boost/optional.hpp>                             
 #include "CryptoNote.h"
 
 namespace CryptoNote {
@@ -32,6 +31,12 @@ enum WalletEventType {
   BALANCE_UNLOCKED,
   SYNC_PROGRESS_UPDATED,
   SYNC_COMPLETED,
+};
+
+enum class WalletSaveLevel : uint8_t {
+  SAVE_KEYS_ONLY,
+  SAVE_KEYS_AND_TRANSACTIONS,
+  SAVE_ALL
 };
 
 struct WalletTransactionCreatedData {
@@ -61,7 +66,6 @@ struct WalletTransaction {
   uint64_t timestamp;
   uint32_t blockHeight;
   Crypto::Hash hash;
-  boost::optional<Crypto::SecretKey> secretKey;                                               
   int64_t totalAmount;
   uint64_t fee;
   uint64_t creationTime;
@@ -96,7 +100,7 @@ struct TransactionParameters {
   std::vector<std::string> sourceAddresses;
   std::vector<WalletOrder> destinations;
   uint64_t fee = 0;
-  uint64_t mixIn = 0;
+  uint16_t mixIn = 0;
   std::string extra;
   uint64_t unlockTimestamp = 0;
   DonationSettings donation;
@@ -117,13 +121,15 @@ class IWallet {
 public:
   virtual ~IWallet() {}
 
-  virtual void initialize(const std::string& password) = 0;
-  virtual void initializeWithViewKey(const Crypto::SecretKey& viewSecretKey, const std::string& password) = 0;
-  virtual void load(std::istream& source, const std::string& password) = 0;
+  virtual void initialize(const std::string& path, const std::string& password) = 0;
+  virtual void initializeWithViewKey(const std::string& path, const std::string& password, const Crypto::SecretKey& viewSecretKey) = 0;
+  virtual void load(const std::string& path, const std::string& password, std::string& extra) = 0;
+  virtual void load(const std::string& path, const std::string& password) = 0;
   virtual void shutdown() = 0;
 
   virtual void changePassword(const std::string& oldPassword, const std::string& newPassword) = 0;
-  virtual void save(std::ostream& destination, bool saveDetails = true, bool saveCache = true) = 0;
+  virtual void save(WalletSaveLevel saveLevel = WalletSaveLevel::SAVE_ALL, const std::string& extra = "") = 0;
+  virtual void exportWallet(const std::string& path, bool encrypt = true, WalletSaveLevel saveLevel = WalletSaveLevel::SAVE_ALL, const std::string& extra = "") = 0;
 
   virtual size_t getAddressCount() const = 0;
   virtual std::string getAddress(size_t index) const = 0;
@@ -133,7 +139,7 @@ public:
   virtual std::string createAddress() = 0;
   virtual std::string createAddress(const Crypto::SecretKey& spendSecretKey) = 0;
   virtual std::string createAddress(const Crypto::PublicKey& spendPublicKey) = 0;
-  virtual std::vector<std::string> createAddresses(const std::vector<Crypto::SecretKey>& spendPrivateKeys) = 0;
+  virtual std::vector<std::string> createAddressList(const std::vector<Crypto::SecretKey>& spendSecretKeys) = 0;
   virtual void deleteAddress(const std::string& address) = 0;
 
   virtual uint64_t getActualBalance() const = 0;
@@ -143,7 +149,6 @@ public:
 
   virtual size_t getTransactionCount() const = 0;
   virtual WalletTransaction getTransaction(size_t transactionIndex) const = 0;
-  virtual Crypto::SecretKey getTransactionSecretKey(size_t transactionIndex) const = 0;                                                                                     
   virtual size_t getTransactionTransferCount(size_t transactionIndex) const = 0;
   virtual WalletTransfer getTransactionTransfer(size_t transactionIndex, size_t transferIndex) const = 0;
 
@@ -153,8 +158,9 @@ public:
   virtual std::vector<Crypto::Hash> getBlockHashes(uint32_t blockIndex, size_t count) const = 0;
   virtual uint32_t getBlockCount() const  = 0;
   virtual std::vector<WalletTransactionWithTransfers> getUnconfirmedTransactions() const = 0;
-  virtual std::vector<size_t> getDelayedTransactionIds() const = 0;                                                                                                         
-  virtual size_t transfer(const TransactionParameters& sendingTransaction, Crypto::SecretKey &txSecretKey) = 0;
+  virtual std::vector<size_t> getDelayedTransactionIds() const = 0;
+
+  virtual size_t transfer(const TransactionParameters& sendingTransaction) = 0;
 
   virtual size_t makeTransaction(const TransactionParameters& sendingTransaction) = 0;
   virtual void commitTransaction(size_t transactionId) = 0;

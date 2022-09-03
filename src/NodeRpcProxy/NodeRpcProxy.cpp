@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2012-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2016-2018, The Karbo developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -33,6 +33,7 @@
 
 using namespace Crypto;
 using namespace Common;
+using namespace Logging;
 using namespace System;
 
 namespace CryptoNote {
@@ -50,7 +51,8 @@ std::error_code interpretResponseStatus(const std::string& status) {
 
 }
 
-NodeRpcProxy::NodeRpcProxy(const std::string& nodeHost, unsigned short nodePort) :
+NodeRpcProxy::NodeRpcProxy(const std::string& nodeHost, unsigned short nodePort, Logging::ILogger& logger) :
+  m_logger(logger, "NodeRpcProxy"),
   m_rpcTimeout(10000),
   m_pullInterval(5000),
   m_nodeHost(nodeHost),
@@ -309,6 +311,47 @@ uint64_t NodeRpcProxy::getMinimalFee() const {
   return m_minimalFee.load(std::memory_order_relaxed);
 }
 
+BlockHeaderInfo NodeRpcProxy::getLastLocalBlockHeaderInfo() const {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return lastLocalBlockHeaderInfo;
+}
+
+void NodeRpcProxy::getBlockHashesByTimestamps(uint64_t timestampBegin, size_t secondsCount, std::vector<Crypto::Hash>& blockHashes, const Callback& callback) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  if (m_state != STATE_INITIALIZED) {
+    callback(make_error_code(error::NOT_INITIALIZED));
+    return;
+  }
+
+  scheduleRequest(std::bind(&NodeRpcProxy::doGetBlockHashesByTimestamps, this, timestampBegin, secondsCount, std::ref(blockHashes)),
+                  callback);
+}
+
+void NodeRpcProxy::getTransactionHashesByPaymentId(const Crypto::Hash& paymentId, std::vector<Crypto::Hash>& transactionHashes, const INode::Callback& callback) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  if (m_state != STATE_INITIALIZED) {
+    callback(make_error_code(error::NOT_INITIALIZED));
+    return;
+  }
+
+  scheduleRequest(std::bind(&NodeRpcProxy::doGetTransactionHashesByPaymentId, this, std::cref(paymentId), std::ref(transactionHashes)), callback);
+}
+
+std::error_code NodeRpcProxy::doGetBlockHashesByTimestamps(uint64_t timestampBegin, size_t secondsCount, std::vector<Crypto::Hash>& blockHashes) {
+  COMMAND_RPC_GET_BLOCKS_HASHES_BY_TIMESTAMPS::request req = AUTO_VAL_INIT(req);
+  COMMAND_RPC_GET_BLOCKS_HASHES_BY_TIMESTAMPS::response rsp = AUTO_VAL_INIT(rsp);
+
+  req.timestampBegin = timestampBegin;
+  req.secondsCount = secondsCount;
+
+  std::error_code ec = binaryCommand("/get_blocks_hashes_by_timestamps.bin", req, rsp);
+  if (!ec) {
+    blockHashes = std::move(rsp.blockHashes);
+  }
+
+  return ec;
+}
+
 void NodeRpcProxy::relayTransaction(const CryptoNote::Transaction& transaction, const Callback& callback) {
   std::lock_guard<std::mutex> lock(m_mutex);
   if (m_state != STATE_INITIALIZED) {
@@ -319,7 +362,7 @@ void NodeRpcProxy::relayTransaction(const CryptoNote::Transaction& transaction, 
   scheduleRequest(std::bind(&NodeRpcProxy::doRelayTransaction, this, transaction), callback);
 }
 
-void NodeRpcProxy::getRandomOutsByAmounts(std::vector<uint64_t>&& amounts, uint64_t outsCount,
+void NodeRpcProxy::getRandomOutsByAmounts(std::vector<uint64_t>&& amounts, uint16_t outsCount,
                                           std::vector<COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS::outs_for_amount>& outs,
                                           const Callback& callback) {
   std::lock_guard<std::mutex> lock(m_mutex);
@@ -332,8 +375,27 @@ void NodeRpcProxy::getRandomOutsByAmounts(std::vector<uint64_t>&& amounts, uint6
     callback);
 }
 
+std::error_code NodeRpcProxy::doGetRandomOutsByAmounts(std::vector<uint64_t>& amounts, uint16_t outsCount,
+                                                       std::vector<COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS::outs_for_amount>& outs) {
+  COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS::request req = AUTO_VAL_INIT(req);
+  COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS::response rsp = AUTO_VAL_INIT(rsp);
+  req.amounts = std::move(amounts);
+  req.outs_count = outsCount;
+
+  m_logger(TRACE) << "Send getrandom_outs.bin request";
+  std::error_code ec = binaryCommand("/getrandom_outs.bin", req, rsp);
+  if (!ec) {
+    m_logger(TRACE) << "getrandom_outs.bin compete";
+    outs = std::move(rsp.outs);
+  } else {
+    m_logger(TRACE) << "getrandom_outs.bin failed: " << ec << ", " << ec.message();
+  }
+
+  return ec;
+}
+
 void NodeRpcProxy::getNewBlocks(std::vector<Crypto::Hash>&& knownBlockIds,
-                                std::vector<CryptoNote::block_complete_entry>& newBlocks,
+                                std::vector<CryptoNote::RawBlock>& newBlocks,
                                 uint32_t& startHeight,
                                 const Callback& callback) {
   std::lock_guard<std::mutex> lock(m_mutex);
@@ -346,7 +408,7 @@ void NodeRpcProxy::getNewBlocks(std::vector<Crypto::Hash>&& knownBlockIds,
     std::ref(startHeight)), callback);
 }
 
-void NodeRpcProxy::getTransactionOutsGlobalIndexes(const Crypto::Hash& transactionHash,
+void NodeRpcProxy::getTransactionOutsGlobalIndices(const Crypto::Hash& transactionHash,
                                                    std::vector<uint32_t>& outsGlobalIndexes, const Callback& callback) {
   std::lock_guard<std::mutex> lock(m_mutex);
   if (m_state != STATE_INITIALIZED) {
@@ -382,6 +444,8 @@ void NodeRpcProxy::getPoolSymmetricDifference(std::vector<Crypto::Hash>&& knownP
     return this->doGetPoolSymmetricDifference(std::move(knownPoolTxIds), knownBlockId, isBcActual, newTxs, deletedTxIds); } , callback);
 }
 
+// TODO: see if we can remove the function below
+/*
 void NodeRpcProxy::getMultisignatureOutputByGlobalIndex(uint64_t amount, uint32_t gindex, MultisignatureOutput& out, const Callback& callback) {
   std::lock_guard<std::mutex> lock(m_mutex);
   if (m_state != STATE_INITIALIZED) {
@@ -392,6 +456,7 @@ void NodeRpcProxy::getMultisignatureOutputByGlobalIndex(uint64_t amount, uint32_
   // TODO NOT IMPLEMENTED
   callback(std::error_code());
 }
+*/
 
 void NodeRpcProxy::getBlocks(const std::vector<uint32_t>& blockHeights, std::vector<std::vector<BlockDetails>>& blocks, const Callback& callback) {
   std::lock_guard<std::mutex> lock(m_mutex);
@@ -404,6 +469,8 @@ void NodeRpcProxy::getBlocks(const std::vector<uint32_t>& blockHeights, std::vec
   callback(std::error_code());
 }
 
+// TODO: see if we can remove the function below
+/*
 void NodeRpcProxy::getBlocks(uint64_t timestampBegin, uint64_t timestampEnd, uint32_t blocksNumberLimit, std::vector<BlockDetails>& blocks, uint32_t& blocksNumberWithinTimestamps, const Callback& callback) {
   std::lock_guard<std::mutex> lock(m_mutex);
   if (m_state != STATE_INITIALIZED) {
@@ -414,6 +481,7 @@ void NodeRpcProxy::getBlocks(uint64_t timestampBegin, uint64_t timestampEnd, uin
   // TODO NOT IMPLEMENTED
   callback(std::error_code());
 }
+*/
 
 void NodeRpcProxy::getBlocks(const std::vector<Crypto::Hash>& blockHashes, std::vector<BlockDetails>& blocks, const Callback& callback) {
   std::lock_guard<std::mutex> lock(m_mutex);
@@ -437,6 +505,8 @@ void NodeRpcProxy::getTransactions(const std::vector<Crypto::Hash>& transactionH
   callback(std::error_code());
 }
 
+// TODO: see if we can remove the function below
+/*
 void NodeRpcProxy::getPoolTransactions(uint64_t timestampBegin, uint64_t timestampEnd, uint32_t transactionsNumberLimit, std::vector<TransactionDetails>& transactions, uint64_t& transactionsNumberWithinTimestamps, const Callback& callback) {
   std::lock_guard<std::mutex> lock(m_mutex);
   if (m_state != STATE_INITIALIZED) {
@@ -447,7 +517,10 @@ void NodeRpcProxy::getPoolTransactions(uint64_t timestampBegin, uint64_t timesta
   // TODO NOT IMPLEMENTED
   callback(std::error_code());
 }
+*/
 
+// TODO: see if we can remove the function below
+/*
 void NodeRpcProxy::getTransactionsByPaymentId(const Crypto::Hash& paymentId, std::vector<TransactionDetails>& transactions, const Callback& callback) {
   std::lock_guard<std::mutex> lock(m_mutex);
   if (m_state != STATE_INITIALIZED) {
@@ -458,6 +531,7 @@ void NodeRpcProxy::getTransactionsByPaymentId(const Crypto::Hash& paymentId, std
   // TODO NOT IMPLEMENTED
   callback(std::error_code());
 }
+*/
 
 void NodeRpcProxy::isSynchronized(bool& syncStatus, const Callback& callback) {
   std::lock_guard<std::mutex> lock(m_mutex);
@@ -477,23 +551,8 @@ std::error_code NodeRpcProxy::doRelayTransaction(const CryptoNote::Transaction& 
   return jsonCommand("/sendrawtransaction", req, rsp);
 }
 
-std::error_code NodeRpcProxy::doGetRandomOutsByAmounts(std::vector<uint64_t>& amounts, uint64_t outsCount,
-                                                       std::vector<COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS::outs_for_amount>& outs) {
-  COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS::request req = AUTO_VAL_INIT(req);
-  COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS::response rsp = AUTO_VAL_INIT(rsp);
-  req.amounts = std::move(amounts);
-  req.outs_count = outsCount;
-
-  std::error_code ec = binaryCommand("/getrandom_outs.bin", req, rsp);
-  if (!ec) {
-    outs = std::move(rsp.outs);
-  }
-
-  return ec;
-}
-
 std::error_code NodeRpcProxy::doGetNewBlocks(std::vector<Crypto::Hash>& knownBlockIds,
-                                             std::vector<CryptoNote::block_complete_entry>& newBlocks,
+                                             std::vector<CryptoNote::RawBlock>& newBlocks,
                                              uint32_t& startHeight) {
   CryptoNote::COMMAND_RPC_GET_BLOCKS_FAST::request req = AUTO_VAL_INIT(req);
   CryptoNote::COMMAND_RPC_GET_BLOCKS_FAST::response rsp = AUTO_VAL_INIT(rsp);
@@ -533,11 +592,14 @@ std::error_code NodeRpcProxy::doQueryBlocksLite(const std::vector<Crypto::Hash>&
   req.blockIds = knownBlockIds;
   req.timestamp = timestamp;
 
+  m_logger(TRACE) << "Send queryblockslite.bin request, timestamp " << req.timestamp;
   std::error_code ec = binaryCommand("/queryblockslite.bin", req, rsp);
   if (ec) {
+    m_logger(TRACE) << "queryblockslite.bin failed: " << ec << ", " << ec.message();
     return ec;
   }
 
+  m_logger(TRACE) << "queryblockslite.bin compete, startHeight " << rsp.startHeight << ", block count " << rsp.items.size();
   startHeight = static_cast<uint32_t>(rsp.startHeight);
 
   for (auto& item: rsp.items) {
@@ -546,7 +608,7 @@ std::error_code NodeRpcProxy::doQueryBlocksLite(const std::vector<Crypto::Hash>&
 
     bse.blockHash = std::move(item.blockId);
     if (!item.block.empty()) {
-      if (!fromBinaryArray(bse.block, asBinaryArray(item.block))) {
+      if (!fromBinaryArray(bse.block, item.block)) {
         return std::make_error_code(std::errc::invalid_argument);
       }
 
@@ -698,6 +760,20 @@ std::error_code NodeRpcProxy::jsonRpcCommand(const std::string& method, const Re
     ec = make_error_code(error::NETWORK_ERROR);
   }
 
+  return ec;
+}
+
+std::error_code NodeRpcProxy::doGetTransactionHashesByPaymentId(const Crypto::Hash& paymentId, std::vector<Crypto::Hash>& transactionHashes) {
+  COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID::request req = AUTO_VAL_INIT(req);
+  COMMAND_RPC_GET_TRANSACTION_HASHES_BY_PAYMENT_ID::response resp = AUTO_VAL_INIT(resp);
+
+  req.paymentId = paymentId;
+  std::error_code ec = binaryCommand("/get_transaction_hashes_by_payment_id.bin", req, resp);
+  if (ec) {
+    return ec;
+  }
+
+  transactionHashes = std::move(resp.transactionHashes);
   return ec;
 }
 

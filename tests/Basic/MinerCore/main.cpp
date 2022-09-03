@@ -23,7 +23,7 @@ public
   ~miner()
 
   init()
-  set_block_template(const Block& bl, const difficulty_type& diffic)
+  set_block_template(const BlockTemplate& bl, const Difficulty& diffic)
   on_block_chain_update()
   start()
   uint64_t get_speed()
@@ -52,7 +52,7 @@ private
   Block m_template
   std::atomic<uint32_t> m_template_no
   std::atomic<uint32_t> m_starter_nonce
-  difficulty_type m_diffic
+  Difficulty m_diffic
 
   std::atomic<uint32_t> m_threads_total
   std::atomic<int32_t> m_pausers_count
@@ -88,7 +88,7 @@ struct Block : public BlockHeader {
   std::vector<Crypto::Hash> transactionHashes
 }
 
-using difficulty_type = std::uint64_t;
+using Difficulty = std::uint64_t;
 
 */
 
@@ -97,12 +97,12 @@ using difficulty_type = std::uint64_t;
 class MinerHandler : public IMinerHandler
 {
 public:
-  bool handle_block_found(Block& b)
+  bool handle_block_found(BlockTemplate& b)
   {
     return true;
   }
 
-  bool get_block_template(Block& b, const AccountPublicAddress& adr, difficulty_type& diffic, uint32_t& height, const BinaryArray& ex_nonce)
+  bool get_block_template(BlockTemplate& b, const AccountPublicAddress& adr, Difficulty& diffic, uint32_t& height, const BinaryArray& ex_nonce)
   {
     m_difficulty++;
     diffic = m_difficulty;
@@ -110,7 +110,7 @@ public:
   }
 
 private:
-  difficulty_type m_difficulty;
+  Difficulty m_difficulty;
   Block m_block;
   uint32_t m_height;
   AccountPublicAddress m_address;
@@ -139,7 +139,7 @@ TEST(Miner, 2)
   miner miner(currency, minerHandler, logger);
 
   Block block;
-  difficulty_type difficultyType = 100;
+  Difficulty difficultyType = 100;
 
   ASSERT_TRUE(miner.set_block_template(block, difficultyType));
 
@@ -488,7 +488,7 @@ TEST(Miner, 18)
   transaction.version = 1;
   block.baseTransaction = transaction;
   
-  difficulty_type difficulty = 2;
+  Difficulty difficulty = 2;
 
   Crypto::cn_context context;
   ASSERT_TRUE(miner.find_nonce_for_given_block1(context, block, difficulty));
@@ -513,7 +513,7 @@ TEST(Miner, 19)
   transaction.version = 1;
   block.baseTransaction = transaction;
   
-  difficulty_type difficulty = 8;
+  Difficulty difficulty = 8;
 
   Crypto::cn_context context;
   ASSERT_TRUE(miner.find_nonce_for_given_block1(context, block, difficulty));

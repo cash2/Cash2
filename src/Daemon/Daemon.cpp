@@ -11,11 +11,16 @@
 
 #include "DaemonCommandsHandler.h"
 
+#include "Common/ScopeExit.h"
 #include "Common/SignalHandler.h"
 #include "Common/PathTools.h"
+#include "Common/Util.h"
 #include "crypto/hash.h"
 #include "CryptoNoteCore/Core.h"
-#include "CryptoNoteCore/CoreConfig.h"
+#include "CryptoNoteCore/DatabaseBlockchainCache.h"
+#include "CryptoNoteCore/DatabaseBlockchainCacheFactory.h"
+#include "CryptoNoteCore/MainChainStorage.h"
+#include "CryptoNoteCore/RocksDBWrapper.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
 #include "CryptoNoteCore/Currency.h"
 #include "CryptoNoteCore/MinerConfig.h"
@@ -47,24 +52,11 @@ namespace
   const command_line::arg_descriptor<int>         arg_log_level = {"log-level", "", 2}; // info level
   const command_line::arg_descriptor<bool>        arg_console = {"no-console", "Disable daemon console commands"};
   const command_line::arg_descriptor<bool>        arg_testnet_on = {"testnet", "Used to deploy test nets. Checkpoints and hardcoded seeds are ignored, network id is changed. Use it with --data-dir flag. The wallet must be launched with --testnet flag.", false};
-  const command_line::arg_descriptor<bool>        arg_print_genesis_tx = { "print-genesis-tx", "Prints genesis' block tx hex to insert it to config and exits" };
   const command_line::arg_descriptor<std::string> arg_enable_cors = { "enable-cors", "Adds header 'Access-Control-Allow-Origin' to the daemon's RPC responses. Uses the value as domain. Use * for all", "" };
   const command_line::arg_descriptor<bool>        arg_restricted_rpc = {"restricted-rpc", "Restrict RPC to view only commands to prevent abuse"};
 }
 
 bool command_line_preprocessor(const boost::program_options::variables_map& vm, LoggerRef& logger);
-
-void print_genesis_tx_hex() {
-  Logging::ConsoleLogger logger;
-  CryptoNote::Transaction tx = CryptoNote::CurrencyBuilder(logger).generateGenesisTransaction();
-  CryptoNote::BinaryArray txb = CryptoNote::toBinaryArray(tx);
-  std::string tx_hex = Common::toHex(txb);
-
-  std::cout << "Insert this line into your coin configuration file as is: " << std::endl;
-  std::cout << "const char GENESIS_COINBASE_TX_HEX[] = \"" << tx_hex << "\";" << std::endl;
-
-  return;
-}
 
 JsonValue buildLoggerConfiguration(Level level, const std::string& logfile) {
   JsonValue loggerConfiguration(JsonValue::OBJECT);
@@ -85,7 +77,6 @@ JsonValue buildLoggerConfiguration(Level level, const std::string& logfile) {
   return loggerConfiguration;
 }
 
-
 int main(int argc, char* argv[])
 {
 
@@ -97,7 +88,6 @@ int main(int argc, char* argv[])
   LoggerRef logger(logManager, "daemon");
 
   try {
-
     po::options_description desc_cmd_only("Command line options");
     po::options_description desc_cmd_sett("Command line options and settings options");
 
@@ -112,19 +102,16 @@ int main(int argc, char* argv[])
     command_line::add_arg(desc_cmd_sett, arg_log_level);
     command_line::add_arg(desc_cmd_sett, arg_console);
     command_line::add_arg(desc_cmd_sett, arg_testnet_on);
-    command_line::add_arg(desc_cmd_sett, arg_print_genesis_tx);
-    command_line::add_arg(desc_cmd_sett, arg_enable_cors);
-    command_line::add_arg(desc_cmd_sett, arg_restricted_rpc);
 
     RpcServerConfig::initOptions(desc_cmd_sett);
-    CoreConfig::initOptions(desc_cmd_sett);
     NetNodeConfig::initOptions(desc_cmd_sett);
-    MinerConfig::initOptions(desc_cmd_sett);
+    DataBaseConfig::initOptions(desc_cmd_sett);
 
     po::options_description desc_options("Allowed options");
     desc_options.add(desc_cmd_only).add(desc_cmd_sett);
 
     po::variables_map vm;
+    boost::filesystem::path data_dir_path;
     bool r = command_line::handle_error_helper(desc_options, [&]()
     {
       po::store(po::parse_command_line(argc, argv, desc_options), vm);
@@ -136,15 +123,10 @@ int main(int argc, char* argv[])
         return false;
       }
 
-      if (command_line::get_arg(vm, arg_print_genesis_tx)) {
-        print_genesis_tx_hex();
-        return false;
-      }
-
       std::string data_dir = command_line::get_arg(vm, command_line::arg_data_dir);
       std::string config = command_line::get_arg(vm, arg_config_file);
 
-      boost::filesystem::path data_dir_path(data_dir);
+      data_dir_path = data_dir;
       boost::filesystem::path config_path(config);
       if (!config_path.has_parent_path()) {
         config_path = data_dir_path / config_path;
@@ -160,7 +142,7 @@ int main(int argc, char* argv[])
 
     if (!r)
       return 1;
-  
+
     auto modulePath = Common::NativePathToGeneric(argv[0]);
     auto cfgLogFile = Common::NativePathToGeneric(command_line::get_arg(vm, arg_log_file));
 
@@ -193,88 +175,83 @@ int main(int argc, char* argv[])
     //create objects and link them
     CryptoNote::CurrencyBuilder currencyBuilder(logManager);
     currencyBuilder.testnet(testnet_mode);
-
-    try {
-      currencyBuilder.currency();
-    } catch (std::exception&) {
-      std::cout << "GENESIS_COINBASE_TX_HEX constant has an incorrect value. Please launch: " << CryptoNote::CRYPTONOTE_NAME << "d --" << arg_print_genesis_tx.name;
-      return 1;
-    }
-
     CryptoNote::Currency currency = currencyBuilder.currency();
-    CryptoNote::core ccore(currency, nullptr, logManager);
 
     CryptoNote::Checkpoints checkpoints(logManager);
-    for (const auto& cp : CryptoNote::CHECKPOINTS) {
-      checkpoints.add_checkpoint(cp.height, cp.blockId);
-    }
-
     if (!testnet_mode) {
-      ccore.set_checkpoints(std::move(checkpoints));
+      for (const auto& cp : CryptoNote::CHECKPOINTS) {
+        checkpoints.add_checkpoint(cp.height, cp.blockId);
+      }
     }
 
-    CoreConfig coreConfig;
-    coreConfig.init(vm);
     NetNodeConfig netNodeConfig;
     netNodeConfig.init(vm);
     netNodeConfig.setTestnet(testnet_mode);
-    MinerConfig minerConfig;
-    minerConfig.init(vm);
+
     RpcServerConfig rpcConfig;
     rpcConfig.init(vm);
 
-    if (!coreConfig.configFolderDefaulted) {
-      if (!Tools::directoryExists(coreConfig.configFolder)) {
-        throw std::runtime_error("Directory does not exist: " + coreConfig.configFolder);
+    DataBaseConfig dbConfig;
+    dbConfig.init(vm);
+
+    if (dbConfig.isConfigFolderDefaulted()) {
+      if (!Tools::create_directories_if_necessary(dbConfig.getDataDir())) {
+        throw std::runtime_error("Can't create directory: " + dbConfig.getDataDir());
       }
     } else {
-      if (!Tools::create_directories_if_necessary(coreConfig.configFolder)) {
-        throw std::runtime_error("Can't create directory: " + coreConfig.configFolder);
+      if (!Tools::directoryExists(dbConfig.getDataDir())) {
+        throw std::runtime_error("Directory does not exist: " + dbConfig.getDataDir());
       }
     }
 
+    RocksDBWrapper database(logManager);
+    database.init(dbConfig);
+    Tools::ScopeExit dbShutdownOnExit([&database] () { database.shutdown(); });
+
+    if (!DatabaseBlockchainCache::checkDBSchemeVersion(database, logManager))
+    {
+      dbShutdownOnExit.cancel();
+      database.shutdown();
+
+      database.destoy(dbConfig);
+
+      database.init(dbConfig);
+      dbShutdownOnExit.resume();
+    }
+
     System::Dispatcher dispatcher;
+    logger(INFO) << "Initializing core...";
+    CryptoNote::Core ccore(
+      currency,
+      logManager,
+      std::move(checkpoints),
+      dispatcher,
+      std::unique_ptr<IBlockchainCacheFactory>(new DatabaseBlockchainCacheFactory(database, logger.getLogger())),
+      createSwappedMainChainStorage(data_dir_path.string(), currency));
+
+    ccore.load();
+    logger(INFO) << "Core initialized OK";
 
     CryptoNote::CryptoNoteProtocolHandler cprotocol(currency, dispatcher, ccore, nullptr, logManager);
     CryptoNote::NodeServer p2psrv(dispatcher, cprotocol, logManager);
     CryptoNote::RpcServer rpcServer(dispatcher, logManager, ccore, p2psrv, cprotocol);
 
     cprotocol.set_p2p_endpoint(&p2psrv);
-    ccore.set_cryptonote_protocol(&cprotocol);
     DaemonCommandsHandler dch(ccore, p2psrv, logManager);
-
-    // initialize objects
     logger(INFO) << "Initializing p2p server...";
     if (!p2psrv.init(netNodeConfig)) {
       logger(ERROR, BRIGHT_RED) << "Failed to initialize p2p server.";
       return 1;
     }
+
     logger(INFO) << "P2p server initialized OK";
 
-    //logger(INFO) << "Initializing core rpc server...";
-    //if (!rpc_server.init(vm)) {
-    //  logger(ERROR, BRIGHT_RED) << "Failed to initialize core rpc server.";
-    //  return 1;
-    //}
-    // logger(INFO, BRIGHT_GREEN) << "Core rpc server initialized OK on port: " << rpc_server.get_binded_port();
-
-    // initialize core here
-    logger(INFO) << "Initializing core...";
-    if (!ccore.init(coreConfig, minerConfig, true)) {
-      logger(ERROR, BRIGHT_RED) << "Failed to initialize core";
-      return 1;
-    }
-    logger(INFO) << "Core initialized OK";
-
-    // start components
     if (!command_line::has_arg(vm, arg_console)) {
       dch.start_handling();
     }
 
     logger(INFO) << "Starting core rpc server on address " << rpcConfig.getBindAddress();
     rpcServer.start(rpcConfig.bindIp, rpcConfig.bindPort);
-    rpcServer.restrictRPC(command_line::get_arg(vm, arg_restricted_rpc));
-    rpcServer.enableCors(command_line::get_arg(vm, arg_enable_cors));
     logger(INFO) << "Core rpc server started ok";
 
     Tools::SignalHandler::install([&dch, &p2psrv] {
@@ -293,13 +270,11 @@ int main(int argc, char* argv[])
     rpcServer.stop();
 
     //deinitialize components
-    logger(INFO) << "Deinitializing core...";
-    ccore.deinit();
     logger(INFO) << "Deinitializing p2p...";
     p2psrv.deinit();
 
-    ccore.set_cryptonote_protocol(NULL);
-    cprotocol.set_p2p_endpoint(NULL);
+    cprotocol.set_p2p_endpoint(nullptr);
+    ccore.save();
 
   } catch (const std::exception& e) {
     logger(ERROR, BRIGHT_RED) << "Exception: " << e.what();

@@ -61,7 +61,7 @@ public
   genesisBlockHash()
   getBlockReward1()
   maxBlockCumulativeSize()
-  constructMinerTx1()
+  constructMinerTx()
   accountAddressAsString()
   accountAddressAsString()
   parseAccountAddressString()
@@ -816,7 +816,7 @@ TEST(Currency, 43)
   ASSERT_EQ(maxBlockCumulativeSize, parameters::MAX_BLOCK_SIZE_INITIAL + (parameters::MAX_BLOCK_SIZE_GROWTH_SPEED_NUMERATOR / parameters::MAX_BLOCK_SIZE_GROWTH_SPEED_DENOMINATOR));
 }
 
-// constructMinerTx1()
+// constructMinerTx()
 TEST(Currency, 44)
 {
   for (uint32_t i = 0; i < loopCount; i++)
@@ -846,7 +846,7 @@ TEST(Currency, 44)
 
     size_t maxOuts = 1;
 
-    ASSERT_TRUE(currency.constructMinerTx1(height, medianSize, alreadyGeneratedCoins, currentBlockSize, fee, minerAddress, transaction, extraNonce, maxOuts));
+    ASSERT_TRUE(currency.constructMinerTx(height, medianSize, alreadyGeneratedCoins, currentBlockSize, fee, minerAddress, transaction, extraNonce, maxOuts));
   }
 }
 
@@ -1062,7 +1062,7 @@ TEST(Currency, 53)
   Currency currency = currencyBuilder.currency();
 
   std::vector<uint64_t> timestamps = {1};
-  std::vector<difficulty_type> cumulativeDifficulties = {1};
+  std::vector<Difficulty> cumulativeDifficulties = {1};
   ASSERT_EQ(currency.nextDifficulty1(timestamps, cumulativeDifficulties), 100000);
 
   timestamps = {1, 2};
@@ -1089,7 +1089,7 @@ TEST(Currency, 54)
   // checkProofOfWork1() returns false if currentDifficulty is above 1 and I don't know why that is
   for (uint32_t i = 0; i < loopCount; i++)
   {
-    for (difficulty_type currentDifficulty = 0; currentDifficulty < 2; currentDifficulty++)
+    for (Difficulty currentDifficulty = 0; currentDifficulty < 2; currentDifficulty++)
     {
       Crypto::Hash proofOfWork;
       Crypto::cn_context context;

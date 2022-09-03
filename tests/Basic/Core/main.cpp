@@ -18,7 +18,6 @@
 #include "Logging/ConsoleLogger.h"
 #include "Common/Math.h"
 #include "CryptoNoteProtocol/CryptoNoteProtocolHandlerCommon.h"
-#include "CryptoNoteCore/CoreConfig.h"
 #include "CryptoNoteCore/MinerConfig.h"
 #include "CryptoNoteCore/IBlock.h"
 #include "CryptoNoteProtocol/CryptoNoteProtocolDefinitions.h"
@@ -224,7 +223,7 @@ class IBlockImpl : public IBlock
 {
 public:
 
-  virtual const Block& getBlock() const override
+  virtual const BlockTemplate& getBlock() const override
   {
     return m_block;
   }
@@ -289,7 +288,7 @@ Block createEmptyBlock(core& core)
   BinaryArray extraNonce;
 
   Block block;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint32_t height;
 
   core.get_block_template(block, accountPublicAddress, difficulty, height, extraNonce);
@@ -312,7 +311,7 @@ bool addBlock1(core& core)
   BinaryArray extraNonce;
 
   Block block;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint32_t height;
 
   core.get_block_template(block, accountPublicAddress, difficulty, height, extraNonce);
@@ -343,7 +342,7 @@ bool addBlock3(core& core, Crypto::Hash& blockHash)
   BinaryArray extraNonce;
 
   Block block;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint32_t height;
 
   core.get_block_template(block, accountPublicAddress, difficulty, height, extraNonce);
@@ -379,7 +378,7 @@ bool addBlock4(core& core, Crypto::Hash& blockHash, uint64_t timestamp)
   BinaryArray extraNonce;
 
   Block block;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint32_t height;
 
   core.get_block_template(block, accountPublicAddress, difficulty, height, extraNonce);
@@ -401,7 +400,7 @@ bool addBlock5(core& core, const AccountPublicAddress& minerPublicAddress, Crypt
   BinaryArray extraNonce;
 
   Block block;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint32_t height;
 
   core.get_block_template(block, minerPublicAddress, difficulty, height, extraNonce);
@@ -435,7 +434,7 @@ bool addBlock6(core& core, const AccountPublicAddress& minerPublicAddress,
   BinaryArray extraNonce;
 
   Block block;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint32_t height;
 
   core.get_block_template(block, minerPublicAddress, difficulty, height, extraNonce);
@@ -474,7 +473,7 @@ bool addBlock6(core& core, Crypto::Hash& transactionHash)
   BinaryArray extraNonce;
 
   Block block;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint32_t height;
 
   core.get_block_template(block, accountPublicAddress, difficulty, height, extraNonce);
@@ -509,7 +508,7 @@ bool addBlock7(core& core, Crypto::Hash& transactionHash, Crypto::Hash& blockHas
   BinaryArray extraNonce;
 
   Block block;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint32_t height;
 
   core.get_block_template(block, accountPublicAddress, difficulty, height, extraNonce);
@@ -539,7 +538,7 @@ bool addBlock8(core& core, const uint64_t timestamp, Crypto::Hash& transactionHa
   BinaryArray extraNonce;
 
   Block block;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint32_t height;
 
   core.get_block_template(block, accountPublicAddress, difficulty, height, extraNonce);
@@ -593,7 +592,7 @@ bool addOrphanBlock(core& core, Crypto::Hash& blockHash, const Crypto::Hash& pre
 
   while (true)
   {
-    currency.constructMinerTx1(blockHeight, medianBlockSize, alreadyGeneratedCoins, currentBlockSize,
+    currency.constructMinerTx(blockHeight, medianBlockSize, alreadyGeneratedCoins, currentBlockSize,
     fee, AccountPublicAddress(), block.baseTransaction, BinaryArray(), maxOuts);
 
     size_t actualBlockSize = getBlockSize(block.baseTransaction, transactions);
@@ -610,7 +609,7 @@ bool addOrphanBlock(core& core, Crypto::Hash& blockHash, const Crypto::Hash& pre
   block.merkleRoot = get_tx_tree_hash(block);
 
   // find nonce appropriate for current difficulty
-  difficulty_type difficulty = core.getNextBlockDifficulty();
+  Difficulty difficulty = core.getNextBlockDifficulty();
   Crypto::Hash proofOfWorkIgnore;
   Crypto::cn_context context;
   while(!core.currency().checkProofOfWork1(context, block, difficulty, proofOfWorkIgnore))
@@ -1088,7 +1087,7 @@ TEST(Core, 8)
   BinaryArray extraNonce;
 
   Block block;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint32_t height;
 
   ASSERT_TRUE(core.get_block_template(block, accountPublicAddress, difficulty, height, extraNonce));
@@ -1415,7 +1414,7 @@ TEST(Core, 20)
   ASSERT_TRUE(core.set_genesis_block(genesisBlock));
 
   // check difficulty
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint32_t height = core.get_current_blockchain_height() - 1;
   ASSERT_TRUE(core.getBlockDifficulty(height, difficulty));
   ASSERT_EQ(1, difficulty);

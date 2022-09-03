@@ -51,13 +51,13 @@ uint64_t test_generator::getAlreadyGeneratedCoins(const Crypto::Hash& blockId) c
   return it->second.alreadyGeneratedCoins;
 }
 
-uint64_t test_generator::getAlreadyGeneratedCoins(const CryptoNote::Block& blk) const {
+uint64_t test_generator::getAlreadyGeneratedCoins(const CryptoNote::BlockTemplate& blk) const {
   Crypto::Hash blkHash;
   get_block_hash(blk, blkHash);
   return getAlreadyGeneratedCoins(blkHash);
 }
 
-void test_generator::addBlock(const CryptoNote::Block& blk, size_t tsxSize, uint64_t fee,
+void test_generator::addBlock(const CryptoNote::BlockTemplate& blk, size_t tsxSize, uint64_t fee,
                               std::vector<size_t>& blockSizes, uint64_t alreadyGeneratedCoins) {
   const size_t blockSize = tsxSize + getObjectBinarySize(blk.baseTransaction);
   int64_t emissionChange;
@@ -67,7 +67,7 @@ void test_generator::addBlock(const CryptoNote::Block& blk, size_t tsxSize, uint
   m_blocksInfo[get_block_hash(blk)] = BlockInfo(blk.previousBlockHash, alreadyGeneratedCoins + emissionChange, blockSize);
 }
 
-bool test_generator::constructBlock(CryptoNote::Block& blk, uint32_t height, const Crypto::Hash& previousBlockHash,
+bool test_generator::constructBlock(CryptoNote::BlockTemplate& blk, uint32_t height, const Crypto::Hash& previousBlockHash,
                                     const CryptoNote::AccountBase& minerAcc, uint64_t timestamp, uint64_t alreadyGeneratedCoins,
                                     std::vector<size_t>& blockSizes, const std::list<CryptoNote::Transaction>& txList) {
   blk.timestamp = timestamp;
@@ -93,7 +93,7 @@ bool test_generator::constructBlock(CryptoNote::Block& blk, uint32_t height, con
   blk.baseTransaction = boost::value_initialized<Transaction>();
   size_t targetBlockSize = txsSize + getObjectBinarySize(blk.baseTransaction);
   while (true) {
-    if (!m_currency.constructMinerTx1(height, Common::medianValue(blockSizes), alreadyGeneratedCoins, targetBlockSize,
+    if (!m_currency.constructMinerTx(height, Common::medianValue(blockSizes), alreadyGeneratedCoins, targetBlockSize,
       totalFee, minerAcc.getAccountKeys().address, blk.baseTransaction, BinaryArray(), 10)) {
       return false;
     }
@@ -137,13 +137,13 @@ bool test_generator::constructBlock(CryptoNote::Block& blk, uint32_t height, con
   return true;
 }
 
-bool test_generator::constructBlock(CryptoNote::Block& blk, const CryptoNote::AccountBase& minerAcc, uint64_t timestamp) {
+bool test_generator::constructBlock(CryptoNote::BlockTemplate& blk, const CryptoNote::AccountBase& minerAcc, uint64_t timestamp) {
   std::vector<size_t> blockSizes;
   std::list<CryptoNote::Transaction> txList;
   return constructBlock(blk, 0, NULL_HASH, minerAcc, timestamp, 0, blockSizes, txList);
 }
 
-bool test_generator::constructBlock(CryptoNote::Block& blk, const CryptoNote::Block& blkPrev,
+bool test_generator::constructBlock(CryptoNote::BlockTemplate& blk, const CryptoNote::BlockTemplate& blkPrev,
                                     const CryptoNote::AccountBase& minerAcc,
                                     const std::list<CryptoNote::Transaction>& txList/* = std::list<CryptoNote::Transaction>()*/) {
   uint32_t height = boost::get<BaseInput>(blkPrev.baseTransaction.inputs.front()).blockIndex + 1;
@@ -157,10 +157,10 @@ bool test_generator::constructBlock(CryptoNote::Block& blk, const CryptoNote::Bl
   return constructBlock(blk, height, previousBlockHash, minerAcc, timestamp, alreadyGeneratedCoins, blockSizes, txList);
 }
 
-bool test_generator::constructBlockManually(Block& blk, const Block& prevBlock, const AccountBase& minerAcc,
+bool test_generator::constructBlockManually(BlockTemplate& blk, const BlockTemplate& prevBlock, const AccountBase& minerAcc,
                                             int actualParams/* = bf_none*/,
                                             uint64_t timestamp/* = 0*/,
-                                            const Crypto::Hash& previousBlockHash/* = Crypto::Hash()*/, const difficulty_type& diffic/* = 1*/,
+                                            const Crypto::Hash& previousBlockHash/* = Crypto::Hash()*/, const Difficulty& diffic/* = 1*/,
                                             const Transaction& baseTransaction/* = transaction()*/,
                                             const std::vector<Crypto::Hash>& transactionHashes/* = std::vector<Crypto::Hash>()*/,
                                             size_t txsSizes/* = 0*/, uint64_t fee/* = 0*/) {
@@ -178,13 +178,13 @@ bool test_generator::constructBlockManually(Block& blk, const Block& prevBlock, 
     blk.baseTransaction = boost::value_initialized<Transaction>();
     size_t currentBlockSize = txsSizes + getObjectBinarySize(blk.baseTransaction);
     // TODO: This will work, until size of constructed block is less then m_currency.blockGrantedFullRewardZone()
-    if (!m_currency.constructMinerTx1(height, Common::medianValue(blockSizes), alreadyGeneratedCoins, currentBlockSize, 0,
+    if (!m_currency.constructMinerTx(height, Common::medianValue(blockSizes), alreadyGeneratedCoins, currentBlockSize, 0,
       minerAcc.getAccountKeys().address, blk.baseTransaction, BinaryArray(), 1)) {
         return false;
     }
   }
 
-  difficulty_type aDiffic = actualParams & bf_diffic ? diffic : getTestDifficulty();
+  Difficulty aDiffic = actualParams & bf_diffic ? diffic : getTestDifficulty();
   if (1 < aDiffic) {
     fillNonce(blk, aDiffic);
   }
@@ -194,14 +194,14 @@ bool test_generator::constructBlockManually(Block& blk, const Block& prevBlock, 
   return true;
 }
 
-bool test_generator::constructBlockManuallyTx(CryptoNote::Block& blk, const CryptoNote::Block& prevBlock,
+bool test_generator::constructBlockManuallyTx(CryptoNote::BlockTemplate& blk, const CryptoNote::BlockTemplate& prevBlock,
                                               const CryptoNote::AccountBase& minerAcc,
                                               const std::vector<Crypto::Hash>& transactionHashes, size_t txsSize) {
   return constructBlockManually(blk, prevBlock, minerAcc, bf_tx_hashes, 0, 0, 0, Crypto::Hash(), 0, Transaction(),
     transactionHashes, txsSize);
 }
 
-bool test_generator::constructMaxSizeBlock(CryptoNote::Block& blk, const CryptoNote::Block& blkPrev,
+bool test_generator::constructMaxSizeBlock(CryptoNote::BlockTemplate& blk, const CryptoNote::BlockTemplate& blkPrev,
                                            const CryptoNote::AccountBase& minerAccount,
                                            size_t medianBlockCount/* = 0*/,
                                            const std::list<CryptoNote::Transaction>& txList/* = std::list<CryptoNote::Transaction>()*/) {
@@ -234,7 +234,7 @@ bool test_generator::constructMaxSizeBlock(CryptoNote::Block& blk, const CryptoN
     0, 0, 0, Crypto::Hash(), 0, baseTransaction, transactionHashes, txsSize, totalFee);
 }
 
-void fillNonce(CryptoNote::Block& blk, const difficulty_type& diffic) {
+void fillNonce(CryptoNote::BlockTemplate& blk, const Difficulty& diffic) {
   blk.nonce = 0;
   Crypto::cn_context context;
   while (!miner::find_nonce_for_given_block1(context, blk, diffic)) {
@@ -284,7 +284,7 @@ bool constructMinerTxBySize(const CryptoNote::Currency& currency, CryptoNote::Tr
                             uint64_t alreadyGeneratedCoins, const CryptoNote::AccountPublicAddress& minerAddress,
                             std::vector<size_t>& blockSizes, size_t targetTxSize, size_t targetBlockSize,
                             uint64_t fee/* = 0*/) {
-  if (!currency.constructMinerTx1(height, Common::medianValue(blockSizes), alreadyGeneratedCoins, targetBlockSize,
+  if (!currency.constructMinerTx(height, Common::medianValue(blockSizes), alreadyGeneratedCoins, targetBlockSize,
       fee, minerAddress, baseTransaction, CryptoNote::BinaryArray(), 1)) {
     return false;
   }

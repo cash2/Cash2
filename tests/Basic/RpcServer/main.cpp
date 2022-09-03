@@ -8,7 +8,6 @@
 #include "CryptoNoteCore/Currency.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
 #include "Logging/ConsoleLogger.h"
-#include "CryptoNoteCore/CoreConfig.h"
 #include "CryptoNoteCore/MinerConfig.h"
 #include "Common/StringTools.h"
 

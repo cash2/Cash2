@@ -44,7 +44,7 @@ namespace CryptoNote {
     return a + b < a || (c && a + b == (uint64_t) -1);
   }
 
-  bool check_hash1(const Crypto::Hash &hash, difficulty_type difficulty) {
+  bool check_hash1(const Crypto::Hash &hash, Difficulty difficulty) {
     uint64_t low, high, top, cur;
     // First check the highest word, this will most likely fail for a random hash.
     mul(swap64be(((const uint64_t *) &hash)[0]), difficulty, top, high);
@@ -61,7 +61,7 @@ namespace CryptoNote {
     return !carry;
   }
 
-  bool check_hash2(const Crypto::Hash &hash, difficulty_type difficulty) {
+  bool check_hash2(const Crypto::Hash &hash, Difficulty difficulty) {
 
     // GOAL : remove the first 10 zero characters from the hash
     

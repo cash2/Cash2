@@ -28,6 +28,7 @@
 
 using namespace Logging;
 
+// TODO: there are still differnces between this file and Bytecoins Miner.cpp file
 namespace CryptoNote
 {
 
@@ -35,7 +36,7 @@ namespace CryptoNote
     m_currency(currency),
     logger(log, "miner"),
     m_stop(true),
-    m_template(boost::value_initialized<Block>()),
+    m_template(boost::value_initialized<BlockTemplate>()),
     m_template_no(0),
     m_diffic(0),
     m_handler(handler),
@@ -56,7 +57,7 @@ namespace CryptoNote
     stop();
   }
   //-----------------------------------------------------------------------------------------------------
-  bool miner::set_block_template(const Block& bl, const difficulty_type& di) {
+  bool miner::set_block_template(const BlockTemplate& bl, const Difficulty& di) {
     std::lock_guard<decltype(m_template_lock)> lk(m_template_lock);
 
     m_template = bl;
@@ -75,8 +76,8 @@ namespace CryptoNote
   }
   //-----------------------------------------------------------------------------------------------------
   bool miner::request_block_template() {
-    Block bl = boost::value_initialized<Block>();
-    difficulty_type di = 0;
+    BlockTemplate bl = boost::value_initialized<BlockTemplate>();
+    Difficulty di = 0;
     uint32_t height;
     CryptoNote::BinaryArray extra_nonce;
 
@@ -251,7 +252,7 @@ namespace CryptoNote
     return true;
   }
   //-----------------------------------------------------------------------------------------------------
-  bool miner::find_nonce_for_given_block1(Crypto::cn_context &context, Block& bl, const difficulty_type& diffic) {
+  bool miner::find_nonce_for_given_block1(Crypto::cn_context &context, BlockTemplate& bl, const Difficulty& diffic) {
 
     unsigned nthreads = std::thread::hardware_concurrency();
 
@@ -266,12 +267,15 @@ namespace CryptoNote
           Crypto::cn_context localctx;
           Crypto::Hash h;
 
-          Block lb(bl); // copy to local block
+          BlockTemplate lb(bl); // copy to local block
 
           for (uint64_t nonce = startNonce + i; !found; nonce += nthreads) {
             lb.nonce = nonce;
 
-            if (!get_block_longhash(localctx, lb, h)) {
+            CachedBlock cb(lb);
+            try {
+              h = cb.getBlockLongHash(localctx);
+            } catch (std::exception&) {
               return;
             }
 
@@ -296,7 +300,10 @@ namespace CryptoNote
     } else {
       for (; bl.nonce != std::numeric_limits<uint64_t>::max(); bl.nonce++) {
         Crypto::Hash h;
-        if (!get_block_longhash(context, bl, h)) {
+        CachedBlock cb(bl);
+        try {
+          h = cb.getBlockLongHash(context);
+        } catch (std::exception&) {
           return false;
         }
 
@@ -309,7 +316,7 @@ namespace CryptoNote
     return false;
   }
   //-----------------------------------------------------------------------------------------------------
-  bool miner::find_nonce_for_given_block2(Crypto::cn_context &context, Block& bl, const difficulty_type& diffic) {
+  bool miner::find_nonce_for_given_block2(Crypto::cn_context &context, BlockTemplate& bl, const Difficulty& diffic) {
 
     unsigned nthreads = std::thread::hardware_concurrency();
 
@@ -324,12 +331,15 @@ namespace CryptoNote
           Crypto::cn_context localctx;
           Crypto::Hash h;
 
-          Block lb(bl); // copy to local block
+          BlockTemplate lb(bl); // copy to local block
 
           for (uint64_t nonce = startNonce + i; !found; nonce += nthreads) {
             lb.nonce = nonce;
 
-            if (!get_block_longhash(localctx, lb, h)) {
+            CachedBlock cb(lb);
+            try {
+              h = cb.getBlockLongHash(localctx);
+            } catch (std::exception&) {
               return;
             }
 
@@ -354,7 +364,10 @@ namespace CryptoNote
     } else {
       for (; bl.nonce != std::numeric_limits<uint64_t>::max(); bl.nonce++) {
         Crypto::Hash h;
-        if (!get_block_longhash(context, bl, h)) {
+        CachedBlock cb(bl);
+        try {
+          h = cb.getBlockLongHash(context);
+        } catch (std::exception&) {
           return false;
         }
 
@@ -399,10 +412,10 @@ namespace CryptoNote
   {
     logger(INFO) << "Miner thread was started ["<< th_local_index << "]";
     uint64_t nonce = m_starter_nonce + th_local_index;
-    difficulty_type local_diff = 0;
+    Difficulty local_diff = 0;
     uint32_t local_template_ver = 0;
     Crypto::cn_context context;
-    Block b;
+    BlockTemplate b;
 
     while(!m_stop)
     {
@@ -431,9 +444,15 @@ namespace CryptoNote
 
       b.nonce = nonce;
       Crypto::Hash h;
-      if (!m_stop && !get_block_longhash(context, b, h)) {
-        logger(ERROR) << "Failed to get block long hash";
-        m_stop = true;
+
+      CachedBlock cb(b);
+      if (!m_stop) {
+        try {
+          h = cb.getBlockLongHash(context);
+        } catch (std::exception& e) {
+          logger(ERROR) << "getBlockLongHash failed: " << e.what();
+          m_stop = true;
+        }
       }
 
       uint32_t blockHeight = boost::get<BaseInput>(b.baseTransaction.inputs[0]).blockIndex;

@@ -1,7 +1,19 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Copyright (c) 2018-2022 The Cash2 developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
+//
+// This file is part of Bytecoin.
+//
+// Bytecoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Bytecoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #pragma once
 
@@ -11,12 +23,13 @@
 
 #include <CryptoNote.h>
 
-#define TX_EXTRA_PADDING_MAX_COUNT          60
-#define TX_EXTRA_NONCE_MAX_COUNT            60
+#define TX_EXTRA_PADDING_MAX_COUNT          255
+#define TX_EXTRA_NONCE_MAX_COUNT            255
 
 #define TX_EXTRA_TAG_PADDING                0x00
 #define TX_EXTRA_TAG_PUBKEY                 0x01
 #define TX_EXTRA_NONCE                      0x02
+#define TX_EXTRA_MERGE_MINING_TAG           0x03
 
 #define TX_EXTRA_NONCE_PAYMENT_ID           0x00
 
@@ -34,11 +47,16 @@ struct TransactionExtraNonce {
   std::vector<uint8_t> nonce;
 };
 
+struct TransactionExtraMergeMiningTag {
+  size_t depth;
+  Crypto::Hash merkleRoot;
+};
+
 // tx_extra_field format, except tx_extra_padding and tx_extra_pub_key:
 //   varint tag;
 //   varint size;
 //   varint data[];
-typedef boost::variant<TransactionExtraPadding, TransactionExtraPublicKey, TransactionExtraNonce> TransactionExtraField;
+typedef boost::variant<TransactionExtraPadding, TransactionExtraPublicKey, TransactionExtraNonce, TransactionExtraMergeMiningTag> TransactionExtraField;
 
 
 
@@ -62,6 +80,8 @@ bool addTransactionPublicKeyToExtra(std::vector<uint8_t>& tx_extra, const Crypto
 bool addExtraNonceToTransactionExtra(std::vector<uint8_t>& tx_extra, const BinaryArray& extra_nonce);
 void setPaymentIdToTransactionExtraNonce(BinaryArray& extra_nonce, const Crypto::Hash& payment_id);
 bool getPaymentIdFromTransactionExtraNonce(const BinaryArray& extra_nonce, Crypto::Hash& payment_id);
+bool appendMergeMiningTagToExtra(std::vector<uint8_t>& tx_extra, const TransactionExtraMergeMiningTag& mm_tag);
+bool getMergeMiningTagFromExtra(const std::vector<uint8_t>& tx_extra, TransactionExtraMergeMiningTag& mm_tag);
 
 bool createTxExtraWithPaymentId(const std::string& paymentIdString, std::vector<uint8_t>& extra);
 //returns false if payment id is not found or parse error
@@ -69,3 +89,4 @@ bool getPaymentIdFromTxExtra(const std::vector<uint8_t>& extra, Crypto::Hash& pa
 bool parsePaymentId(const std::string& paymentIdString, Crypto::Hash& paymentId);
 
 }
+

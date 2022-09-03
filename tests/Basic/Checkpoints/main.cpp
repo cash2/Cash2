@@ -19,9 +19,9 @@ class Checkpoints
 public
   Checkpoints()
   add_checkpoint()
-  is_in_checkpoint_zone()
-  check_block()
-  check_block()
+  isInCheckpointZone()
+  checkBlock()
+  checkBlock()
   is_alternative_block_allowed()
 
 private
@@ -47,7 +47,7 @@ TEST(checkpoints, 1)
   ASSERT_TRUE(checkPoints.add_checkpoint(height, hashStr));
 }
 
-// is_in_checkpoint_zone
+// isInCheckpointZone
 TEST(checkpoints, 2)
 {
   Logging::LoggerGroup logger;
@@ -62,16 +62,16 @@ TEST(checkpoints, 2)
 
   for (uint32_t i = height; i > 0; --i)
   {
-    ASSERT_TRUE(checkPoints.is_in_checkpoint_zone(i));
+    ASSERT_TRUE(checkPoints.isInCheckpointZone(i));
   }
 
   for (uint32_t i = height + 1; i < UINT32_MAX; ++i)
   {
-    ASSERT_FALSE(checkPoints.is_in_checkpoint_zone(i));
+    ASSERT_FALSE(checkPoints.isInCheckpointZone(i));
   }
 }
 
-// check_block()
+// checkBlock()
 TEST(checkpoints, 3)
 {
   Logging::LoggerGroup logger;
@@ -91,14 +91,14 @@ TEST(checkpoints, 3)
 
   bool isCheckpoint;
 
-  ASSERT_TRUE(checkPoints.check_block(height, hash, isCheckpoint));
+  ASSERT_TRUE(checkPoints.checkBlock(height, hash, isCheckpoint));
 
   ASSERT_TRUE(isCheckpoint);
 
   // right checkpoint height, wrong hash
   for (uint32_t i = 0; i < loopCount; ++i)
   {
-    ASSERT_FALSE(checkPoints.check_block(height, getRandHash(), isCheckpoint));
+    ASSERT_FALSE(checkPoints.checkBlock(height, getRandHash(), isCheckpoint));
 
     ASSERT_TRUE(isCheckpoint);
   }
@@ -106,7 +106,7 @@ TEST(checkpoints, 3)
   // wrong checkpoint height, right hash
   for (uint32_t i = 0; i < loopCount; ++i)
   {
-    ASSERT_TRUE(checkPoints.check_block(getRandUint32_t(), hash, isCheckpoint));
+    ASSERT_TRUE(checkPoints.checkBlock(getRandUint32_t(), hash, isCheckpoint));
 
     ASSERT_FALSE(isCheckpoint);
   }
@@ -114,7 +114,7 @@ TEST(checkpoints, 3)
   // wrong checkpoint height, wrong hash
   for (uint32_t i = 0; i < loopCount; ++i)
   {
-    ASSERT_TRUE(checkPoints.check_block(getRandUint32_t(), getRandHash(), isCheckpoint));
+    ASSERT_TRUE(checkPoints.checkBlock(getRandUint32_t(), getRandHash(), isCheckpoint));
 
     ASSERT_FALSE(isCheckpoint);
   }

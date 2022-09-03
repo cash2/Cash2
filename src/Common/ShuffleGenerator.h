@@ -8,6 +8,14 @@
 #include <unordered_map>
 #include <random>
 
+class SequenceEnded: public std::runtime_error {
+public:
+  SequenceEnded() : std::runtime_error("shuffle sequence ended") {
+  }
+
+  ~SequenceEnded(){}
+};
+
 template <typename T, typename Gen>
 class ShuffleGenerator {
 public:
@@ -18,7 +26,7 @@ public:
   T operator()() {
 
     if (count == 0) {
-      throw std::runtime_error("shuffle sequence ended");
+      throw SequenceEnded();
     }
 
     typedef typename std::uniform_int_distribution<T> distr_t;
@@ -41,6 +49,10 @@ public:
     }
 
     return value;
+  }
+
+  bool empty() const {
+    return count == 0;
   }
 
   void reset() {

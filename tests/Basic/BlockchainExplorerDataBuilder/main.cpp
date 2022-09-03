@@ -8,7 +8,6 @@
 #include "CryptoNoteCore/Core.h"
 #include "Logging/ConsoleLogger.h"
 #include "CryptoNoteCore/Currency.h"
-#include "CryptoNoteCore/CoreConfig.h"
 #include "CryptoNoteCore/MinerConfig.h"
 #include "CryptoNoteCore/TransactionExtra.h"
 #include "Common/Math.h"
@@ -45,7 +44,7 @@ bool addBlock1(core& core)
   BinaryArray extraNonce;
 
   Block block;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint32_t height;
 
   core.get_block_template(block, accountPublicAddress, difficulty, height, extraNonce);
@@ -70,7 +69,7 @@ bool addBlock5(core& core, const AccountPublicAddress& minerPublicAddress, Crypt
   BinaryArray extraNonce;
 
   Block block;
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint32_t height;
 
   core.get_block_template(block, minerPublicAddress, difficulty, height, extraNonce);
@@ -94,7 +93,7 @@ bool addBlock5(core& core, const AccountPublicAddress& minerPublicAddress, Crypt
 
 // Adds an empty block to the blockchain
 // return block that was added
-bool addBlock8(core& core, Block& block)
+bool addBlock8(core& core, BlockTemplate& block)
 {
   AccountPublicAddress accountPublicAddress;
   KeyPair viewKeyPair = generateKeyPair();
@@ -104,7 +103,7 @@ bool addBlock8(core& core, Block& block)
 
   BinaryArray extraNonce;
 
-  difficulty_type difficulty;
+  Difficulty difficulty;
   uint32_t height;
 
   core.get_block_template(block, accountPublicAddress, difficulty, height, extraNonce);

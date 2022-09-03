@@ -24,21 +24,6 @@
 
 using namespace CryptoNote;
 
-/*
-class TransfersObserver : public ITransfersObserver {
-public:
-
-  virtual void onTransactionUpdated(ITransfersSubscription* object, const Hash& transactionHash,
-    uint64_t amountIn, uint64_t amountOut) override {
-    std::lock_guard<std::mutex> lk(m_mutex);
-    m_transfers.push_back(std::make_pair(transactionHash, amountIn - amountOut));
-  }
-
-  std::vector<std::pair<Hash, int64_t>> m_transfers;
-  std::mutex m_mutex;
-}; */
-
-
 class INodeStubWithPoolTx : public INodeTrivialRefreshStub {
 public:
   INodeStubWithPoolTx(TestBlockchainGenerator& generator) : INodeTrivialRefreshStub(generator), detached(false) {}
@@ -112,11 +97,12 @@ class DetachTest : public ::testing::Test, public IBlockchainSynchronizerObserve
 public:
 
   DetachTest() :
+    m_logger(Logging::ERROR),
     m_currency(CryptoNote::CurrencyBuilder(m_logger).currency()),
     generator(m_currency),
     m_node(generator),
-    m_sync(m_node, m_currency.genesisBlockHash()),
-    m_transfersSync(m_currency, m_sync, m_node) {
+    m_sync(m_node, m_logger, m_currency.genesisBlockHash()),
+    m_transfersSync(m_currency, m_logger, m_sync, m_node) {
   }
 
   void addAccounts(size_t count) {
