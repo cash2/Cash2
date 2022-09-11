@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -36,8 +36,6 @@ uint64_t getInputAmount(const Transaction& transaction) {
   for (auto& input : transaction.inputs) {
     if (input.type() == typeid(KeyInput)) {
       amount += boost::get<KeyInput>(input).amount;
-    } else if (input.type() == typeid(MultisignatureInput)) {
-      amount += boost::get<MultisignatureInput>(input).amount;
     }
   }
 
@@ -51,8 +49,6 @@ std::vector<uint64_t> getInputsAmounts(const Transaction& transaction) {
   for (auto& input: transaction.inputs) {
     if (input.type() == typeid(KeyInput)) {
       inputsAmounts.push_back(boost::get<KeyInput>(input).amount);
-    } else if (input.type() == typeid(MultisignatureInput)) {
-      inputsAmounts.push_back(boost::get<MultisignatureInput>(input).amount);
     }
   }
 

@@ -87,13 +87,8 @@ struct TransactionOutputInformationEx : public TransactionOutputInformationIn {
     s(transactionHash, "");
     s(visible, "");
 
-    if (type == TransactionTypes::OutputType::Key)
-    {
+    if (type == TransactionTypes::OutputType::Key) {
       s(outputKey, "");
-    }
-    else if (type == TransactionTypes::OutputType::Multisignature)
-    {
-      s(requiredSignatures, "");
     }
   }
 
@@ -140,9 +135,7 @@ struct KeyOutputInfo {
 };
 
 class TransfersContainer : public ITransfersContainer {
-
 public:
-
   TransfersContainer(const CryptoNote::Currency& currency, Logging::ILogger& logger, size_t transactionSpendableAge);
 
   bool addTransaction(const TransactionBlockInfo& block, const ITransactionReader& tx, const std::vector<TransactionOutputInformationIn>& transfers);
@@ -177,8 +170,8 @@ private:
   typedef boost::multi_index_container<
     TransactionInformation,
     boost::multi_index::indexed_by<
-    boost::multi_index::hashed_unique<BOOST_MULTI_INDEX_MEMBER(TransactionInformation, Crypto::Hash, transactionHash)>,
-    boost::multi_index::ordered_non_unique < BOOST_MULTI_INDEX_MEMBER(TransactionInformation, uint32_t, blockHeight) >
+      boost::multi_index::hashed_unique<BOOST_MULTI_INDEX_MEMBER(TransactionInformation, Crypto::Hash, transactionHash)>,
+      boost::multi_index::ordered_non_unique<BOOST_MULTI_INDEX_MEMBER(TransactionInformation, uint32_t, blockHeight)>
     >
   > TransactionMultiIndex;
 
@@ -230,7 +223,7 @@ private:
       boost::multi_index::hashed_unique<
         boost::multi_index::tag<SpentOutputDescriptorIndex>,
         boost::multi_index::const_mem_fun<
-    TransactionOutputInformationEx,
+          TransactionOutputInformationEx,
           SpentOutputDescriptor,
           &TransactionOutputInformationEx::getSpentOutputDescriptor>,
         SpentOutputDescriptorHasher
@@ -270,7 +263,6 @@ private:
   UnconfirmedTransfersMultiIndex m_unconfirmedTransfers;
   AvailableTransfersMultiIndex m_availableTransfers;
   SpentTransfersMultiIndex m_spentTransfers;
-  //std::unordered_map<KeyImage, KeyOutputInfo, boost::hash<KeyImage>> m_keyImages;
 
   uint32_t m_currentHeight; // current height is needed to check if a transfer is unlocked
   size_t m_transactionSpendableAge;

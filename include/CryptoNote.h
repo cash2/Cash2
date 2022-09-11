@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -25,20 +25,9 @@ struct KeyOutput {
   Crypto::PublicKey key;
 };
 
-struct MultisignatureInput {
-  uint64_t amount;
-  uint8_t signatureCount;
-  uint32_t outputIndex;
-};
+typedef boost::variant<BaseInput, KeyInput> TransactionInput;
 
-struct MultisignatureOutput {
-  std::vector<Crypto::PublicKey> keys;
-  uint8_t requiredSignatureCount;
-};
-
-typedef boost::variant<BaseInput, KeyInput, MultisignatureInput> TransactionInput;
-
-typedef boost::variant<KeyOutput, MultisignatureOutput> TransactionOutputTarget;
+typedef boost::variant<KeyOutput> TransactionOutputTarget;
 
 struct TransactionOutput {
   uint64_t amount;

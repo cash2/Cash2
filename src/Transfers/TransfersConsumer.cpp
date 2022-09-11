@@ -20,6 +20,7 @@
 #include <future>
 
 using namespace Crypto;
+using namespace Logging;
 
 std::unordered_set<Crypto::Hash> transactions_hash_seen;
 std::unordered_set<Crypto::PublicKey> public_keys_seen;
@@ -28,7 +29,6 @@ std::mutex seen_mutex;
 namespace {
 
 using namespace CryptoNote;
-using namespace Logging;
 
 class MarkTransactionConfirmedException : public std::exception {
 public:
@@ -88,15 +88,6 @@ void findMyOutputs(
       checkOutputKey(derivation, out.key, keyIndex, idx, spendKeys, outputs);
       ++keyIndex;
 
-    } else if (outType == TransactionTypes::OutputType::Multisignature) {
-
-      uint64_t amount;
-      MultisignatureOutput out;
-      tx.getOutput(idx, out, amount);
-      for (const auto& key : out.keys) {
-        checkOutputKey(derivation, key, idx, idx, spendKeys, outputs);
-        ++keyIndex;
-      }
     }
   }
 }
@@ -131,7 +122,14 @@ ITransfersSubscription& TransfersConsumer::addSubscription(const AccountSubscrip
   if (res.get() == nullptr) {
     res.reset(new TransfersSubscription(m_currency, m_logger.getLogger(), subscription));
     m_spendKeys.insert(subscription.keys.address.spendPublicKey);
-    updateSyncStart();
+
+    if (m_subscriptions.size() == 1) {
+      m_syncStart = res->getSyncStart();
+    } else {
+      auto subStart = res->getSyncStart();
+      m_syncStart.height = std::min(m_syncStart.height, subStart.height);
+      m_syncStart.timestamp = std::min(m_syncStart.timestamp, subStart.timestamp);
+    }
   }
 
   return *res;
@@ -436,8 +434,7 @@ std::error_code TransfersConsumer::createTransfers(
     auto outType = tx.getOutputType(size_t(idx));
 
     if (
-      outType != TransactionTypes::OutputType::Key &&
-      outType != TransactionTypes::OutputType::Multisignature) {
+      outType != TransactionTypes::OutputType::Key) {
       continue;
     }
 
@@ -484,26 +481,6 @@ std::error_code TransfersConsumer::createTransfers(
       info.amount = amount;
       info.outputKey = out.key;
 
-    } else if (outType == TransactionTypes::OutputType::Multisignature) {
-      uint64_t amount;
-      MultisignatureOutput out;
-      tx.getOutput(idx, out, amount);
-
-	  for (const auto& key : out.keys) {
-        std::unordered_set<Crypto::Hash>::iterator it = transactions_hash_seen.find(txHash);
-        if (it == transactions_hash_seen.end()) {
-          std::unordered_set<Crypto::PublicKey>::iterator key_it = public_keys_seen.find(key);
-          if (key_it != public_keys_seen.end()) {
-            return std::error_code();
-          }
-          if (std::find(temp_keys.begin(), temp_keys.end(), key) != temp_keys.end()) {
-            return std::error_code();
-          }
-          temp_keys.push_back(key);
-        }
-      }
-      info.amount = amount;
-      info.requiredSignatures = out.requiredSignatureCount;
     }
 
     transfers.push_back(info);
@@ -560,6 +537,8 @@ std::error_code TransfersConsumer::processTransaction(const TransactionBlockInfo
 void TransfersConsumer::processTransaction(const TransactionBlockInfo& blockInfo, const ITransactionReader& tx, const PreprocessInfo& info) {
   std::vector<TransactionOutputInformationIn> emptyOutputs;
   std::vector<ITransfersContainer*> transactionContainers;
+
+  m_logger(TRACE) << "Process transaction, block " << blockInfo.height << ", transaction index " << blockInfo.transactionIndex << ", hash " << tx.getTransactionHash();
   bool someContainerUpdated = false;
   for (auto& kv : m_subscriptions) {
     auto it = info.outputs.find(kv.first);
@@ -575,7 +554,10 @@ void TransfersConsumer::processTransaction(const TransactionBlockInfo& blockInfo
   }
 
   if (someContainerUpdated) {
+    m_logger(TRACE) << "Transaction updated some containers, hash " << tx.getTransactionHash();
     m_observerManager.notify(&IBlockchainConsumerObserver::onTransactionUpdated, this, tx.getTransactionHash(), transactionContainers);
+  } else {
+    m_logger(TRACE) << "Transaction doesn't updated any container, hash " << tx.getTransactionHash();
   }
 }
 
@@ -588,9 +570,14 @@ void TransfersConsumer::processOutputs(const TransactionBlockInfo& blockInfo, Tr
 
   if (contains) {
     if (subscribtionTxInfo.blockHeight == WALLET_UNCONFIRMED_TRANSACTION_HEIGHT && blockInfo.height != WALLET_UNCONFIRMED_TRANSACTION_HEIGHT) {
-      // pool->blockchain
-      sub.markTransactionConfirmed(blockInfo, tx.getTransactionHash(), globalIdxs);
-      updated = true;
+      try {
+        // pool->blockchain
+        sub.markTransactionConfirmed(blockInfo, tx.getTransactionHash(), globalIdxs);
+        updated = true;
+      } catch (...) {
+          m_logger(ERROR, BRIGHT_RED) << "markTransactionConfirmed failed, throw MarkTransactionConfirmedException";
+          throw MarkTransactionConfirmedException(tx.getTransactionHash());
+      }
     } else {
       assert(subscribtionTxInfo.blockHeight == blockInfo.height);
     }

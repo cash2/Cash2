@@ -76,9 +76,12 @@ public:
   virtual bool addObserver(INodeObserver* observer) = 0;
   virtual bool removeObserver(INodeObserver* observer) = 0;
 
+  //precondition: must be called in dispatcher's thread
   virtual void init(const Callback& callback) = 0;
+  //precondition: must be called in dispatcher's thread
   virtual bool shutdown() = 0;
 
+  //precondition: all of following methods must not be invoked in dispatcher's thread
   virtual size_t getPeerCount() const = 0;
   virtual uint32_t getLastLocalBlockHeight() const = 0;
   virtual uint32_t getLastKnownBlockHeight() const = 0;
@@ -98,8 +101,6 @@ public:
   virtual void getTransactionOutsGlobalIndices(const Crypto::Hash& transactionHash, std::vector<uint32_t>& outsGlobalIndices, const Callback& callback) = 0;
   virtual void queryBlocks(std::vector<Crypto::Hash>&& knownBlockIds, uint64_t timestamp, std::vector<BlockShortEntry>& newBlocks, uint32_t& startHeight, const Callback& callback) = 0;
   virtual void getPoolSymmetricDifference(std::vector<Crypto::Hash>&& knownPoolTxIds, Crypto::Hash knownBlockId, bool& isBcActual, std::vector<std::unique_ptr<ITransactionReader>>& newTxs, std::vector<Crypto::Hash>& deletedTxIds, const Callback& callback) = 0;
-  // TODO: see if we can remove the function below
-  // virtual void getMultisignatureOutputByGlobalIndex(uint64_t amount, uint32_t gindex, MultisignatureOutput& out, const Callback& callback) = 0;
 
   virtual void getBlocks(const std::vector<uint32_t>& blockHeights, std::vector<std::vector<BlockDetails>>& blocks, const Callback& callback) = 0;
   virtual void getBlocks(const std::vector<Crypto::Hash>& blockHashes, std::vector<BlockDetails>& blocks, const Callback& callback) = 0;

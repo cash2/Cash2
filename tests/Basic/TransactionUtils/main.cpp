@@ -11,54 +11,6 @@
 
 using namespace CryptoNote;
 
-/*
-
-My Notes
-
-checkInputsKeyimagesDiff()
-getRequiredSignaturesCount()
-getTransactionInputAmount()
-getTransactionInputType()
-getInputChecked()
-getInputChecked()
-isOutToKey()
-getTransactionOutputType()
-getOutputChecked()
-getOutputChecked()
-findOutputsToAccount()
-
-struct TransactionPrefix {
-  uint8_t version;
-  uint64_t unlockTime;
-  std::vector<TransactionInput> inputs;
-  std::vector<TransactionOutput> outputs;
-  std::vector<uint8_t> extra;
-};
-
-struct Transaction : public TransactionPrefix {
-  std::vector<std::vector<Crypto::Signature>> signatures;
-};
-
-typedef boost::variant<BaseInput, KeyInput, MultisignatureInput> TransactionInput;
-
-struct KeyInput {
-  uint64_t amount;
-  std::vector<uint32_t> outputIndexes;
-  Crypto::KeyImage keyImage;
-};
-
-struct KeyImage {
-  uint8_t data[32];
-};
-
-struct MultisignatureInput {
-  uint64_t amount;
-  uint8_t signatureCount;
-  uint32_t outputIndex;
-};
-
-*/
-
 // chunk handler for decompose_amount_into_digits
 struct chunk_handler_t
 {
@@ -166,19 +118,6 @@ TEST(transactionUtils, 2)
   ASSERT_EQ(requiredSignatureCount, numOutputIndexes);
 }
 
-// getRequiredSignaturesCount()
-// MultisignatureInput
-TEST(transactionUtils, 3)
-{
-  MultisignatureInput multisignatureInput;
-
-  multisignatureInput.signatureCount = getRandUint8_t();
-
-  size_t requiredSignatureCount = getRequiredSignaturesCount(multisignatureInput);
-
-  ASSERT_EQ(requiredSignatureCount, multisignatureInput.signatureCount);
-}
-
 // getTransactionInputAmount()
 // keyInput
 TEST(transactionUtils, 4)
@@ -192,19 +131,6 @@ TEST(transactionUtils, 4)
   ASSERT_EQ(transactionInputAmount, keyInput.amount);
 }
 
-// getTransactionInputAmount()
-// MultisignatureInput
-TEST(transactionUtils, 5)
-{
-  MultisignatureInput multisignatureInput;
-
-  multisignatureInput.amount = getRandUint64_t();
-
-  size_t transactionInputAmount = getTransactionInputAmount(multisignatureInput);
-
-  ASSERT_EQ(transactionInputAmount, multisignatureInput.amount);
-}
-
 // getTransactionInputType()
 // KeyInput
 TEST(transactionUtils, 6)
@@ -214,17 +140,6 @@ TEST(transactionUtils, 6)
   TransactionTypes::InputType transactionInputType = getTransactionInputType(keyInput);
 
   ASSERT_EQ(transactionInputType, TransactionTypes::InputType::Key);
-}
-
-// getTransactionInputType()
-// MultisignatureInput
-TEST(transactionUtils, 7)
-{
-  MultisignatureInput multisignatureInput;
-
-  TransactionTypes::InputType transactionInputType = getTransactionInputType(multisignatureInput);
-
-  ASSERT_EQ(transactionInputType, TransactionTypes::InputType::Multisignature);
 }
 
 // getTransactionInputType()
@@ -287,53 +202,6 @@ TEST(transactionUtils, 9)
     ASSERT_ANY_THROW(getInputChecked(transaction, keyInputs.size() + i));
 
     // check input type
-    ASSERT_ANY_THROW(getInputChecked(transaction, i, TransactionTypes::InputType::Multisignature));
-    ASSERT_ANY_THROW(getInputChecked(transaction, i, TransactionTypes::InputType::Generating));
-  }
-}
-
-// getInputChecked()
-// MultisignatureInput
-TEST(transactionUtils, 10)
-{
-  Transaction transaction;
-
-  std::vector<MultisignatureInput> multisignatureInputs;
-
-  for (uint32_t i = 0; i < loopCount; i++)
-  {
-    MultisignatureInput multisignatureInput;
-
-    multisignatureInput.amount = getRandUint64_t();
-    multisignatureInput.signatureCount = getRandUint8_t();
-    multisignatureInput.outputIndex = getRandUint32_t();
-
-    multisignatureInputs.push_back(multisignatureInput);
-
-    transaction.inputs.push_back(multisignatureInput);
-  }
-
-  for (uint32_t i = 0; i < multisignatureInputs.size(); i++)
-  {
-    TransactionInput transactionInput = getInputChecked(transaction, i);
-
-    MultisignatureInput multisignatureInput = boost::get<MultisignatureInput>(transactionInput);
-
-    // check amounts are equal
-    ASSERT_EQ(multisignatureInput.amount, multisignatureInputs[i].amount);
-    // check signatureCount are equal
-    ASSERT_EQ(multisignatureInput.signatureCount, multisignatureInputs[i].signatureCount);
-    // check outputIndex are equal
-    ASSERT_EQ(multisignatureInput.outputIndex, multisignatureInputs[i].outputIndex);
-  }
-
-  for (uint32_t i = 1; i < loopCount; i++)
-  {
-    // check index
-    ASSERT_ANY_THROW(getInputChecked(transaction, multisignatureInputs.size() + i));
-
-    // check input type
-    ASSERT_ANY_THROW(getInputChecked(transaction, i, TransactionTypes::InputType::Key));
     ASSERT_ANY_THROW(getInputChecked(transaction, i, TransactionTypes::InputType::Generating));
   }
 }
@@ -374,7 +242,6 @@ TEST(transactionUtils, 11)
 
     // check input type
     ASSERT_ANY_THROW(getInputChecked(transaction, i, TransactionTypes::InputType::Key));
-    ASSERT_ANY_THROW(getInputChecked(transaction, i, TransactionTypes::InputType::Multisignature));
   }
 }
 
@@ -390,17 +257,6 @@ TEST(transactionUtils, 12)
 }
 
 // getTransactionOutputType()
-// MultisignatureOutput
-TEST(transactionUtils, 13)
-{
-  MultisignatureOutput multisignatureOutput;
-
-  TransactionTypes::OutputType transactionOutputType = getTransactionOutputType(multisignatureOutput);
-
-  ASSERT_EQ(transactionOutputType, TransactionTypes::OutputType::Multisignature);
-}
-
-// getTransactionOutputType()
 // KeyOutput
 TEST(transactionUtils, 14)
 {
@@ -409,17 +265,6 @@ TEST(transactionUtils, 14)
   TransactionTypes::OutputType transactionOutputType = getTransactionOutputType(keyOutput);
 
   ASSERT_EQ(transactionOutputType, TransactionTypes::OutputType::Key);
-}
-
-// getTransactionOutputType()
-// MultisignatureOutput
-TEST(transactionUtils, 15)
-{
-  MultisignatureOutput multisignatureOutput;
-
-  TransactionTypes::OutputType transactionOutputType = getTransactionOutputType(multisignatureOutput);
-
-  ASSERT_EQ(transactionOutputType, TransactionTypes::OutputType::Multisignature);
 }
 
 // getOutputChecked()
@@ -462,68 +307,6 @@ TEST(transactionUtils, 16)
   {
     // check index
     ASSERT_ANY_THROW(getOutputChecked(transaction, keyOutputs.size() + i));
-
-    // check input type
-    ASSERT_ANY_THROW(getOutputChecked(transaction, i, TransactionTypes::OutputType::Multisignature));
-  }
-}
-
-// getOutputChecked()
-// MultisignatureOutput
-TEST(transactionUtils, 17)
-{
-  Transaction transaction;
-
-  std::vector<MultisignatureOutput> multisignatureOutputs;
-
-  uint8_t randNumPublicKeys = getRandUint8_t();
-
-  for (uint32_t i = 0; i < loopCount; i++)
-  {
-    TransactionOutput transactionOutput;
-
-    MultisignatureOutput multisignatureOutput;
-
-    multisignatureOutput.requiredSignatureCount = getRandUint8_t();
-
-    for (uint8_t j = 0; j < randNumPublicKeys; j++)
-    {
-      multisignatureOutput.keys.push_back(getRandPublicKey());
-    }
-
-    multisignatureOutputs.push_back(multisignatureOutput);
-
-    transactionOutput.target = multisignatureOutput;
-
-    transaction.outputs.push_back(transactionOutput);
-  }
-
-  for (uint32_t i = 0; i < multisignatureOutputs.size(); i++)
-  {
-    TransactionOutput transactionOutput = getOutputChecked(transaction, i);
-
-    MultisignatureOutput multisignatureOutput = boost::get<MultisignatureOutput>(transactionOutput.target);
-
-    // check MultisignatureOutput requiredSignatureCounts are equal
-    ASSERT_EQ(multisignatureOutput.requiredSignatureCount, multisignatureOutputs[i].requiredSignatureCount);
-
-    // check MultisignatureOutput public keys are equal
-    for (uint8_t j = 0; j < randNumPublicKeys; j++)
-    {
-      for (uint8_t k = 0; k < 32; k++)
-      {
-        ASSERT_EQ(multisignatureOutput.keys[j].data[k], multisignatureOutputs[i].keys[j].data[k]);
-      }
-    }
-  }
-
-  for (uint32_t i = 1; i < loopCount; i++)
-  {
-    // check index
-    ASSERT_ANY_THROW(getOutputChecked(transaction, multisignatureOutputs.size() + i));
-
-    // check input type
-    ASSERT_ANY_THROW(getOutputChecked(transaction, i, TransactionTypes::OutputType::Key));
   }
 }
 

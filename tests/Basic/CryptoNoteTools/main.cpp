@@ -11,66 +11,6 @@
 
 using namespace CryptoNote;
 
-/*
-
-My Notes
-
-getBinaryArrayHash()
-getBinaryArrayHash()
-toBinaryArray()
-toBinaryArray()
-toBinaryArray()
-fromBinaryArray()
-getObjectBinarySize()
-getObjectBinarySize()
-getObjectHash()
-getObjectHash()
-getObjectHash()
-getInputAmount()
-getInputsAmounts()
-getOutputAmount()
-decomposeAmount()
-
-using BinaryArray = std::vector<uint8_t>;
-
-struct MultisignatureInput {
-  uint64_t amount;
-  uint8_t signatureCount;
-  uint32_t outputIndex;
-};
-
-typedef boost::variant<KeyOutput, MultisignatureOutput> TransactionOutputTarget;
-
-struct TransactionOutput {
-  uint64_t amount;
-  TransactionOutputTarget target;
-};
-
-struct TransactionPrefix {
-  uint8_t version;
-  uint64_t unlockTime;
-  std::vector<TransactionInput> inputs;
-  std::vector<TransactionOutput> outputs;
-  std::vector<uint8_t> extra;
-};
-
-struct Transaction : public TransactionPrefix {
-  std::vector<std::vector<Crypto::Signature>> signatures;
-};
-
-struct BlockHeader {
-  uint32_t nonce;
-  uint64_t timestamp;
-  Crypto::Hash previousBlockHash;
-};
-
-struct Block : public BlockHeader {
-  Transaction baseTransaction;
-  std::vector<Crypto::Hash> transactionHashes;
-};
-
-*/
-
 uint32_t loopCount = 100;
 
 // toBinaryArray(const T& object, BinaryArray& binaryArray)
@@ -279,25 +219,6 @@ TEST(CryptoNoteTools, 7)
   ASSERT_EQ(totalAmount, 1000);
 }
 
-// getInputAmount()
-// MultisignatureInput
-TEST(CryptoNoteTools, 8)
-{
-  Transaction transaction;
-  
-  for (uint8_t i = 0; i < 100; ++i)
-  {
-    MultisignatureInput multisignatureInput;
-    multisignatureInput.amount = 10;
-
-    transaction.inputs.push_back(multisignatureInput);
-  }
-
-  uint64_t totalAmount = getInputAmount(transaction);
-
-  ASSERT_EQ(totalAmount, 1000);
-}
-
 // getInputAmounts()
 // KeyInput
 TEST(CryptoNoteTools, 9)
@@ -314,29 +235,6 @@ TEST(CryptoNoteTools, 9)
     amountsIn.push_back(i);
 
     transaction.inputs.push_back(keyInput);
-  }
-
-  std::vector<uint64_t> amountsOut = getInputsAmounts(transaction);
-
-  ASSERT_TRUE(std::equal(amountsOut.begin(), amountsOut.end(), amountsIn.begin()));
-}
-
-// getInputAmounts()
-// MultisignatureInput
-TEST(CryptoNoteTools, 10)
-{
-  Transaction transaction;
-
-  std::vector<uint64_t> amountsIn;
-  
-  for (uint8_t i = 1; i < 10; ++i)
-  {
-    MultisignatureInput multisignatureInput;
-    multisignatureInput.amount = i;
-
-    amountsIn.push_back(i);
-
-    transaction.inputs.push_back(multisignatureInput);
   }
 
   std::vector<uint64_t> amountsOut = getInputsAmounts(transaction);

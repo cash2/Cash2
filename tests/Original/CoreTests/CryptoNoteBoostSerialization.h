@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -54,17 +54,6 @@ namespace boost
   {
     a & reinterpret_cast<char (&)[sizeof(Crypto::Hash)]>(x);
   }
-  
-  template <class Archive> void serialize(Archive& archive, CryptoNote::MultisignatureInput &output, unsigned int version) {
-    archive & output.amount;
-    archive & output.signatureCount;
-    archive & output.outputIndex;
-  }
-
-  template <class Archive> void serialize(Archive& archive, CryptoNote::MultisignatureOutput &output, unsigned int version) {
-    archive & output.keys;
-    archive & output.requiredSignatureCount;
-  }
 
   template <class Archive>
   inline void serialize(Archive &a, CryptoNote::KeyOutput &x, const boost::serialization::version_type ver)
@@ -109,6 +98,7 @@ namespace boost
   template <class Archive>
   inline void serialize(Archive &a, CryptoNote::BlockTemplate &b, const boost::serialization::version_type ver)
   {
+    std::cout << "boooooooooooost serialize" << std::endl;
     a & b.timestamp;
     a & b.previousBlockHash;
     a & b.nonce;

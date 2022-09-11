@@ -125,26 +125,6 @@ int main(int argc, char* argv[])
     // GENERATE_AND_PLAY_EX(GenerateTransactionWithZeroFee(false)); // doesn't work
     // GENERATE_AND_PLAY_EX(GenerateTransactionWithZeroFee(true)); // works
 
-    // // multisignature output
-    // GENERATE_AND_PLAY_EX(MultiSigTx_OutputSignatures(1, 1, true)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_OutputSignatures(2, 2, true)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_OutputSignatures(3, 2, true)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_OutputSignatures(0, 0, true)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_OutputSignatures(1, 0, true)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_OutputSignatures(0, 1, false)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_OutputSignatures(1, 2, false)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_OutputSignatures(2, 3, false)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_InvalidOutputSignature()); // works
-
-    // // multisignature input
-    // GENERATE_AND_PLAY_EX(MultiSigTx_Input(1, 1, 1, true)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_Input(2, 1, 1, true)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_Input(3, 2, 2, true)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_Input(1, 1, 0, false)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_Input(2, 2, 1, false)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_Input(3, 2, 1, false)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_BadInputSignature()); // works
-
     // // Double spend
     // GENERATE_AND_PLAY(gen_double_spend_in_tx<false>); // works
     // GENERATE_AND_PLAY(gen_double_spend_in_tx<true>); // works
@@ -157,17 +137,6 @@ int main(int argc, char* argv[])
     // GENERATE_AND_PLAY(gen_double_spend_in_alt_chain_in_the_same_block<true>); // works
     // GENERATE_AND_PLAY(gen_double_spend_in_alt_chain_in_different_blocks<false>); // works
     // GENERATE_AND_PLAY(gen_double_spend_in_alt_chain_in_different_blocks<true>); // works
-
-    // GENERATE_AND_PLAY_EX(MultiSigTx_DoubleSpendInTx(false)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_DoubleSpendInTx(true)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_DoubleSpendSameBlock(false)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_DoubleSpendSameBlock(true)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_DoubleSpendDifferentBlocks(false)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_DoubleSpendDifferentBlocks(true)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_DoubleSpendAltChainSameBlock(false)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_DoubleSpendAltChainSameBlock(true)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_DoubleSpendAltChainDifferentBlocks(false)); // works
-    // GENERATE_AND_PLAY_EX(MultiSigTx_DoubleSpendAltChainDifferentBlocks(true)); // works
 
     // GENERATE_AND_PLAY(gen_uint_overflow_1); // doesn't work
     // GENERATE_AND_PLAY(gen_uint_overflow_2); // doesn't work

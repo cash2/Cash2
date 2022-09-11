@@ -57,8 +57,6 @@ public
   addOutput()
   addOutput()
   signInputKey()
-  signInputMultisignature()
-  signInputMultisignature()
   getTransactionSecretKey()
   setTransactionSecretKey()
 private
@@ -95,8 +93,6 @@ addOutput()
 addOutput()
 addOutput()
 signInputKey()
-signInputMultisignature()
-signInputMultisignature()
 getSignatures()
 getTransactionData()
 setPaymentId()
@@ -486,43 +482,6 @@ TEST(Transaction, 17)
   ASSERT_ANY_THROW(transactionImpl.addInput(senderKeys, inputKeyInfo, ephemeralKeys));
 }
 
-// addInput(multisignatureInput)
-TEST(Transaction, 18)
-{
-  TransactionImpl transactionImpl;
-
-  MultisignatureInput multisignatureInput;
-  multisignatureInput.amount = 10;
-  multisignatureInput.signatureCount = 3;
-  multisignatureInput.outputIndex = 0;
-
-  size_t index = transactionImpl.addInput(multisignatureInput);
-
-  ASSERT_EQ(0, index);
-}
-
-// addInput(multisignatureInput) fail
-// checkIfSigning() throws error
-TEST(Transaction, 19)
-{
-  Transaction transaction;
-
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-
-  std::vector<Crypto::Signature> temp;
-  temp.push_back(getRandSignature());
-  transaction.signatures.push_back(temp);
-
-  TransactionImpl transactionImpl(transaction);
-
-  MultisignatureInput multisignatureInput;
-  multisignatureInput.amount = 10;
-  multisignatureInput.signatureCount = 3;
-  multisignatureInput.outputIndex = 0;
-
-  ASSERT_ANY_THROW(transactionImpl.addInput(multisignatureInput));
-}
-
 // addOutput(amount, toAddress)
 TEST(Transaction, 20)
 {
@@ -570,20 +529,6 @@ TEST(Transaction, 22)
   keyOutput.key = getRandPublicKey();
 
   size_t index = transactionImpl.addOutput(amount, keyOutput);
-
-  ASSERT_EQ(0, index);
-}
-
-// addOutput(amount, multisignatureOutput)
-TEST(Transaction, 23)
-{
-  TransactionImpl transactionImpl;
-
-  uint64_t amount = 10;
-
-  MultisignatureOutput multisignatureOutput;
-
-  size_t index = transactionImpl.addOutput(amount, multisignatureOutput);
 
   ASSERT_EQ(0, index);
 }
@@ -656,69 +601,6 @@ TEST(Transaction, 24)
   KeyPair ephKeys = keyPair1;
 
   ASSERT_NO_THROW(transactionImpl.signInputKey(index, inputKeyInfo, ephKeys));
-}
-
-// signInputMultisignature(index, sourceTransactionKey, outputIndex, accountKeys)
-TEST(Transaction, 25)
-{
-  Transaction transaction;
-
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-
-  transaction.unlockTime = 0;
-
-  // transaction inputs
-  MultisignatureInput multisignatureInput;
-  multisignatureInput.amount = 10;
-  multisignatureInput.signatureCount = 2;
-  multisignatureInput.outputIndex = 1;
-  
-  transaction.inputs.push_back(multisignatureInput);
-  
-  TransactionImpl transactionImpl(transaction);
-
-  size_t index = 0;
-  PublicKey sourceTransactionKey;
-  // I am not sure what outputIndex is used for right now
-  // Any random number seems to work
-  size_t outputIndex = getRandUint64_t();
-
-  KeyPair viewKeyPair = generateKeyPair();
-  KeyPair spendKeyPair = generateKeyPair();
-
-  AccountKeys accountKeys;
-  accountKeys.address.viewPublicKey = viewKeyPair.publicKey;
-  accountKeys.viewSecretKey = viewKeyPair.secretKey;
-  accountKeys.address.spendPublicKey = spendKeyPair.publicKey;
-  accountKeys.spendSecretKey = spendKeyPair.secretKey;
-
-  ASSERT_NO_THROW(transactionImpl.signInputMultisignature(index, sourceTransactionKey, outputIndex, accountKeys));
-}
-
-// signInputMultisignature(index, ephemeralKeys)
-TEST(Transaction, 26)
-{
-  Transaction transaction;
-
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-
-  transaction.unlockTime = 0;
-
-  // transaction inputs
-  MultisignatureInput multisignatureInput;
-  multisignatureInput.amount = 10;
-  multisignatureInput.signatureCount = 2;
-  multisignatureInput.outputIndex = 1;
-  
-  transaction.inputs.push_back(multisignatureInput);
-  
-  TransactionImpl transactionImpl(transaction);
-
-  size_t index = 0;
-
-  KeyPair ephemeralKeys = generateKeyPair();
-
-  ASSERT_NO_THROW(transactionImpl.signInputMultisignature(index, ephemeralKeys));
 }
 
 // getTransactionData()
@@ -903,30 +785,6 @@ TEST(Transaction, 36)
   ASSERT_EQ(50, inputTotalAmount);
 }
 
-// getInputType()
-TEST(Transaction, 37)
-{
-  Transaction transaction;
-
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-  transaction.unlockTime = 0;
-
-  transaction.inputs.push_back(BaseInput());
-  transaction.inputs.push_back(KeyInput());
-  transaction.inputs.push_back(MultisignatureInput());
-
-  TransactionImpl transactionImpl(transaction);
-
-  size_t index = 0;
-  ASSERT_EQ(TransactionTypes::InputType::Generating, transactionImpl.getInputType(index));
-
-  index = 1;
-  ASSERT_EQ(TransactionTypes::InputType::Key, transactionImpl.getInputType(index));
-
-  index = 2;
-  ASSERT_EQ(TransactionTypes::InputType::Multisignature, transactionImpl.getInputType(index));
-}
-
 // getInput(keyInput)
 TEST(Transaction, 38)
 {
@@ -949,36 +807,6 @@ TEST(Transaction, 38)
 
   Crypto::Hash hash1 = getObjectHash(keyInput1);
   Crypto::Hash hash2 = getObjectHash(keyInput2);
-
-  ASSERT_TRUE(hashesEqual(hash1, hash2));
-}
-
-// getInput(multisignatureInput)
-TEST(Transaction, 39)
-{
-  Transaction transaction;
-
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-  transaction.unlockTime = 0;
-  
-  MultisignatureInput multisignatureInput1;
-  multisignatureInput1.amount = 10;
-  multisignatureInput1.signatureCount = 5;
-  multisignatureInput1.outputIndex = 2;
-  transaction.inputs.push_back(multisignatureInput1);
-
-  TransactionImpl transactionImpl(transaction);
-
-  size_t index = 0;
-  MultisignatureInput multisignatureInput2;
-  transactionImpl.getInput(index, multisignatureInput2);
-
-  ASSERT_EQ(multisignatureInput1.amount, multisignatureInput2.amount);
-  ASSERT_EQ(multisignatureInput1.signatureCount, multisignatureInput2.signatureCount);
-  ASSERT_EQ(multisignatureInput1.outputIndex, multisignatureInput2.outputIndex);
-
-  Crypto::Hash hash1 = getObjectHash(multisignatureInput1);
-  Crypto::Hash hash2 = getObjectHash(multisignatureInput2);
 
   ASSERT_TRUE(hashesEqual(hash1, hash2));
 }
@@ -1033,34 +861,6 @@ TEST(Transaction, 41)
   ASSERT_EQ(100, outputTotalAmount);
 }
 
-// getOutputType()
-TEST(Transaction, 42)
-{
-  Transaction transaction;
-
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-  transaction.unlockTime = 0;
-
-  TransactionOutput transactionOutput1;
-  transactionOutput1.amount = 10;
-  transactionOutput1.target = KeyOutput();
-
-  TransactionOutput transactionOutput2;
-  transactionOutput2.amount = 20;
-  transactionOutput2.target = MultisignatureOutput();
-
-  transaction.outputs.push_back(transactionOutput1);
-  transaction.outputs.push_back(transactionOutput2);
-
-  TransactionImpl transactionImpl(transaction);
-
-  size_t index = 0;
-  ASSERT_EQ(TransactionTypes::OutputType::Key, transactionImpl.getOutputType(index));
-
-  index = 1;
-  ASSERT_EQ(TransactionTypes::OutputType::Multisignature, transactionImpl.getOutputType(index));
-}
-
 // getOutput(index, keyOutput, amount)
 TEST(Transaction, 43)
 {
@@ -1090,40 +890,6 @@ TEST(Transaction, 43)
 
   ASSERT_TRUE(hashesEqual(hash1, hash2));
   ASSERT_TRUE(publicKeysEqual(keyOutput.key, keyOutputReturned.key));
-  ASSERT_EQ(10, amount);
-}
-
-// getOutput(index, multisignatureOutput, amount)
-TEST(Transaction, 44)
-{
-  Transaction transaction;
-
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-  transaction.unlockTime = 0;
-  
-  TransactionOutput transactionOutput;
-  transactionOutput.amount = 10;
-
-  MultisignatureOutput multisignatureOutput;
-  multisignatureOutput.keys.push_back({2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2});
-  multisignatureOutput.requiredSignatureCount = 2;
-  transactionOutput.target = multisignatureOutput;
-  transaction.outputs.push_back(transactionOutput);
-
-  TransactionImpl transactionImpl(transaction);
-
-  size_t index = 0;
-  MultisignatureOutput multisignatureOutputReturned;
-  uint64_t amount;
-
-  transactionImpl.getOutput(index, multisignatureOutputReturned, amount);
-
-  Crypto::Hash hash1 = getObjectHash(multisignatureOutput);
-  Crypto::Hash hash2 = getObjectHash(multisignatureOutputReturned);
-
-  ASSERT_TRUE(hashesEqual(hash1, hash2));
-  ASSERT_TRUE(publicKeysEqual(multisignatureOutput.keys[0], multisignatureOutputReturned.keys[0]));
-  ASSERT_EQ(2, multisignatureOutputReturned.requiredSignatureCount);
   ASSERT_EQ(10, amount);
 }
 
@@ -1216,27 +982,6 @@ TEST(Transaction, 46)
   ASSERT_EQ(5, requiredSignatureCount);
 }
 
-// getRequiredSignaturesCount()
-// MultisignatureInput
-TEST(Transaction, 47)
-{
-  Transaction transaction;
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-  transaction.unlockTime = 0;
-
-  MultisignatureInput multisignatureInput;
-  multisignatureInput.signatureCount = 5;
-
-  transaction.inputs.push_back(multisignatureInput);
-
-  TransactionImpl transactionImpl(transaction);
-
-  size_t index = 0;
-  size_t requiredSignatureCount = transactionImpl.getRequiredSignaturesCount(index);
-
-  ASSERT_EQ(5, requiredSignatureCount);
-}
-
 // validateInputs()
 TEST(Transaction, 48)
 {
@@ -1268,26 +1013,6 @@ TEST(Transaction, 50)
   KeyInput keyInput;
 
   transaction.inputs.push_back(keyInput);
-
-  TransactionImpl transactionImpl(transaction);
-
-  ASSERT_TRUE(transactionImpl.validateInputs());
-}
-
-// validateInputs()
-// success
-// MultisignatureInput
-TEST(Transaction, 51)
-{
-  Transaction transaction;
-
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-  transaction.unlockTime = 0;
-
-  MultisignatureInput multisignatureInput;
-  multisignatureInput.signatureCount = 5;
-
-  transaction.inputs.push_back(multisignatureInput);
 
   TransactionImpl transactionImpl(transaction);
 
@@ -1349,28 +1074,6 @@ TEST(Transaction, 53)
   TransactionImpl transactionImpl(transaction);
 
   // key image duplicate
-  ASSERT_FALSE(transactionImpl.validateInputs());
-}
-
-// validateInputs()
-// fail
-// MultisignatureInput duplicate
-TEST(Transaction, 54)
-{
-  Transaction transaction;
-
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-  transaction.unlockTime = 0;
-
-  MultisignatureInput multisignatureInput;
-  multisignatureInput.signatureCount = 5;
-
-  transaction.inputs.push_back(multisignatureInput);
-  transaction.inputs.push_back(multisignatureInput);
-
-  TransactionImpl transactionImpl(transaction);
-
-  // MultisignatureInput duplicate
   ASSERT_FALSE(transactionImpl.validateInputs());
 }
 
@@ -1476,98 +1179,6 @@ TEST(Transaction, 58)
   TransactionImpl transactionImpl(transaction);
 
   // amount overflows
-  ASSERT_FALSE(transactionImpl.validateOutputs());
-}
-
-// validateOutputs()
-// MultisignatureOutput
-// success
-TEST(Transaction, 59)
-{
-  Transaction transaction;
-
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-  transaction.unlockTime = 0;
-
-  MultisignatureOutput multisignatureOutput;
-  multisignatureOutput.requiredSignatureCount = 11;
-
-  for (int i = 0; i < 20; i++)
-  {
-    KeyPair keyPair = generateKeyPair();
-    multisignatureOutput.keys.push_back(keyPair.publicKey);
-  }
-
-  TransactionOutput transactionOutput;
-  transactionOutput.amount = 10;
-  transactionOutput.target = multisignatureOutput;
-
-  transaction.outputs.push_back(transactionOutput);
-
-  TransactionImpl transactionImpl(transaction);
-  
-  ASSERT_TRUE(transactionImpl.validateOutputs());
-}
-
-// validateOutputs()
-// MultisignatureOutput
-// fail - number of required signatures > number of keys
-TEST(Transaction, 60)
-{
-  Transaction transaction;
-
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-  transaction.unlockTime = 0;
-
-  MultisignatureOutput multisignatureOutput;
-  multisignatureOutput.requiredSignatureCount = 11;
-
-  for (int i = 0; i < 10; i++)
-  {
-    KeyPair keyPair = generateKeyPair();
-    multisignatureOutput.keys.push_back(keyPair.publicKey);
-  }
-
-  TransactionOutput transactionOutput;
-  transactionOutput.amount = 0;
-  transactionOutput.target = multisignatureOutput;
-
-  transaction.outputs.push_back(transactionOutput);
-
-  TransactionImpl transactionImpl(transaction);
-  
-  ASSERT_FALSE(transactionImpl.validateOutputs());
-}
-
-// validateOutputs()
-// MultisignatureOutput
-// fail - invalid public key
-TEST(Transaction, 61)
-{
-  Transaction transaction;
-
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-  transaction.unlockTime = 0;
-
-  MultisignatureOutput multisignatureOutput;
-  multisignatureOutput.requiredSignatureCount = 11;
-
-  PublicKey publicKey = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
-
-  for (int i = 0; i < 10; i++)
-  {
-    multisignatureOutput.keys.push_back(publicKey);
-  }
-
-  TransactionOutput transactionOutput;
-  transactionOutput.amount = 0;
-  transactionOutput.target = multisignatureOutput;
-
-  transaction.outputs.push_back(transactionOutput);
-
-  TransactionImpl transactionImpl(transaction);
-
-  // invalid public keys
   ASSERT_FALSE(transactionImpl.validateOutputs());
 }
 
@@ -1906,134 +1517,6 @@ TEST(Transaction, 67)
 
   TransactionImpl transactionImpl(transaction);
 
-  ASSERT_FALSE(transactionImpl.validateSignatures());
-}
-
-// validateSignatures()
-// MultisignatureInput
-// success
-TEST(Transaction, 68)
-{
-  Transaction transaction;
-
-  // version
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-
-  // unlock time
-  transaction.unlockTime = 0;
-
-  // multisignature input
-  // multisiganture inputs only have 1 output index
-  // the number of signatures required for that output index is signatureCount
-  MultisignatureInput multisignatureInput;
-  multisignatureInput.amount = 10;
-  multisignatureInput.outputIndex = 2;
-  multisignatureInput.signatureCount = 5;
-  transaction.inputs.push_back(multisignatureInput);
-
-  // ring signature
-  std::vector<Crypto::Signature> ringSignature;
-
-  for(int i = 0; i < 5; i++)
-  {
-    // the number of signatures must equal the number of signatureCount
-    ringSignature.push_back(getRandSignature());
-  }
-
-  // the number of ring signatures must equal the number of multisignature inputs
-  transaction.signatures.push_back(ringSignature);
-
-  TransactionImpl transactionImpl(transaction);
-
-  ASSERT_TRUE(transactionImpl.validateSignatures());
-}
-
-// validateSignatures()
-// MultisignatureInput
-// fail - number of signatures is less than the number of signatureCount
-TEST(Transaction, 69)
-{
-  Transaction transaction;
-
-  // version
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-
-  // unlock time
-  transaction.unlockTime = 0;
-
-  // multisignature input
-  // multisiganture inputs only have 1 output index
-  // the number of signatures required for that output index is signatureCount
-  MultisignatureInput multisignatureInput;
-  multisignatureInput.amount = 10;
-  multisignatureInput.outputIndex = 2;
-  multisignatureInput.signatureCount = 10;
-  transaction.inputs.push_back(multisignatureInput);
-
-  // ring signature
-  std::vector<Crypto::Signature> ringSignature;
-
-  for(int i = 0; i < 5; i++)
-  {
-    // the number of signatures must equal the number of signatureCount
-    ringSignature.push_back(getRandSignature());
-  }
-
-  // the number of ring signatures must equal the number of multisignature inputs
-  transaction.signatures.push_back(ringSignature);
-
-  TransactionImpl transactionImpl(transaction);
-
-  // signatureCount is 10 but there are only 5 sigantures
-  ASSERT_FALSE(transactionImpl.validateSignatures());
-}
-
-// validateSignatures()
-// MultisignatureInput
-// fail - the number of ring signatures is less than the number of multisignature inputs
-TEST(Transaction, 70)
-{
-  Transaction transaction;
-
-  // version
-  transaction.version = CURRENT_TRANSACTION_VERSION;
-
-  // unlock time
-  transaction.unlockTime = 0;
-
-  // multisignature inputs
-  // multisiganture inputs only have 1 output index
-  // the number of signatures required for that output index is signatureCount
-
-  // multisignature input 1
-  MultisignatureInput multisignatureInput1;
-  multisignatureInput1.amount = 10;
-  multisignatureInput1.outputIndex = 2;
-  multisignatureInput1.signatureCount = 10;
-  transaction.inputs.push_back(multisignatureInput1);
-
-  // multisignature input 2
-  MultisignatureInput multisignatureInput2;
-  multisignatureInput2.amount = 10;
-  multisignatureInput2.outputIndex = 2;
-  multisignatureInput2.signatureCount = 10;
-  transaction.inputs.push_back(multisignatureInput2);
-
-  // ring signature
-  std::vector<Crypto::Signature> ringSignature;
-
-  for(int i = 0; i < 10; i++)
-  {
-    // the number of signatures must equal the number of signatureCount
-    ringSignature.push_back(getRandSignature());
-  }
-
-  // the number of ring signatures must equal the number of multisignature inputs
-  transaction.signatures.push_back(ringSignature);
-
-  TransactionImpl transactionImpl(transaction);
-
-  // there are 2 multisignature inputs but only 1 ring signature
   ASSERT_FALSE(transactionImpl.validateSignatures());
 }
 
