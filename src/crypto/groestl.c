@@ -16,7 +16,7 @@
 
 const uint8_t shift_Values[2][8] = {{0,1,2,3,4,5,6,7},{1,3,5,7,0,2,4,6}};
 
-const uint8_t indexes_cyclic[15] = {0,1,2,3,4,5,6,7,0,1,2,3,4,5,6};
+const uint8_t indices_cyclic[15] = {0,1,2,3,4,5,6,7,0,1,2,3,4,5,6};
 
 
 #define ROTATE_COLUMN_DOWN(v1, v2, amount_bytes, temp_var) {temp_var = (v1<<(8*amount_bytes))|(v2>>(8*(4-amount_bytes))); \
