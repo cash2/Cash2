@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -12,63 +12,76 @@ namespace CryptoNote {
 //---------------------------------------------------------------------------
 Checkpoints::Checkpoints(Logging::ILogger &log) : logger(log, "checkpoints") {}
 //---------------------------------------------------------------------------
-bool Checkpoints::add_checkpoint(uint32_t height, const std::string &hash_str) {
+bool Checkpoints::addCheckpoint(uint32_t index, const std::string &hash_str) {
   Crypto::Hash h = NULL_HASH;
 
   if (!Common::podFromHex(hash_str, h)) {
-    logger(ERROR) << "WRONG HASH IN CHECKPOINTS!!!";
+    logger(ERROR, BRIGHT_RED) << "WRONG HASH IN CHECKPOINTS!!!";
     return false;
   }
 
-  if (!(0 == m_points.count(height))) {
-    logger(ERROR) << "WRONG HASH IN CHECKPOINTS!!!";
+  if (!(0 == points.count(index))) {
+    logger(ERROR, BRIGHT_RED) << "WRONG HASH IN CHECKPOINTS!!!";
     return false;
   }
 
-  m_points[height] = h;
+  points[index] = h;
   return true;
 }
 //---------------------------------------------------------------------------
-bool Checkpoints::isInCheckpointZone(uint32_t  height) const {
-  return !m_points.empty() && (height <= (--m_points.end())->first);
+bool Checkpoints::isInCheckpointZone(uint32_t index) const {
+  return !points.empty() && (index <= (--points.end())->first);
 }
 //---------------------------------------------------------------------------
-bool Checkpoints::checkBlock(uint32_t  height, const Crypto::Hash &h,
-                              bool &is_a_checkpoint) const {
-  auto it = m_points.find(height);
-  is_a_checkpoint = it != m_points.end();
-  if (!is_a_checkpoint)
+bool Checkpoints::checkBlock(uint32_t index, const Crypto::Hash &h,
+                            bool& isCheckpoint) const {
+  auto it = points.find(index);
+  isCheckpoint = it != points.end();
+  if (!isCheckpoint)
     return true;
 
   if (it->second == h) {
     logger(Logging::INFO, Logging::GREEN) 
-      << "CHECKPOINT PASSED FOR HEIGHT " << height << " " << h;
+      << "CHECKPOINT PASSED FOR INDEX " << index << " " << h;
     return true;
   } else {
-    logger(Logging::ERROR) << "CHECKPOINT FAILED FOR HEIGHT " << height
-                           << ". EXPECTED HASH: " << it->second
-                           << ", FETCHED HASH: " << h;
+    logger(Logging::WARNING, BRIGHT_YELLOW) << "CHECKPOINT FAILED FOR HEIGHT " << index
+                                            << ". EXPECTED HASH: " << it->second
+                                            << ", FETCHED HASH: " << h;
     return false;
   }
 }
 //---------------------------------------------------------------------------
-bool Checkpoints::checkBlock(uint32_t  height, const Crypto::Hash &h) const {
+bool Checkpoints::checkBlock(uint32_t index, const Crypto::Hash &h) const {
   bool ignored;
-  return checkBlock(height, h, ignored);
+  return checkBlock(index, h, ignored);
 }
 //---------------------------------------------------------------------------
-bool Checkpoints::is_alternative_block_allowed(uint32_t  blockchain_height,
-                                               uint32_t  block_height) const {
-  if (0 == block_height)
+bool Checkpoints::isAlternativeBlockAllowed(uint32_t  blockchainSize,
+                                            uint32_t  blockIndex) const {
+  if (blockchainSize == 0) {
     return false;
+  }
 
-  auto it = m_points.upper_bound(blockchain_height);
-  // Is blockchain_height before the first checkpoint?
-  if (it == m_points.begin())
+  auto it = points.upper_bound(blockchainSize);
+  // Is blockchainSize before the first checkpoint?
+  if (it == points.begin()) {
     return true;
+  }
 
   --it;
-  uint32_t  checkpoint_height = it->first;
-  return checkpoint_height < block_height;
+  uint32_t checkpointIndex = it->first;
+  return checkpointIndex < blockIndex;
 }
+
+std::vector<uint32_t> Checkpoints::getCheckpointHeights() const {
+  std::vector<uint32_t> checkpointHeights;
+  checkpointHeights.reserve(points.size());
+  for (const auto& it : points) {
+    checkpointHeights.push_back(it.first);
+  }
+
+  return checkpointHeights;
+}
+
 }
