@@ -1,10 +1,11 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2016-2018, The Karbo developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "version.h"
+
+#include <fstream>
 
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
@@ -13,25 +14,27 @@
 
 #include "Common/ScopeExit.h"
 #include "Common/SignalHandler.h"
+#include "Common/StdOutputStream.h"
+#include "Common/StdInputStream.h"
 #include "Common/PathTools.h"
 #include "Common/Util.h"
 #include "crypto/hash.h"
 #include "CryptoNoteCore/Core.h"
+#include "CryptoNoteCore/Currency.h"
 #include "CryptoNoteCore/DatabaseBlockchainCache.h"
 #include "CryptoNoteCore/DatabaseBlockchainCacheFactory.h"
 #include "CryptoNoteCore/MainChainStorage.h"
-#include "CryptoNoteCore/RocksDBWrapper.h"
-#include "CryptoNoteCore/CryptoNoteTools.h"
-#include "CryptoNoteCore/Currency.h"
 #include "CryptoNoteCore/MinerConfig.h"
+#include "CryptoNoteCore/RocksDBWrapper.h"
 #include "CryptoNoteProtocol/CryptoNoteProtocolHandler.h"
 #include "P2p/NetNode.h"
 #include "P2p/NetNodeConfig.h"
 #include "Rpc/RpcServer.h"
 #include "Rpc/RpcServerConfig.h"
+#include "Serialization/BinaryInputStreamSerializer.h"
+#include "Serialization/BinaryOutputStreamSerializer.h"
 #include "version.h"
 
-#include "Logging/ConsoleLogger.h"
 #include <Logging/LoggerManager.h>
 
 #if defined(WIN32)
@@ -72,7 +75,7 @@ JsonValue buildLoggerConfiguration(Level level, const std::string& logfile) {
   JsonValue& consoleLogger = cfgLoggers.pushBack(JsonValue::OBJECT);
   consoleLogger.insert("type", "console");
   consoleLogger.insert("level", static_cast<int64_t>(TRACE));
-  consoleLogger.insert("pattern", "%T %L ");
+  consoleLogger.insert("pattern", "%D %T %L ");
 
   return loggerConfiguration;
 }
