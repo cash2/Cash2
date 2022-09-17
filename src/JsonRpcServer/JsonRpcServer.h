@@ -48,11 +48,11 @@ protected:
   static void fillJsonResponse(const Common::JsonValue& v, Common::JsonValue& resp);
   static void prepareJsonResponse(const Common::JsonValue& req, Common::JsonValue& resp);
   static void makeJsonParsingErrorResponse(Common::JsonValue& resp);
-  
+
   std::string getRpcConfigurationPassword();
 
   virtual void processJsonRpcRequest(const Common::JsonValue& req, Common::JsonValue& resp) = 0;
-  
+
 private:
   // HttpServer
   virtual void processRequest(const CryptoNote::HttpRequest& request, CryptoNote::HttpResponse& response) override;
