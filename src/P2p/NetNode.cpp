@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2019 The Karbo developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -96,32 +96,32 @@ bool parse_peer_from_string(NetworkAddress& pe, const std::string& node_addr) {
 }
 
 
-namespace CryptoNote
-{
-  namespace
-  {
-    const command_line::arg_descriptor<std::string> arg_p2p_bind_ip        = {"p2p-bind-ip", "Interface for p2p network protocol", "0.0.0.0"};
-    const command_line::arg_descriptor<std::string> arg_p2p_bind_port      = {"p2p-bind-port", "Port for p2p network protocol", std::to_string(CryptoNote::P2P_DEFAULT_PORT)};
-    const command_line::arg_descriptor<uint32_t>    arg_p2p_external_port  = {"p2p-external-port", "External port for p2p network protocol (if port forwarding used with NAT)", 0};
-    const command_line::arg_descriptor<bool>        arg_p2p_allow_local_ip = {"allow-local-ip", "Allow local ip add to peer list, mostly in debug purposes"};
-    const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_add_peer   = {"add-peer", "Manually add peer to local peerlist"};
-    const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_add_priority_node   = {"add-priority-node", "Specify list of peers to connect to and attempt to keep the connection open"};
-    const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_add_exclusive_node   = {"add-exclusive-node", "Specify list of peers to connect to only."
-                                                                                                  " If this option is given the options add-priority-node and seed-node are ignored"};
-    const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_seed_node   = {"seed-node", "Connect to a node to retrieve peer addresses, and disconnect"};
-    const command_line::arg_descriptor<bool> arg_p2p_hide_my_port   =    {"hide-my-port", "Do not announce yourself as peerlist candidate", false, true};
+namespace CryptoNote {
+namespace {
 
-    std::string print_peerlist_to_string(const std::list<PeerlistEntry>& pl) {
-      time_t now_time = 0;
-      time(&now_time);
-      std::stringstream ss;
-      ss << std::setfill('0') << std::setw(8) << std::hex << std::noshowbase;
-      for (const auto& pe : pl) {
-        ss << pe.id << "\t" << pe.adr << " \tlast_seen: " << Common::timeIntervalToString(now_time - pe.last_seen) << std::endl;
-      }
-      return ss.str();
-    }
+const command_line::arg_descriptor<std::string> arg_p2p_bind_ip        = {"p2p-bind-ip", "Interface for p2p network protocol", "0.0.0.0"};
+const command_line::arg_descriptor<std::string> arg_p2p_bind_port      = {"p2p-bind-port", "Port for p2p network protocol", std::to_string(CryptoNote::P2P_DEFAULT_PORT)};
+const command_line::arg_descriptor<uint32_t>    arg_p2p_external_port  = {"p2p-external-port", "External port for p2p network protocol (if port forwarding used with NAT)", 0};
+const command_line::arg_descriptor<bool>        arg_p2p_allow_local_ip = {"allow-local-ip", "Allow local ip add to peer list, mostly in debug purposes"};
+const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_add_peer   = {"add-peer", "Manually add peer to local peerlist"};
+const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_add_priority_node   = {"add-priority-node", "Specify list of peers to connect to and attempt to keep the connection open"};
+const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_add_exclusive_node   = {"add-exclusive-node", "Specify list of peers to connect to only."
+                                                                                              " If this option is given the options add-priority-node and seed-node are ignored"};
+const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_seed_node   = {"seed-node", "Connect to a node to retrieve peer addresses, and disconnect"};
+const command_line::arg_descriptor<bool> arg_p2p_hide_my_port   =    {"hide-my-port", "Do not announce yourself as peerlist candidate", false, true};
+
+std::string print_peerlist_to_string(const std::list<PeerlistEntry>& pl) {
+  time_t now_time = 0;
+  time(&now_time);
+  std::stringstream ss;
+  ss << std::setfill('0') << std::setw(8) << std::hex << std::noshowbase;
+  for (const auto& pe : pl) {
+    ss << pe.id << "\t" << pe.adr << " \tlast_seen: " << Common::timeIntervalToString(now_time - pe.last_seen) << std::endl;
   }
+  return ss.str();
+}
+
+}
 
 
   //-----------------------------------------------------------------------------------
@@ -194,7 +194,7 @@ namespace CryptoNote
     m_payload_handler(payload_handler),
     m_allow_local_ip(false),
     m_hide_my_port(false),
-    m_network_id(CRYPTONOTE_NETWORK),
+    m_network_id(CASH2_NETWORK),
     logger(log, "node_server"),
     m_stopEvent(m_dispatcher),
     m_idleTimer(m_dispatcher),
@@ -212,7 +212,7 @@ namespace CryptoNote
     s(version, "version");
     
     if (version != 1) {
-      return;
+      throw std::runtime_error("Unsupported version");
     }
 
     s(m_peerlist, "peerlist");
@@ -284,7 +284,8 @@ namespace CryptoNote
           CryptoNote::serialize(*this, a);
           loaded = true;
         }
-      } catch (std::exception&) {
+      } catch (const std::exception& e) {
+        logger(ERROR, BRIGHT_RED) << "Failed to load config from file '" << state_file_path << "': " << e.what();
       }
 
       if (!loaded) {
@@ -302,7 +303,7 @@ namespace CryptoNote
 
       m_first_connection_maker_call = true;
     } catch (const std::exception& e) {
-      logger(ERROR) << "init_config failed: " << e.what();
+      logger(ERROR, BRIGHT_RED) << "init_config failed: " << e.what();
       return false;
     }
     return true;
@@ -327,6 +328,7 @@ namespace CryptoNote
   bool NodeServer::make_default_config()
   {
     m_config.m_peer_id  = Crypto::rand<uint64_t>();
+    logger(INFO, BRIGHT_WHITE) << "Generated new peer ID: " << m_config.m_peer_id;
     return true;
   }
   
@@ -495,7 +497,7 @@ namespace CryptoNote
     m_stopEvent.wait();
 
     logger(INFO) << "Stopping NodeServer and it's" << m_connections.size() << " connections...";
-    m_workingContextGroup.interrupt();
+    safeInterrupt(m_workingContextGroup);
     m_workingContextGroup.wait();
 
     logger(INFO) << "NodeServer loop stopped";
@@ -697,8 +699,8 @@ namespace CryptoNote
 
         System::Context<> timeoutContext(m_dispatcher, [&] {
           System::Timer(m_dispatcher).sleep(std::chrono::milliseconds(m_config.m_net_config.connection_timeout));
-          connectionContext.interrupt();
           logger(DEBUGGING) << "Connection to " << na <<" timed out, interrupt it";
+          safeInterrupt(connectionContext);
         });
 
         connection = std::move(connectionContext.get());
@@ -725,8 +727,8 @@ namespace CryptoNote
         System::Context<> timeoutContext(m_dispatcher, [&] {
           // Here we use connection_timeout * 3, one for this handshake, and two for back ping from peer.
           System::Timer(m_dispatcher).sleep(std::chrono::milliseconds(m_config.m_net_config.connection_timeout * 3));
-          handshakeContext.interrupt();
           logger(DEBUGGING) << "Handshake with " << na << " timed out, interrupt it";
+          safeInterrupt(handshakeContext);
         });
 
         if (!handshakeContext.get()) {
@@ -1089,7 +1091,7 @@ namespace CryptoNote
       System::Context<> timeoutContext(m_dispatcher, [&] {
         System::Timer(m_dispatcher).sleep(std::chrono::milliseconds(m_config.m_net_config.connection_timeout * 2));
         logger(DEBUGGING) << context << "Back ping timed out" << ip << ":" << port;
-        pingContext.interrupt();
+        safeInterrupt(pingContext);
       });
 
       pingContext.get();
@@ -1303,8 +1305,8 @@ namespace CryptoNote
 
     while (!m_stop) {
       try {
-          idle_worker();
-          m_idleTimer.sleep(std::chrono::seconds(1));
+        idle_worker();
+        m_idleTimer.sleep(std::chrono::seconds(1));
       } catch (System::InterruptedException&) {
         logger(DEBUGGING) << "onIdle() is interrupted";
         break;
@@ -1326,7 +1328,7 @@ namespace CryptoNote
           auto& ctx = kv.second;
           if (ctx.writeDuration(now) > P2P_DEFAULT_INVOKE_TIMEOUT) {
             logger(WARNING) << ctx << "write operation timed out, stopping connection";
-            ctx.interrupt();
+            safeInterrupt(ctx);
           }
         }
       }
@@ -1334,6 +1336,8 @@ namespace CryptoNote
       logger(DEBUGGING) << "timeoutLoop() is interrupted";
     } catch (std::exception& e) {
       logger(WARNING) << "Exception in timeoutLoop: " << e.what();
+    } catch (...) {
+      logger(WARNING) << "Unknown exception in timeoutLoop";
     }
   }
 
@@ -1397,12 +1401,12 @@ namespace CryptoNote
       } catch (System::InterruptedException&) {
         logger(DEBUGGING) << ctx << "connectionHandler() inner context is interrupted";
       } catch (std::exception& e) {
-        logger(TRACE) << ctx << "Exception in connectionHandler: " << e.what();
+        logger(WARNING) << ctx << "Exception in connectionHandler: " << e.what();
       }
 
-      ctx.interrupt();
-      writeContext.interrupt();
-      writeContext.get();
+      safeInterrupt(ctx);
+      safeInterrupt(writeContext);
+      writeContext.wait();
 
       on_connection_close(ctx);
       m_connections.erase(connectionId);
@@ -1414,6 +1418,10 @@ namespace CryptoNote
       context.get();
     } catch (System::InterruptedException&) {
       logger(DEBUGGING) << "connectionHandler() is interrupted";
+    } catch (std::exception& e) {
+      logger(WARNING) << "connectionHandler() throws exception: " << e.what();
+    } catch (...) {
+      logger(WARNING) << "connectionHandler() throws unknown exception";
     }
   }
 
@@ -1451,9 +1459,21 @@ namespace CryptoNote
       logger(DEBUGGING) << ctx << "writeHandler() is interrupted";
     } catch (std::exception& e) {
       logger(WARNING) << ctx << "error during write: " << e.what();
-      ctx.interrupt(); // stop connection on write error
+      safeInterrupt(ctx); // stop connection on write error
     }
 
     logger(DEBUGGING) << ctx << "writeHandler finished";
   }
+
+  template<typename T>
+  void NodeServer::safeInterrupt(T& obj) {
+    try {
+      obj.interrupt();
+    } catch (std::exception& e) {
+      logger(WARNING) << "interrupt() throws exception: " << e.what();
+    } catch (...) {
+      logger(WARNING) << "interrupt() throws unknown exception";
+    }
+  }
+
 }
