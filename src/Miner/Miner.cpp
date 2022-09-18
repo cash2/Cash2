@@ -8,10 +8,10 @@
 #include <functional>
 
 #include "crypto/crypto.h"
+#include "CryptoNoteCore/CachedBlock.h"
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 
 #include "CryptoNoteConfig.h"
-
 #include <System/InterruptedException.h>
 
 namespace CryptoNote {
@@ -86,34 +86,16 @@ void Miner::runWorkers(BlockMiningParameters blockMiningParameters, size_t threa
   m_miningStopped.set();
 }
 
+// TODO: Add Cash2 hardfork logic for check_hash1() and check_hash2() back in
 void Miner::workerFunc(const BlockTemplate& blockTemplate, Difficulty difficulty, uint64_t nonceStep) {
   try {
     BlockTemplate block = blockTemplate;
     Crypto::cn_context cryptoContext;
 
     while (m_state == MiningState::MINING_IN_PROGRESS) {
-      Crypto::Hash hash;
-      if (!get_block_longhash(cryptoContext, block, hash)) {
-        //error occurred
-        m_logger(Logging::DEBUGGING) << "calculating long hash error occurred";
-        m_state = MiningState::MINING_STOPPED;
-        return;
-      }
-
-      uint32_t blockHeight = boost::get<BaseInput>(block.baseTransaction.inputs[0]).blockIndex;
-
-      bool checkHashSuccess = false;
-
-      if (blockHeight < parameters::HARD_FORK_HEIGHT_2)
-      {
-        checkHashSuccess = check_hash1(hash, difficulty);
-      }
-      else
-      {
-        checkHashSuccess = check_hash2(hash, difficulty);
-      }
-
-      if (checkHashSuccess) {
+      CachedBlock cachedBlock(block);
+      Crypto::Hash hash = cachedBlock.getBlockLongHash(cryptoContext);
+      if (check_hash2(hash, difficulty)) {
         m_logger(Logging::INFO) << "Found block for difficulty " << difficulty;
 
         if (!setStateBlockFound()) {

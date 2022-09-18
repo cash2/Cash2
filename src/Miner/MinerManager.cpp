@@ -11,6 +11,7 @@
 
 #include "Common/StringTools.h"
 #include "CryptoNoteConfig.h"
+#include "CryptoNoteCore/CachedBlock.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 #include "CryptoNoteCore/TransactionExtra.h"
@@ -179,6 +180,8 @@ void MinerManager::stopBlockchainMonitoring() {
 }
 
 bool MinerManager::submitBlock(const BlockTemplate& minedBlock, const std::string& daemonHost, uint16_t daemonPort) {
+  CachedBlock cachedBlock(minedBlock);
+
   try {
     HttpClient client(m_dispatcher, daemonHost, daemonPort);
 
@@ -190,10 +193,10 @@ bool MinerManager::submitBlock(const BlockTemplate& minedBlock, const std::strin
     System::EventLock lk(m_httpEvent);
     JsonRpc::invokeJsonRpcCommand(client, "submitblock", request, response);
 
-    m_logger(Logging::INFO) << "Block has been successfully submitted. Block hash: " << Common::podToHex(get_block_hash(minedBlock));
+    m_logger(Logging::INFO) << "Block has been successfully submitted. Block hash: " << Common::podToHex(cachedBlock.getBlockHash());
     return true;
   } catch (std::exception& e) {
-    m_logger(Logging::WARNING) << "Couldn't submit block: " << Common::podToHex(get_block_hash(minedBlock)) << ", reason: " << e.what();
+    m_logger(Logging::WARNING) << "Couldn't submit block: " << Common::podToHex(cachedBlock.getBlockHash()) << ", reason: " << e.what();
     return false;
   }
 }
