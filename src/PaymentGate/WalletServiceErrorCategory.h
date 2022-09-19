@@ -40,6 +40,7 @@ public:
       case WalletServiceErrorCode::WRONG_PAYMENT_ID_FORMAT: return "Wrong payment id format";
       case WalletServiceErrorCode::WRONG_HASH_FORMAT: return "Wrong block id format";
       case WalletServiceErrorCode::OBJECT_NOT_FOUND: return "Requested object not found";
+      case WalletServiceErrorCode::DUPLICATE_KEY: return "Duplicate key";
       default: return "Unknown error";
     }
   }

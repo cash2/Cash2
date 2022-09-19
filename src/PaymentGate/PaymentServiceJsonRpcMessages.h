@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2016-2019, The Karbo Developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -11,15 +11,36 @@
 #include <vector>
 
 #include "Serialization/ISerializer.h"
-#include "CryptoNoteConfig.h"
 
 namespace PaymentService {
 
-const uint32_t DEFAULT_ANONYMITY_LEVEL = CryptoNote::parameters::MAX_MIXIN;
+const uint32_t DEFAULT_ANONYMITY_LEVEL = 6;
 
 class RequestSerializationError: public std::exception {
 public:
   virtual const char* what() const throw() override { return "Request error"; }
+};
+
+struct Save {
+  struct Request {
+    void serialize(CryptoNote::ISerializer& serializer);
+  };
+
+  struct Response {
+    void serialize(CryptoNote::ISerializer& serializer);
+  };
+};
+
+struct Export {
+  struct Request {
+    std::string fileName;
+
+    void serialize(CryptoNote::ISerializer& serializer);
+  };
+
+  struct Response {
+    void serialize(CryptoNote::ISerializer& serializer);
+  };
 };
 
 struct Reset {
@@ -56,25 +77,9 @@ struct GetStatus {
     uint32_t knownBlockCount;
     std::string lastBlockHash;
     uint32_t peerCount;
-    uint64_t minimalFee;
-    std::string cash2_software_version;
 
     void serialize(CryptoNote::ISerializer& serializer);
   };
-};
-
-struct ValidateAddress {
-	struct Request {
-		std::string address;
-		
-		void serialize(CryptoNote::ISerializer& serializer);
-	};
-
-	struct Response {
-		bool address_valid;
-
-		void serialize(CryptoNote::ISerializer& serializer);
-	};
 };
 
 struct GetAddresses {
@@ -106,7 +111,7 @@ struct CreateAddress {
 
 struct CreateAddressList {
   struct Request {
-    std::vector<std::string> spendPrivateKeys;
+    std::vector<std::string> spendSecretKeys;
 
     void serialize(CryptoNote::ISerializer& serializer);
   };
@@ -130,7 +135,7 @@ struct DeleteAddress {
   };
 };
 
-struct GetSpendPrivateKey {
+struct GetSpendKeys {
   struct Request {
     std::string address;
 
@@ -138,19 +143,8 @@ struct GetSpendPrivateKey {
   };
 
   struct Response {
-    std::string spendPrivateKey;
-
-    void serialize(CryptoNote::ISerializer& serializer);
-  };
-};
-
-struct GetSpendPrivateKeys {
-  struct Request {
-    void serialize(CryptoNote::ISerializer& serializer);
-  };
-
-  struct Response {
-    std::vector<std::string> spendPrivateKeys;
+    std::string spendSecretKey;
+    std::string spendPublicKey;
 
     void serialize(CryptoNote::ISerializer& serializer);
   };
@@ -311,7 +305,6 @@ struct SendTransaction {
 
   struct Response {
     std::string transactionHash;
-    std::string transactionSecretKey;
 
     void serialize(CryptoNote::ISerializer& serializer);
   };
@@ -374,12 +367,35 @@ struct SendDelayedTransaction {
   };
 };
 
-struct Save {
+struct SendFusionTransaction {
   struct Request {
+    uint64_t threshold;
+    uint32_t anonymity = DEFAULT_ANONYMITY_LEVEL;
+    std::vector<std::string> addresses;
+    std::string destinationAddress;
+
     void serialize(CryptoNote::ISerializer& serializer);
   };
 
   struct Response {
+    std::string transactionHash;
+
+    void serialize(CryptoNote::ISerializer& serializer);
+  };
+};
+
+struct EstimateFusion {
+  struct Request {
+    uint64_t threshold;
+    std::vector<std::string> addresses;
+
+    void serialize(CryptoNote::ISerializer& serializer);
+  };
+
+  struct Response {
+    uint32_t fusionReadyCount;
+    uint32_t totalOutputCount;
+
     void serialize(CryptoNote::ISerializer& serializer);
   };
 };

@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2016-2019, The Karbo Developers
 // Copyright (c) 2018 The Turtlecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
@@ -61,12 +61,13 @@ private:
 
   std::unordered_map<std::string, HandlerFunction> handlers;
 
+  std::error_code handleSave(const Save::Request& request, Save::Response& response);
+  std::error_code handleExport(const Export::Request& request, Export::Response& response);
   std::error_code handleReset(const Reset::Request& request, Reset::Response& response);
   std::error_code handleCreateAddress(const CreateAddress::Request& request, CreateAddress::Response& response);
   std::error_code handleCreateAddressList(const CreateAddressList::Request& request, CreateAddressList::Response& response);
   std::error_code handleDeleteAddress(const DeleteAddress::Request& request, DeleteAddress::Response& response);
-  std::error_code handleGetSpendPrivateKey(const GetSpendPrivateKey::Request& request, GetSpendPrivateKey::Response& response);
-  std::error_code handleGetSpendPrivateKeys(const GetSpendPrivateKeys::Request& request, GetSpendPrivateKeys::Response& response);
+  std::error_code handleGetSpendKeys(const GetSpendKeys::Request& request, GetSpendKeys::Response& response);
   std::error_code handleGetBalance(const GetBalance::Request& request, GetBalance::Response& response);
   std::error_code handleGetBlockHashes(const GetBlockHashes::Request& request, GetBlockHashes::Response& response);
   std::error_code handleGetTransactionHashes(const GetTransactionHashes::Request& request, GetTransactionHashes::Response& response);
@@ -81,9 +82,9 @@ private:
   std::error_code handleGetViewKey(const GetViewKey::Request& request, GetViewKey::Response& response);
   std::error_code handleGetStatus(const GetStatus::Request& request, GetStatus::Response& response);
   std::error_code handleGetAddresses(const GetAddresses::Request& request, GetAddresses::Response& response);
-  std::error_code handleValidateAddress(const ValidateAddress::Request& request, ValidateAddress::Response& response);
-  std::error_code handleSave(const Save::Request& request, Save::Response& response);
 
+  std::error_code handleSendFusionTransaction(const SendFusionTransaction::Request& request, SendFusionTransaction::Response& response);
+  std::error_code handleEstimateFusion(const EstimateFusion::Request& request, EstimateFusion::Response& response);
 };
 
 }//namespace PaymentService

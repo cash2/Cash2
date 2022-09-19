@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2016-2019, The Karbo Developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -8,6 +8,21 @@
 #include "Serialization/SerializationOverloads.h"
 
 namespace PaymentService {
+
+void Save::Request::serialize(CryptoNote::ISerializer& /*serializer*/) {
+}
+
+void Save::Response::serialize(CryptoNote::ISerializer& /*serializer*/) {
+}
+
+void Export::Request::serialize(CryptoNote::ISerializer& serializer) {
+  if (!serializer(fileName, "fileName")) {
+    throw RequestSerializationError();
+  }
+}
+
+void Export::Response::serialize(CryptoNote::ISerializer& serializer) {
+}
 
 void Reset::Request::serialize(CryptoNote::ISerializer& serializer) {
   serializer(viewSecretKey, "viewSecretKey");
@@ -31,15 +46,6 @@ void GetStatus::Response::serialize(CryptoNote::ISerializer& serializer) {
   serializer(knownBlockCount, "knownBlockCount");
   serializer(lastBlockHash, "lastBlockHash");
   serializer(peerCount, "peerCount");
-  serializer(cash2_software_version, "cash2_software_version");
-}
-
-void ValidateAddress::Request::serialize(CryptoNote::ISerializer& serializer) {
-  serializer(address, "address");
-}
-
-void ValidateAddress::Response::serialize(CryptoNote::ISerializer& serializer) {
-  serializer(address_valid, "address_valid");
 }
 
 void GetAddresses::Request::serialize(CryptoNote::ISerializer& serializer) {
@@ -64,7 +70,8 @@ void CreateAddress::Response::serialize(CryptoNote::ISerializer& serializer) {
 }
 
 void CreateAddressList::Request::serialize(CryptoNote::ISerializer& serializer) {
-  if (!serializer(spendPrivateKeys, "spendPrivateKeys")) {
+  if (!serializer(spendSecretKeys, "spendSecretKeys")) {
+    //TODO: replace it with error codes
     throw RequestSerializationError();
   }
 }
@@ -82,25 +89,19 @@ void DeleteAddress::Request::serialize(CryptoNote::ISerializer& serializer) {
 void DeleteAddress::Response::serialize(CryptoNote::ISerializer& serializer) {
 }
 
-void GetSpendPrivateKey::Request::serialize(CryptoNote::ISerializer& serializer) {
+void GetSpendKeys::Request::serialize(CryptoNote::ISerializer& serializer) {
   if (!serializer(address, "address")) {
     throw RequestSerializationError();
   }
 }
 
-void GetSpendPrivateKey::Response::serialize(CryptoNote::ISerializer& serializer) {
-  serializer(spendPrivateKey, "spendPrivateKey");
+void GetSpendKeys::Response::serialize(CryptoNote::ISerializer& serializer) {
+  serializer(spendSecretKey, "spendSecretKey");
+  serializer(spendPublicKey, "spendPublicKey");
 }
 
 void GetBalance::Request::serialize(CryptoNote::ISerializer& serializer) {
   serializer(address, "address");
-}
-
-void GetSpendPrivateKeys::Request::serialize(CryptoNote::ISerializer& serializer) {
-}
-
-void GetSpendPrivateKeys::Response::serialize(CryptoNote::ISerializer& serializer) {
-  serializer(spendPrivateKeys, "spendPrivateKeys");
 }
 
 void GetBalance::Response::serialize(CryptoNote::ISerializer& serializer) {
@@ -243,7 +244,6 @@ void SendTransaction::Request::serialize(CryptoNote::ISerializer& serializer) {
 
 void SendTransaction::Response::serialize(CryptoNote::ISerializer& serializer) {
   serializer(transactionHash, "transactionHash");
-  serializer(transactionSecretKey, "transactionSecretKey");                                                         
 }
 
 void CreateDelayedTransaction::Request::serialize(CryptoNote::ISerializer& serializer) {
@@ -302,10 +302,34 @@ void SendDelayedTransaction::Request::serialize(CryptoNote::ISerializer& seriali
 void SendDelayedTransaction::Response::serialize(CryptoNote::ISerializer& serializer) {
 }
 
-void Save::Request::serialize(CryptoNote::ISerializer& serializer) {
+void SendFusionTransaction::Request::serialize(CryptoNote::ISerializer& serializer) {
+  if (!serializer(threshold, "threshold")) {
+    throw RequestSerializationError();
+  }
+
+  if (!serializer(anonymity, "anonymity")) {
+    throw RequestSerializationError();
+  }
+
+  serializer(addresses, "addresses");
+  serializer(destinationAddress, "destinationAddress");
 }
 
-void Save::Response::serialize(CryptoNote::ISerializer& serializer) {
+void SendFusionTransaction::Response::serialize(CryptoNote::ISerializer& serializer) {
+  serializer(transactionHash, "transactionHash");
+}
+
+void EstimateFusion::Request::serialize(CryptoNote::ISerializer& serializer) {
+  if (!serializer(threshold, "threshold")) {
+    throw RequestSerializationError();
+  }
+
+  serializer(addresses, "addresses");
+}
+
+void EstimateFusion::Response::serialize(CryptoNote::ISerializer& serializer) {
+  serializer(fusionReadyCount, "fusionReadyCount");
+  serializer(totalOutputCount, "totalOutputCount");
 }
 
 }

@@ -47,7 +47,7 @@ public:
     startHeight = 0;
     callback(std::error_code());
   }
-  virtual void getTransactionOutsGlobalIndices(const Crypto::Hash& transactionHash, std::vector<uint32_t>& outsGlobalIndexes, const Callback& callback) override { }
+  virtual void getTransactionOutsGlobalIndices(const Crypto::Hash& transactionHash, std::vector<uint32_t>& outsGlobalIndices, const Callback& callback) override { }
 
   virtual void queryBlocks(std::vector<Crypto::Hash>&& knownBlockIds, uint64_t timestamp, std::vector<CryptoNote::BlockShortEntry>& newBlocks,
     uint32_t& startHeight, const Callback& callback) override {
@@ -69,14 +69,6 @@ public:
 
   virtual void getTransactions(const std::vector<Crypto::Hash>& transactionHashes, std::vector<CryptoNote::TransactionDetails>& transactions,
     const Callback& callback) override { }
-
-  // TODO: see if we can remove the function below
-  // virtual void getPoolTransactions(uint64_t timestampBegin, uint64_t timestampEnd, uint32_t transactionsNumberLimit, std::vector<CryptoNote::TransactionDetails>& transactions, uint64_t& transactionsNumberWithinTimestamps,
-  //   const Callback& callback) override { }
-
-  // TODO: see if we can remove the function below
-  // virtual void getTransactionsByPaymentId(const Crypto::Hash& paymentId, std::vector<CryptoNote::TransactionDetails>& transactions, 
-  //   const Callback& callback) override { }
 
   virtual void isSynchronized(bool& syncStatus, const Callback& callback) override { }
 
