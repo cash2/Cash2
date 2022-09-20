@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018 The Turtlecoin developers
 // Copyright (c) 2016-2019, The Karbo Developers
 // Copyright (c) 2018-2022 The Cash2 developers
@@ -23,7 +23,8 @@ Configuration::Configuration() {
   daemonize = false;
   registerService = false;
   unregisterService = false;
-  logFile = "payment_gate.log";
+  containerPassword = "";
+  logFile = "walletd.log";
   testnet = false;
   printAddresses = false;
   logLevel = Logging::INFO;

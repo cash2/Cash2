@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -13,6 +13,9 @@
 #include "version.h"
 
 #ifdef WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #include <winsvc.h>
 #else
@@ -289,7 +292,7 @@ int main(int argc, char** argv) {
       return 0; //help message requested or so
     }
 
-    Logging::LoggerRef(pg.getLogger(), "main")(Logging::INFO) << "PaymentService " << " v" << PROJECT_VERSION_LONG;
+    Logging::LoggerRef(pg.getLogger(), "main")(Logging::INFO) << "walletd v" << PROJECT_VERSION_LONG;
 
     const auto& config = pg.getConfig();
 
