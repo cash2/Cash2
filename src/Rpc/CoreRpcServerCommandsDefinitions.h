@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2017-2018, The Karbo developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -63,13 +63,6 @@ struct COMMAND_RPC_GET_BLOCKS_FAST {
     uint64_t start_height;
     uint64_t current_height;
     std::string status;
-
-    void serialize(ISerializer &s) {
-      KV_MEMBER(blocks)
-      KV_MEMBER(start_height)
-      KV_MEMBER(current_height)
-      KV_MEMBER(status)
-    }
   };
 };
 //-----------------------------------------------
@@ -392,6 +385,8 @@ struct block_header_response {
   uint64_t reward;
 
   void serialize(ISerializer &s) {
+    KV_MEMBER(major_version)
+    KV_MEMBER(minor_version)
     KV_MEMBER(timestamp)
     KV_MEMBER(prev_hash)
     KV_MEMBER(merkle_root)
@@ -833,4 +828,4 @@ struct COMMAND_RPC_GET_TRANSACTION_DETAILS_BY_HASHES {
   };
 };
 
-} // end namespace CryptoNote
+}
