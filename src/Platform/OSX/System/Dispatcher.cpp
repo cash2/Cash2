@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -73,6 +73,7 @@ Dispatcher::Dispatcher() : lastCreatedTimer(0) {
           mainContext.group = &contextGroup;
           mainContext.groupPrev = nullptr;
           mainContext.groupNext = nullptr;
+          mainContext.inExecutionQueue = false;
           contextGroup.firstContext = nullptr;
           contextGroup.lastContext = nullptr;
           contextGroup.firstWaiter = nullptr;
@@ -133,9 +134,13 @@ void Dispatcher::dispatch() {
     if (firstResumingContext != nullptr) {
       context = firstResumingContext;
       firstResumingContext = context->next;
+
+      assert(context->inExecutionQueue);
+      context->inExecutionQueue = false;
+
       break;
     }
-    
+
     if(remoteSpawned.load() == true) {
       MutextGuard guard(*reinterpret_cast<pthread_mutex_t*>(this->mutex));
       while (!remoteSpawningProcedures.empty()) {
@@ -225,7 +230,12 @@ bool Dispatcher::interrupted() {
 
 void Dispatcher::pushContext(NativeContext* context) {
   assert(context!=nullptr);
+
+  if (context->inExecutionQueue)
+    return;
+
   context->next = nullptr;
+  context->inExecutionQueue = true;
   if (firstResumingContext != nullptr) {
     assert(lastResumingContext != nullptr);
     lastResumingContext->next = context;
@@ -376,6 +386,7 @@ void Dispatcher::contextProcedure(void* ucontext) {
   context.uctx = ucontext;
   context.interrupted = false;
   context.next = nullptr;
+  context.inExecutionQueue = false;
   firstReusableContext = &context;
   uctx* oldContext = static_cast<uctx*>(context.uctx);
   if (swapcontext(oldContext, static_cast<uctx*>(currentContext->uctx)) == -1) {
@@ -386,7 +397,7 @@ void Dispatcher::contextProcedure(void* ucontext) {
     ++runningContextCount;
     try {
       context.procedure();
-    } catch(std::exception&) {
+    } catch(...) {
     }
 
     if (context.group != nullptr) {

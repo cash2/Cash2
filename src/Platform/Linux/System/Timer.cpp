@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -94,7 +94,7 @@ void Timer::sleep(std::chrono::nanoseconds duration) {
               timerContext->interrupted = true;
               dispatcher->pushContext(timerContext->context);
             } else {
-              throw std::runtime_error("Timer::interrupt, read failed, "  + lastErrorMessage());
+              throw std::runtime_error("Timer::sleep, interrupt procedure, read failed, "  + lastErrorMessage());
             }
           } else {
             assert(value>0);
@@ -102,11 +102,11 @@ void Timer::sleep(std::chrono::nanoseconds duration) {
           }
 
           epoll_event timerEvent;
-          timerEvent.events = 0;
+          timerEvent.events = EPOLLONESHOT;
           timerEvent.data.ptr = nullptr;
 
           if (epoll_ctl(dispatcher->getEpoll(), EPOLL_CTL_MOD, timer, &timerEvent) == -1) {
-            throw std::runtime_error("Timer::interrupt, epoll_ctl failed, " + lastErrorMessage());
+            throw std::runtime_error("Timer::sleep, interrupt procedure, epoll_ctl failed, " + lastErrorMessage());
           }
         }
     };

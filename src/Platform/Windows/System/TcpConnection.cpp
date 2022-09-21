@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -10,7 +10,6 @@
 #endif
 #include <winsock2.h>
 #include <ws2ipdef.h>
-#include <stdexcept>
 #include <System/InterruptedException.h>
 #include <System/Ipv4Address.h>
 #include "Dispatcher.h"
@@ -129,6 +128,10 @@ size_t TcpConnection::read(uint8_t* data, size_t size) {
     throw InterruptedException();
   }
 
+  if (context.interrupted) {
+    throw InterruptedException();
+  }
+
   assert(transferred <= size);
   assert(flags == 0);
   return transferred;
@@ -195,6 +198,10 @@ size_t TcpConnection::write(const uint8_t* data, size_t size) {
     }
 
     assert(context.interrupted);
+    throw InterruptedException();
+  }
+
+  if (context.interrupted) {
     throw InterruptedException();
   }
 

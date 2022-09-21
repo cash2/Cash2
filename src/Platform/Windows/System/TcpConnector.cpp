@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -10,7 +10,6 @@
 #endif
 #include <winsock2.h>
 #include <mswsock.h>
-#include <stdexcept>
 #include <System/InterruptedException.h>
 #include <System/Ipv4Address.h>
 #include "Dispatcher.h"
@@ -146,6 +145,14 @@ TcpConnection TcpConnector::connect(const Ipv4Address& address, uint16_t port) {
                   }
                 }
               } else {
+                if (context2.interrupted) {
+                  if (closesocket(connection) != 0) {
+                    throw std::runtime_error("TcpConnector::connect, closesocket failed, " + errorMessage(WSAGetLastError()));
+                  } else {
+                    throw InterruptedException();
+                  }
+                }
+
                 assert(transferred == 0);
                 assert(flags == 0);
                 DWORD value = 1;

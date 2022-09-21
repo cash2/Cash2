@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -48,7 +48,7 @@ TcpListener::TcpListener(Dispatcher& dispatcher, const Ipv4Address& addr, uint16
           message = "listen failed, " + lastErrorMessage();
         } else {
           epoll_event listenEvent;
-          listenEvent.events = 0;
+          listenEvent.events = EPOLLONESHOT;
           listenEvent.data.ptr = nullptr;
 
           if (epoll_ctl(dispatcher.getEpoll(), EPOLL_CTL_ADD, listener, &listenEvent) == -1) {
@@ -133,11 +133,11 @@ TcpConnection TcpListener::accept() {
         OperationContext* listenerContext = static_cast<OperationContext*>(context);
         if (!listenerContext->interrupted) {
           epoll_event listenEvent;
-          listenEvent.events = 0;
+          listenEvent.events = EPOLLONESHOT;
           listenEvent.data.ptr = nullptr;
 
           if (epoll_ctl(dispatcher->getEpoll(), EPOLL_CTL_MOD, listener, &listenEvent) == -1) {
-            throw std::runtime_error("TcpListener::stop, epoll_ctl failed, " + lastErrorMessage() );
+            throw std::runtime_error("TcpListener::accept, interrupt procedure, epoll_ctl failed, " + lastErrorMessage() );
           }
 
           listenerContext->interrupted = true;
