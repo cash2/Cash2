@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -36,11 +36,25 @@ RemoteEventLock::RemoteEventLock(Dispatcher& dispatcher, Event& event) : dispatc
 }
 
 RemoteEventLock::~RemoteEventLock() {
+  std::mutex mutex;
+  std::condition_variable condition;
+  bool locked = true;
+
   Event* eventPointer = &event;
-  dispatcher.remoteSpawn([=]() {
+  dispatcher.remoteSpawn([&]() {
     assert(!eventPointer->get());
     eventPointer->set();
+
+    mutex.lock();
+    locked = false;
+    condition.notify_one();
+    mutex.unlock();
   });
+
+  std::unique_lock<std::mutex> lock(mutex);
+  while (locked) {
+    condition.wait(lock);
+  }
 }
 
 }
