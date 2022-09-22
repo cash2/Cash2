@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -69,7 +69,10 @@ template <typename Cont>
 bool serializeContainer(Cont& value, Common::StringView name, CryptoNote::ISerializer& serializer) {
   size_t size = value.size();
   if (!serializer.beginArray(size, name)) {
-    value.clear();
+    if (serializer.type() == ISerializer::INPUT) {
+      value.clear();
+    }
+
     return false;
   }
 
@@ -116,7 +119,10 @@ bool serializeMap(MapT& value, Common::StringView name, CryptoNote::ISerializer&
   size_t size = value.size();
 
   if (!serializer.beginArray(size, name)) {
-    value.clear();
+    if (serializer.type() == ISerializer::INPUT) {
+      value.clear();
+    }
+
     return false;
   }
 
@@ -152,7 +158,10 @@ bool serializeSet(SetT& value, Common::StringView name, CryptoNote::ISerializer&
   size_t size = value.size();
 
   if (!serializer.beginArray(size, name)) {
-    value.clear();
+    if (serializer.type() == ISerializer::INPUT) {
+      value.clear();
+    }
+
     return false;
   }
 
@@ -226,7 +235,10 @@ void writeSequence(Iterator begin, Iterator end, Common::StringView name, ISeria
 template <typename Element, typename Iterator>
 void readSequence(Iterator outputIterator, Common::StringView name, ISerializer& s) {
   size_t size = 0;
-  s.beginArray(size, name);
+  // array of zero size is not written in KVBinaryOutputStreamSerializer
+  if (!s.beginArray(size, name)) {
+    return;
+  }
 
   while (size--) {
     Element e;
