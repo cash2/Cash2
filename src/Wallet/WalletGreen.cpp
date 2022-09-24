@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers, The Bytecoin developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018, The BBSCoin Developers
 // Copyright (c) 2018, The Karbo Developers
 // Copyright (c) 2018-2019, The TurtleCoin Developers

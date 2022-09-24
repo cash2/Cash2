@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Copyright (c) 2016-2018, The Karbowanec developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -40,7 +40,6 @@ enum WalletErrorCodes {
   WALLET_NOT_FOUND,
   CHANGE_ADDRESS_REQUIRED,
   CHANGE_ADDRESS_NOT_FOUND,
-  EXTRA_TOO_LARGE,
   DESTINATION_ADDRESS_REQUIRED,
   DESTINATION_ADDRESS_NOT_FOUND,
   BAD_PAYMENT_ID,
@@ -62,33 +61,36 @@ public:
 
   virtual std::string message(int ev) const override {
     switch (ev) {
-    case NOT_INITIALIZED:          return "Object was not initialized";
-    case WRONG_PASSWORD:           return "The wallet container password is incorrect";
-    case ALREADY_INITIALIZED:      return "The object is already initialized";
-    case INTERNAL_WALLET_ERROR:    return "Internal error occurred";
-    case MIXIN_COUNT_TOO_BIG:      return "MixIn count is too big";
-    case BAD_ADDRESS:              return "Bad address";
+    case NOT_INITIALIZED: return "Object was not initialized";
+    case WRONG_PASSWORD: return "The wallet container password is incorrect";
+    case ALREADY_INITIALIZED: return "The object is already initialized";
+    case INTERNAL_WALLET_ERROR: return "Internal error occurred";
+    case MIXIN_COUNT_TOO_BIG: return "MixIn count is too big";
+    case BAD_ADDRESS: return "Bad address";
     case TRANSACTION_SIZE_TOO_BIG: return "Transaction size is too big";
-    case WRONG_AMOUNT:             return "Wrong amount";
-    case SUM_OVERFLOW:             return "Sum overflow";
-    case ZERO_DESTINATION:         return "The destination is empty";
-    case TX_CANCEL_IMPOSSIBLE:     return "Impossible to cancel transaction";
-    case WRONG_STATE:              return "The wallet is in wrong state (maybe loading or saving), try again later";
-    case OPERATION_CANCELLED:      return "The operation you've requested has been cancelled";
-    case TX_TRANSFER_IMPOSSIBLE:   return "Transaction transfer impossible";
-    case WRONG_VERSION:            return "Wrong version";
-    case FEE_TOO_SMALL:            return "Transaction fee is too small";
-    case KEY_GENERATION_ERROR:     return "Cannot generate new key";
-    case INDEX_OUT_OF_RANGE:       return "Index is out of range";
-    case ADDRESS_ALREADY_EXISTS:   return "Address already exists";
-    case TRACKING_MODE:            return "The wallet is in tracking mode";
-    case WRONG_PARAMETERS:         return "Wrong parameters passed";
-    case OBJECT_NOT_FOUND:         return "Object not found";
-    case WALLET_NOT_FOUND:         return "Requested wallet not found";
-    case CHANGE_ADDRESS_REQUIRED:  return "Change address required";
+    case WRONG_AMOUNT: return "Wrong amount";
+    case SUM_OVERFLOW: return "Sum overflow";
+    case ZERO_DESTINATION: return "The destination is empty";
+    case TX_CANCEL_IMPOSSIBLE: return "Impossible to cancel transaction";
+    case WRONG_STATE: return "The wallet is in wrong state (maybe loading or saving), try again later";
+    case OPERATION_CANCELLED: return "The operation you've requested has been cancelled";
+    case TX_TRANSFER_IMPOSSIBLE: return "Transaction transfer impossible";
+    case WRONG_VERSION: return "Wrong version";
+    case FEE_TOO_SMALL: return "Transaction fee is too small";
+    case KEY_GENERATION_ERROR: return "Cannot generate new key";
+    case INDEX_OUT_OF_RANGE: return "Index is out of range";
+    case ADDRESS_ALREADY_EXISTS: return "Address already exists";
+    case TRACKING_MODE: return "The wallet is in tracking mode";
+    case WRONG_PARAMETERS: return "Wrong parameters passed";
+    case OBJECT_NOT_FOUND: return "Object not found";
+    case WALLET_NOT_FOUND: return "Requested wallet not found";
+    case CHANGE_ADDRESS_REQUIRED: return "Change address required";
     case CHANGE_ADDRESS_NOT_FOUND: return "Change address not found";
-    case EXTRA_TOO_LARGE:          return "Transaction extra too large";
-    default:                       return "Unknown error";
+    case DESTINATION_ADDRESS_REQUIRED: return "Destination address required";
+    case DESTINATION_ADDRESS_NOT_FOUND: return "Destination address not found";
+    case BAD_PAYMENT_ID: return "Wrong payment id format";
+    case BAD_TRANSACTION_EXTRA: return "Wrong transaction extra format";
+    default: return "Unknown error";
     }
   }
 
