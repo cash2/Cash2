@@ -51,7 +51,6 @@ public:
 
   std::vector<TransactionId> deleteOutdatedTransactions();
 
-
 private:
 
   TransactionId insertTransaction(WalletLegacyTransaction&& Transaction);

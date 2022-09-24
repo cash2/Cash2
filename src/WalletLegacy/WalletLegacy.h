@@ -75,7 +75,6 @@ public:
 
   virtual void getAccountKeys(AccountKeys& keys) override;
 
-
 private:
 
   // IBlockchainSynchronizerObserver
