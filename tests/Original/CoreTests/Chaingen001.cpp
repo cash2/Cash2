@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -80,7 +80,7 @@ bool gen_simple_chain_001::generate(std::vector<test_event_entry> &events)
 
     std::vector<CryptoNote::BlockTemplate> chain;
     map_hash2tx_t mtx;
-    /*bool r = */find_block_chain(events, chain, mtx, get_block_hash(boost::get<CryptoNote::BlockTemplate>(events[3])));
+    /*bool r = */find_block_chain(events, chain, mtx, getBlockHash(boost::get<CryptoNote::BlockTemplate>(events[3])));
     std::cout << "BALANCE = " << get_balance(miner, chain, mtx) << std::endl;
 
     REWIND_BLOCKS(events, blk_2r, blk_2, miner);
@@ -100,13 +100,13 @@ bool gen_simple_chain_001::generate(std::vector<test_event_entry> &events)
 
     DO_CALLBACK(events, "verify_callback_1");
     //e.t.c.
-    //MAKE_BLOCK_TX1(events, blk_3, 3, get_block_hash(blk_0), get_test_target(), first_miner_account, ts_start + 10, tx_0);
-    //MAKE_BLOCK_TX1(events, blk_3, 3, get_block_hash(blk_0), get_test_target(), first_miner_account, ts_start + 10, tx_0);
+    //MAKE_BLOCK_TX1(events, blk_3, 3, getBlockHash(blk_0), get_test_target(), first_miner_account, ts_start + 10, tx_0);
+    //MAKE_BLOCK_TX1(events, blk_3, 3, getBlockHash(blk_0), get_test_target(), first_miner_account, ts_start + 10, tx_0);
     //DO_CALLBACK(events, "verify_callback_2");
 
 /*    std::vector<const CryptoNote::Block*> chain;
     map_hash2tx_t mtx;
-    if (!find_block_chain(events, chain, mtx, get_block_hash(blk_6)))
+    if (!find_block_chain(events, chain, mtx, getBlockHash(blk_6)))
         throw;
     cout << "miner = " << get_balance(first_miner_account, events, chain, mtx) << endl;
     cout << "alice = " << get_balance(alice, events, chain, mtx) << endl;*/

@@ -134,8 +134,8 @@ bool gen_double_spend_in_tx<txs_keeped_by_block>::generate(std::vector<test_even
   destinations.push_back(de);
 
   CryptoNote::Transaction tx_1;
-  if (!constructTransaction(bob_account.getAccountKeys(), sources, destinations, std::vector<uint8_t>(), tx_1, 0,
-                            this->m_logger))
+  Crypto::SecretKey transactionSecretKeyIgnore;
+  if (!constructTransaction(bob_account.getAccountKeys(), sources, destinations, std::vector<uint8_t>(), tx_1, 0, transactionSecretKeyIgnore, this->m_logger))
     return false;
 
   SET_EVENT_VISITOR_SETT(events, event_visitor_settings::set_txs_keeped_by_block, txs_keeped_by_block);

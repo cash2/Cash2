@@ -99,6 +99,8 @@ namespace boost
   inline void serialize(Archive &a, CryptoNote::BlockTemplate &b, const boost::serialization::version_type ver)
   {
     std::cout << "boooooooooooost serialize" << std::endl;
+    a & b.majorVersion;
+    a & b.minorVersion;
     a & b.timestamp;
     a & b.previousBlockHash;
     a & b.nonce;
