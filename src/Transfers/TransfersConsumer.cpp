@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers, The Bytecoin developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018, The BBSCoin Developers
 // Copyright (c) 2018, The Karbo Developers
 // Copyright (c) 2018-2022 The Cash2 developers
@@ -412,7 +412,7 @@ void TransfersConsumer::addPublicKeysSeen(const Crypto::Hash& transactionHash, c
   public_keys_seen.insert(outputKey);
 }
 
-std::error_code TransfersConsumer::createTransfers(
+std::error_code createTransfers(
   const AccountKeys& account,
   const TransactionBlockInfo& blockInfo,
   const ITransactionReader& tx,
@@ -503,7 +503,7 @@ std::error_code TransfersConsumer::preprocessOutputs(const TransactionBlockInfo&
   std::error_code errorCode;
   auto txHash = tx.getTransactionHash();
   if (blockInfo.height != WALLET_UNCONFIRMED_TRANSACTION_HEIGHT) {
-    errorCode = getGlobalIndexes(reinterpret_cast<const Hash&>(txHash), info.globalIdxs);
+    errorCode = getGlobalIndices(reinterpret_cast<const Hash&>(txHash), info.globalIdxs);
     if (errorCode) {
       return errorCode;
     }
@@ -513,7 +513,7 @@ std::error_code TransfersConsumer::preprocessOutputs(const TransactionBlockInfo&
     auto it = m_subscriptions.find(kv.first);
     if (it != m_subscriptions.end()) {
       auto& transfers = info.outputs[kv.first];
-      errorCode = TransfersConsumer::createTransfers(it->second->getKeys(), blockInfo, tx, kv.second, info.globalIdxs, transfers);
+      errorCode = createTransfers(it->second->getKeys(), blockInfo, tx, kv.second, info.globalIdxs, transfers);
       if (errorCode) {
         return errorCode;
       }
@@ -587,7 +587,7 @@ void TransfersConsumer::processOutputs(const TransactionBlockInfo& blockInfo, Tr
   }
 }
 
-std::error_code TransfersConsumer::getGlobalIndexes(const Hash& transactionHash, std::vector<uint32_t>& outsGlobalIndexes) {  
+std::error_code TransfersConsumer::getGlobalIndices(const Hash& transactionHash, std::vector<uint32_t>& outsGlobalIndices) {
   std::promise<std::error_code> prom;
   std::future<std::error_code> f = prom.get_future();
 
@@ -596,8 +596,8 @@ std::error_code TransfersConsumer::getGlobalIndexes(const Hash& transactionHash,
     p.set_value(ec);
   };
 
-  outsGlobalIndexes.clear();
-  m_node.getTransactionOutsGlobalIndices(transactionHash, outsGlobalIndexes, cb);
+  outsGlobalIndices.clear();
+  m_node.getTransactionOutsGlobalIndices(transactionHash, outsGlobalIndices, cb);
 
   return f.get();
 }

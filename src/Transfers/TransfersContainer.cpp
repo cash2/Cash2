@@ -383,7 +383,7 @@ bool TransfersContainer::deleteUnconfirmedTransaction(const Hash& transactionHas
 }
 
 bool TransfersContainer::markTransactionConfirmed(const TransactionBlockInfo& block, const Hash& transactionHash,
-                                                  const std::vector<uint32_t>& globalIndexes) {
+                                                  const std::vector<uint32_t>& globalIndices) {
   if (block.height == WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT) {
     auto message = "Failed to confirm transaction: block height is unconfirmed";
     m_logger(ERROR, BRIGHT_RED) << message << ", transaction hash " << transactionHash;
@@ -412,15 +412,15 @@ bool TransfersContainer::markTransactionConfirmed(const TransactionBlockInfo& bl
       auto transfer = *transferIt;
       assert(transfer.blockHeight == WALLET_LEGACY_UNCONFIRMED_TRANSACTION_HEIGHT);
       assert(transfer.globalOutputIndex == UNCONFIRMED_TRANSACTION_GLOBAL_OUTPUT_INDEX);
-      if (transfer.outputInTransaction >= globalIndexes.size()) {
-        auto message = "Failed to confirm transaction: not enough elements in globalIndexes";
-        m_logger(ERROR, BRIGHT_RED) << message << ", globalIndexes.size() " << globalIndexes.size() << ", output index " << transfer.outputInTransaction;
+      if (transfer.outputInTransaction >= globalIndices.size()) {
+        auto message = "Failed to confirm transaction: not enough elements in globalIndices";
+        m_logger(ERROR, BRIGHT_RED) << message << ", globalIndices.size() " << globalIndices.size() << ", output index " << transfer.outputInTransaction;
         throw std::invalid_argument(message);
       }
 
       transfer.blockHeight = block.height;
       transfer.transactionIndex = block.transactionIndex;
-      transfer.globalOutputIndex = globalIndexes[transfer.outputInTransaction];
+      transfer.globalOutputIndex = globalIndices[transfer.outputInTransaction];
 
       auto result = m_availableTransfers.emplace(std::move(transfer));
       (void)result; // Disable unused warning

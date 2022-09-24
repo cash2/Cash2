@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -34,10 +34,8 @@ public:
   SpentOutputDescriptor();
   SpentOutputDescriptor(const TransactionOutputInformationIn& transactionInfo);
   SpentOutputDescriptor(const Crypto::KeyImage* keyImage);
-  SpentOutputDescriptor(uint64_t amount, uint32_t globalOutputIndex);
 
   void assign(const Crypto::KeyImage* keyImage);
-  void assign(uint64_t amount, uint32_t globalOutputIndex);
 
   bool isValid() const;
 
@@ -140,7 +138,7 @@ public:
 
   bool addTransaction(const TransactionBlockInfo& block, const ITransactionReader& tx, const std::vector<TransactionOutputInformationIn>& transfers);
   bool deleteUnconfirmedTransaction(const Crypto::Hash& transactionHash);
-  bool markTransactionConfirmed(const TransactionBlockInfo& block, const Crypto::Hash& transactionHash, const std::vector<uint32_t>& globalIndexes);
+  bool markTransactionConfirmed(const TransactionBlockInfo& block, const Crypto::Hash& transactionHash, const std::vector<uint32_t>& globalIndices);
 
   std::vector<Crypto::Hash> detach(uint32_t height);
   bool advanceHeight(uint32_t height);
