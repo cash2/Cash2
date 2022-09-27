@@ -8,7 +8,6 @@
 #include "rocksdb/cache.h"
 #include "rocksdb/table.h"
 #include "rocksdb/db.h"
-#include "rocksdb/utilities/backupable_db.h"
 
 #include "DataBaseErrors.h"
 

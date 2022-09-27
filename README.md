@@ -70,19 +70,28 @@ The focus of Cash2 is towards becoming a mainstream digital currency and not tow
 **Why does Cash2 use BLAKE2b instead of Cryptonight?**  
 Fast block times requires a fast hashing algorithm, and BLAKE2b is one of the fastest algorithms available.
 
-## How To Compile from Source
-
-#### Cloning the repository
+## Cloning the Cash2 repository
 
 `$ git clone --recursive https://github.com/cash2/cash2`
 
-#### Linux Ubuntu
+## How To Compile from Source
 
-- `sudo apt-get install -y build-essential cmake pkg-config libboost-all-dev libssl-dev libzmq3-dev libpgm-dev libunbound-dev libsodium-dev`
-- `cd <your cash2 directory>`
+### Linux Ubuntu with GCC
+
+- `sudo apt update`
+- `sudo apt install -y build-essential cmake pkg-config libboost-all-dev libssl-dev libzmq3-dev libpgm-dev libunbound-dev libsodium-dev gcc-9 g++-9`
+- `export CC=gcc-9`
+- `export CXX=g++-9`
+- `git clone -b main --single-branch --recursive https://github.com/cash2/cash2`
+- `cd cash2`
 - `make`
 
-#### Windows (Instructions borrowed from Turtlecoin)
+The binaries will be in the `build/release/src/` folder when you are complete.
+
+- cd `build/release/src/`
+- `./cash2d`
+
+### Windows
 
 - Install [Visual Studio 2017 Community Edition](https://www.visualstudio.com/thank-you-downloading-visual-studio/?sku=Community&rel=15&page=inlineinstall)
 - When installing Visual Studio, it is required that you install Desktop development with C++
@@ -99,3 +108,5 @@ If you have errors on this step about not being able to find the following stati
 - `MSBuild Cash2.sln /p:Configuration=Release /m`
 
 The `.exe` files will be in the `src/Release` folder when you are complete.
+
+Some instructions were borrowed from Turtlecoin: https://github.com/turtlecoin/turtlecoin
