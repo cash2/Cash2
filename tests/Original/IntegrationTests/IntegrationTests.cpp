@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2011-2017 The Cryptonote developers, The Bytecoin developers
 // Copyright (c) 2018-2022 The Cash2 developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -149,7 +149,7 @@ public:
 
 
 TEST_F(IntegrationTest, Wallet2Wallet) {
-  const uint64_t FEE = 1000000;
+  //const uint64_t FEE = 1000000;
 
   launchTestnet(2);
 
