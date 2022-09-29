@@ -405,8 +405,8 @@ TEST_F(TransfersContainer_deleteUnconfirmedTransaction, deleteTx) {
 class TransfersContainer_markTransactionConfirmed : public TransfersContainerTest {
 public:
   bool markConfirmed(const Hash& txHash, uint32_t height = TEST_BLOCK_HEIGHT, 
-    const std::vector<uint32_t>& globalIndexes = { TEST_TRANSACTION_OUTPUT_GLOBAL_INDEX }) {
-    return container.markTransactionConfirmed(blockInfo(height), txHash, globalIndexes);
+    const std::vector<uint32_t>& globalIndices = { TEST_TRANSACTION_OUTPUT_GLOBAL_INDEX }) {
+    return container.markTransactionConfirmed(blockInfo(height), txHash, globalIndices);
   }
 };
 
@@ -434,7 +434,7 @@ TEST_F(TransfersContainer_markTransactionConfirmed, confirmedTransaction) {
 }
 
 
-TEST_F(TransfersContainer_markTransactionConfirmed, globalIndexesSmaller) {
+TEST_F(TransfersContainer_markTransactionConfirmed, globalIndicesSmaller) {
   
   TestTransactionBuilder builder;
   builder.addTestInput(TEST_OUTPUT_AMOUNT + 1, account);
