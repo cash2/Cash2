@@ -642,7 +642,6 @@ bool TestBlockCumulativeSizeExceedsLimit::generate(std::vector<test_event_entry>
 gen_block_invalid_binary_format::gen_block_invalid_binary_format(uint8_t blockMajorVersion)
     : m_corrupt_blocks_begin_idx(0), m_blockMajorVersion(blockMajorVersion) {
   CryptoNote::CurrencyBuilder currencyBuilder(m_logger);
-  currencyBuilder.upgradeHeightV2(blockMajorVersion == CryptoNote::BLOCK_MAJOR_VERSION_1 ? IUpgradeDetector::UNDEF_HEIGHT : UINT32_C(0));
   m_currency.reset(new Currency(currencyBuilder.currency()));
 
   REGISTER_CALLBACK("check_all_blocks_purged", gen_block_invalid_binary_format::check_all_blocks_purged);

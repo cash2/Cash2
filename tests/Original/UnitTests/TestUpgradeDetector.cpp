@@ -33,8 +33,6 @@ namespace {
       currencyBuilder.upgradeVotingThreshold(90);
       currencyBuilder.upgradeVotingWindow(720);
       currencyBuilder.upgradeWindow(720);
-      currencyBuilder.upgradeHeightV2(upgradeHeight);
-      currencyBuilder.upgradeHeightV3(CryptoNote::UpgradeDetectorBase::UNDEF_HEIGHT);
       return currencyBuilder.currency();
     }
 

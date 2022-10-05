@@ -34,9 +34,7 @@ gen_upgrade::gen_upgrade() : m_invalidBlockIndex(0), m_checkBlockTemplateVersion
     m_coinsInCirculationBeforeUpgrade(0), m_coinsInCirculationAfterUpgrade(0) {
   CryptoNote::CurrencyBuilder currencyBuilder(m_logger);
   currencyBuilder.maxBlockSizeInitial(std::numeric_limits<size_t>::max() / 2);
-  currencyBuilder.upgradeHeightV2(std::numeric_limits<uint32_t>::max());
   // Disable voting and never upgrade to v.3.0
-  currencyBuilder.upgradeHeightV3(CryptoNote::parameters::CRYPTONOTE_MAX_BLOCK_NUMBER);
   m_currency.reset(new Currency(currencyBuilder.currency()));
 
   REGISTER_CALLBACK_METHOD(gen_upgrade, markInvalidBlock);

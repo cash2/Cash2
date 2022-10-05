@@ -882,7 +882,7 @@ TEST_F(WalletApi, transferFromTwoAddresses) {
 }
 
 TEST_F(WalletApi, transferTooBigTransaction) {
-  const size_t testBlockGrantedFullRewardZone = parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_CURRENT;
+  const size_t testBlockGrantedFullRewardZone = parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
   const size_t outputSize = 32 + 1;
   const size_t bigTxOutputCount = 2 * testBlockGrantedFullRewardZone / outputSize;
 

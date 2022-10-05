@@ -63,8 +63,6 @@ bool Currency::init() {
   }
 
   if (isTestnet()) {
-    m_upgradeHeightV2 = 0;
-    m_upgradeHeightV3 = static_cast<uint32_t>(-1);
     m_blocksFileName = "testnet_" + m_blocksFileName;
     m_blockIndexesFileName = "testnet_" + m_blockIndexesFileName;
     m_txPoolFileName = "testnet_" + m_txPoolFileName;
@@ -111,20 +109,15 @@ size_t Currency::blockGrantedFullRewardZoneByBlockVersion(uint8_t blockMajorVers
   if (blockMajorVersion >= BLOCK_MAJOR_VERSION_3) {
     return m_blockGrantedFullRewardZone;
   } else if (blockMajorVersion == BLOCK_MAJOR_VERSION_2) {
-    return CryptoNote::parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2;
+    return CryptoNote::parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
   } else {
-    return CryptoNote::parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1;
+    return CryptoNote::parameters::CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
   }
 }
 
 uint32_t Currency::upgradeHeight(uint8_t majorVersion) const {
-  if (majorVersion == BLOCK_MAJOR_VERSION_2) {
-    return m_upgradeHeightV2;
-  } else if (majorVersion == BLOCK_MAJOR_VERSION_3) {
-    return m_upgradeHeightV3;
-  } else {
-    return static_cast<uint32_t>(-1);
-  }
+  return static_cast<uint32_t>(-1);
+
 }
 
 bool Currency::getBlockReward(uint8_t blockMajorVersion, size_t medianSize, size_t currentBlockSize, uint64_t alreadyGeneratedCoins,
@@ -539,8 +532,6 @@ m_numberOfPeriodsToForgetTxDeletedFromPool(currency.m_numberOfPeriodsToForgetTxD
 m_fusionTxMaxSize(currency.m_fusionTxMaxSize),
 m_fusionTxMinInputCount(currency.m_fusionTxMinInputCount),
 m_fusionTxMinInOutCountRatio(currency.m_fusionTxMinInOutCountRatio),
-m_upgradeHeightV2(currency.m_upgradeHeightV2),
-m_upgradeHeightV3(currency.m_upgradeHeightV3),
 m_upgradeVotingThreshold(currency.m_upgradeVotingThreshold),
 m_upgradeVotingWindow(currency.m_upgradeVotingWindow),
 m_upgradeWindow(currency.m_upgradeWindow),
@@ -596,8 +587,6 @@ CurrencyBuilder::CurrencyBuilder(Logging::ILogger& log) : m_currency(log) {
   fusionTxMinInputCount(parameters::FUSION_TX_MIN_INPUT_COUNT);
   fusionTxMinInOutCountRatio(parameters::FUSION_TX_MIN_IN_OUT_COUNT_RATIO);
 
-  upgradeHeightV2(parameters::UPGRADE_HEIGHT_V2);
-  upgradeHeightV3(parameters::UPGRADE_HEIGHT_V3);
   upgradeVotingThreshold(parameters::UPGRADE_VOTING_THRESHOLD);
   upgradeVotingWindow(parameters::UPGRADE_VOTING_WINDOW);
   upgradeWindow(parameters::UPGRADE_WINDOW);

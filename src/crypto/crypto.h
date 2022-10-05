@@ -77,9 +77,9 @@ struct EllipticCurveScalar {
     friend void generate_ring_signature(const Hash &, const KeyImage &,
       const PublicKey *const *, size_t, const SecretKey &, size_t, Signature *);
     static bool check_ring_signature(const Hash &, const KeyImage &,
-      const PublicKey *const *, size_t, const Signature *, bool);
+      const PublicKey *const *, size_t, const Signature *);
     friend bool check_ring_signature(const Hash &, const KeyImage &,
-      const PublicKey *const *, size_t, const Signature *, bool);
+      const PublicKey *const *, size_t, const Signature *);
     static KeyImage scalarmultKey(const KeyImage & P, const KeyImage & a);
     friend KeyImage scalarmultKey(const KeyImage & P, const KeyImage & a);
   };
@@ -221,8 +221,8 @@ struct EllipticCurveScalar {
   }
   inline bool check_ring_signature(const Hash &prefix_hash, const KeyImage &image,
     const PublicKey *const *pubs, size_t pubs_count,
-    const Signature *sig, bool checkKeyImage) {
-    return crypto_ops::check_ring_signature(prefix_hash, image, pubs, pubs_count, sig, checkKeyImage);
+    const Signature *sig) {
+    return crypto_ops::check_ring_signature(prefix_hash, image, pubs, pubs_count, sig);
   }
 
   inline KeyImage scalarmultKey(const KeyImage & P, const KeyImage & a) {
@@ -239,8 +239,8 @@ struct EllipticCurveScalar {
   }
   inline bool check_ring_signature(const Hash &prefix_hash, const KeyImage &image,
     const std::vector<const PublicKey *> &pubs,
-    const Signature *sig, bool checkKeyImage) {
-    return check_ring_signature(prefix_hash, image, pubs.data(), pubs.size(), sig, checkKeyImage);
+    const Signature *sig) {
+    return check_ring_signature(prefix_hash, image, pubs.data(), pubs.size(), sig);
   }
 
 }

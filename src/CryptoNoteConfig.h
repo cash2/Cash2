@@ -31,9 +31,6 @@ static_assert(EMISSION_SPEED_FACTOR <= 8 * sizeof(uint64_t), "Bad EMISSION_SPEED
 
 const size_t   CRYPTONOTE_REWARD_BLOCKS_WINDOW               = 60 * 24 * 60 * 60 / DIFFICULTY_TARGET; // number of blocks produced in 60 days
 const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE     = 200 * 1024; //size of block (bytes) after which reward for block calculated using block size, 200 kb
-const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2  = 20000;
-const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1  = 10000;
-const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_CURRENT = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE;
 const size_t   CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE        = 600;
 const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT              = 9; // number of digits after decimal point
 
@@ -66,9 +63,6 @@ const size_t   FUSION_TX_MAX_SIZE                            = CRYPTONOTE_BLOCK_
 const size_t   FUSION_TX_MIN_INPUT_COUNT                     = 12;
 const size_t   FUSION_TX_MIN_IN_OUT_COUNT_RATIO              = 4;
 
-const uint32_t KEY_IMAGE_CHECKING_BLOCK_INDEX                = 1267000;
-const uint32_t UPGRADE_HEIGHT_V2                             = 0;
-const uint32_t UPGRADE_HEIGHT_V3                             = 0;
 const unsigned UPGRADE_VOTING_THRESHOLD                      = 0;
 const uint32_t UPGRADE_VOTING_WINDOW                         = 0;
 const uint32_t UPGRADE_WINDOW                                = 0;

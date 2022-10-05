@@ -241,7 +241,7 @@ int main(int argc, char *argv[]) {
       sigs.resize(pubs_count);
       getvar(input, pubs_count * sizeof(Crypto::Signature), sigs.data());
       get(input, expected);
-      actual = check_ring_signature(prefix_hash, image, pubs.data(), pubs_count, sigs.data(), true);
+      actual = check_ring_signature(prefix_hash, image, pubs.data(), pubs_count, sigs.data());
       if (expected != actual) {
         goto error;
       }
