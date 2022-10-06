@@ -14,8 +14,7 @@
 class ShuffleTest : public ::testing::Test {
 public:
 
-  typedef ShuffleGenerator<size_t, std::default_random_engine> DefaultShuffleGenerator;
-  typedef ShuffleGenerator<size_t, Crypto::random_engine<size_t>> CryptoShuffleGenerator;
+  typedef ShuffleGenerator<size_t> DefaultShuffleGenerator;
 
   template <typename Gen>
   void checkUniqueness(Gen& gen, size_t count) {
@@ -59,7 +58,3 @@ TEST_F(ShuffleTest, correctness_fractionalSize) {
   checkEngine<DefaultShuffleGenerator>(ITERATIONS, ITERATIONS/3, true);
 }
 
-
-TEST_F(ShuffleTest, cryptoGenerator) {
-  checkEngine<CryptoShuffleGenerator>(ITERATIONS * 3, ITERATIONS, false);
-}

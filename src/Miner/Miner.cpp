@@ -8,6 +8,7 @@
 #include <functional>
 
 #include "crypto/crypto.h"
+#include <crypto/random.h>
 #include "CryptoNoteCore/CachedBlock.h"
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 
@@ -66,7 +67,7 @@ void Miner::runWorkers(BlockMiningParameters blockMiningParameters, size_t threa
   m_logger(Logging::INFO) << "Starting mining for difficulty " << blockMiningParameters.difficulty;
 
   try {
-    blockMiningParameters.blockTemplate.nonce = Crypto::rand<uint64_t>();
+    blockMiningParameters.blockTemplate.nonce = Random::randomValue<uint64_t>();
 
     for (size_t i = 0; i < threadCount; ++i) {
       m_workers.emplace_back(std::unique_ptr<System::RemoteContext<void>> (

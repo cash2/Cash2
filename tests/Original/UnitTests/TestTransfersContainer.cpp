@@ -347,7 +347,9 @@ class TransfersContainer_deleteUnconfirmedTransaction : public TransfersContaine
 TEST_F(TransfersContainer_deleteUnconfirmedTransaction, tryDeleteNonExistingTx) {
   addTransaction();
   ASSERT_EQ(1, container.transactionsCount());
-  ASSERT_FALSE(container.deleteUnconfirmedTransaction(Crypto::rand<Crypto::Hash>()));
+  Crypto::Hash h;
+  Random::randomBytes(32, h.data);
+  ASSERT_FALSE(container.deleteUnconfirmedTransaction(h));
   ASSERT_EQ(1, container.transactionsCount());
 }
 
@@ -418,7 +420,9 @@ TEST_F(TransfersContainer_markTransactionConfirmed, nonExistingTransaction) {
   addTransaction();
   ASSERT_EQ(1, container.transactionsCount());
   ASSERT_EQ(TEST_OUTPUT_AMOUNT, container.balance(ITransfersContainer::IncludeAllLocked));
-  ASSERT_FALSE(markConfirmed(Crypto::rand<Hash>()));
+  Crypto::Hash h;
+  Random::randomBytes(32, h.data);
+  ASSERT_FALSE(markConfirmed(h));
   ASSERT_EQ(1, container.transactionsCount());
   ASSERT_EQ(TEST_OUTPUT_AMOUNT, container.balance(ITransfersContainer::IncludeAllLocked));
 }

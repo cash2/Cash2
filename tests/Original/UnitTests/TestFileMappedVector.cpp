@@ -829,7 +829,7 @@ TEST_F(FileMappedVectorTest, pushBackCanIncreaseCapacity) {
 }
 
 TEST_F(FileMappedVectorTest, pushBackFlushesDataToDiskImmediately) {
-  char c = Crypto::rand<char>();
+  char c = Random::randomValue<char>();
 
   FileMappedVector<char> vec(TEST_FILE_NAME);
   vec.push_back(c);

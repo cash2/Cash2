@@ -1019,7 +1019,8 @@ public:
   const size_t TEST_TOTAL_OUTPUT_COUNT = 823632;
 
   FusionManagerStub(System::Dispatcher& dispatcher) : IWalletBaseStub(dispatcher) {
-    testTransactionHash = Crypto::rand<Crypto::Hash>();
+    Crypto::Hash testTransactionHash;
+    Random::randomBytes(32, testTransactionHash.data);
   }
 
   virtual WalletTransaction getTransaction(size_t transactionIndex) const override {

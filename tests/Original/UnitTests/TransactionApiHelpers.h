@@ -48,10 +48,12 @@ namespace {
   AccountPublicAddress generateAddress() {
     return generateAccount().getAccountKeys().address;
   }
-  
+
   KeyImage generateKeyImage() {
-    return Crypto::rand<KeyImage>();
-  }
+    Crypto::KeyImage randomKeyImage;
+    Random::randomBytes(32, randomKeyImage.data);
+    return randomKeyImage;
+  };
 
   KeyImage generateKeyImage(const AccountKeys& keys, size_t idx, const PublicKey& txPubKey) {
     KeyImage keyImage;

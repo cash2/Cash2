@@ -613,7 +613,9 @@ TEST_F(BcSTest, firstPoolSynchronizationCheck) {
 
 TEST_F(BcSTest, firstPoolSynchronizationCheckNonActual) {
   addConsumers(2);
-  m_consumers.front()->addPoolTransaction(Crypto::rand<Crypto::Hash>());
+  Crypto::Hash h;
+  Random::randomBytes(32, h.data);
+  m_consumers.front()->addPoolTransaction(h);
 
   int requestsCount = 0;
 
@@ -648,7 +650,9 @@ TEST_F(BcSTest, firstPoolSynchronizationCheckNonActual) {
 
 TEST_F(BcSTest, firstPoolSynchronizationCheckGetPoolErr) {
   addConsumers(2);
-  m_consumers.front()->addPoolTransaction(Crypto::rand<Crypto::Hash>());
+  Crypto::Hash h;
+  Random::randomBytes(32, h.data);
+  m_consumers.front()->addPoolTransaction(h);
 
   int requestsCount = 0;
 

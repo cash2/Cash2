@@ -250,7 +250,8 @@ TEST_F(BlockchainCacheTests, split) {
 }
 
 TEST_F(BlockchainCacheTests, checkIfSpentFalse) {
-  Crypto::KeyImage keyImage = Crypto::rand<Crypto::KeyImage>();
+  Crypto::KeyImage keyImage;
+  Random::randomBytes(32, keyImage.data);
   ASSERT_FALSE(blockCache.checkIfSpent(keyImage));
 }
 
@@ -261,7 +262,8 @@ TEST_F(BlockchainCacheTests, checkIfSpentTrue) {
   const Difficulty DIFFICULTY = rand();
   std::vector<CachedTransaction> transactions;
   TransactionValidatorState validatorState;
-  Crypto::KeyImage keyImage = Crypto::rand<Crypto::KeyImage>();
+  Crypto::KeyImage keyImage;
+  Random::randomBytes(32, keyImage.data);
   validatorState.spentKeyImages.insert(keyImage);
   ASSERT_NO_FATAL_FAILURE(blockCache.pushBlock(block, transactions, validatorState, SIZE, REWARD, DIFFICULTY, RawBlock()));
 
@@ -275,7 +277,8 @@ TEST_F(BlockchainCacheTests, checkIfSpentChain) {
   const Difficulty DIFFICULTY = rand();
   std::vector<CachedTransaction> transactions;
   TransactionValidatorState validatorState;
-  Crypto::KeyImage keyImage = Crypto::rand<Crypto::KeyImage>();
+  Crypto::KeyImage keyImage;
+  Random::randomBytes(32, keyImage.data);
   validatorState.spentKeyImages.insert(keyImage);
   ASSERT_NO_FATAL_FAILURE(blockCache.pushBlock(block, transactions, validatorState, SIZE, REWARD, DIFFICULTY, RawBlock()));
 
@@ -284,7 +287,8 @@ TEST_F(BlockchainCacheTests, checkIfSpentChain) {
 }
 
 TEST_F(BlockchainCacheTests, checkIfSpentBlockIndexFalse) {
-  Crypto::KeyImage keyImage = Crypto::rand<Crypto::KeyImage>();
+  Crypto::KeyImage keyImage;
+  Random::randomBytes(32, keyImage.data);
   ASSERT_FALSE(blockCache.checkIfSpent(keyImage, 0));
 }
 
@@ -295,7 +299,8 @@ TEST_F(BlockchainCacheTests, checkIfSpentBlockIndexTrue) {
   const Difficulty DIFFICULTY = rand();
   std::vector<CachedTransaction> transactions;
   TransactionValidatorState validatorState;
-  Crypto::KeyImage keyImage = Crypto::rand<Crypto::KeyImage>();
+  Crypto::KeyImage keyImage;
+  Random::randomBytes(32, keyImage.data);
   validatorState.spentKeyImages.insert(keyImage);
   ASSERT_NO_FATAL_FAILURE(blockCache.pushBlock(block, transactions, validatorState, SIZE, REWARD, DIFFICULTY, RawBlock()));
 
@@ -309,7 +314,8 @@ TEST_F(BlockchainCacheTests, checkIfSpentChain1) {
   const Difficulty DIFFICULTY = rand();
   std::vector<CachedTransaction> transactions;
   TransactionValidatorState validatorState;
-  Crypto::KeyImage keyImage = Crypto::rand<Crypto::KeyImage>();
+  Crypto::KeyImage keyImage;
+  Random::randomBytes(32, keyImage.data);
   validatorState.spentKeyImages.insert(keyImage);
   ASSERT_NO_FATAL_FAILURE(blockCache.pushBlock(block, transactions, validatorState, SIZE, REWARD, DIFFICULTY, RawBlock()));
 

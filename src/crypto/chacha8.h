@@ -1,39 +1,31 @@
+// Copyright (c) 2011-2016 The Cryptonote developers, The Bytecoin developers
+// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2018-2019, The TurtleCoin Developers
+// Copyright (c) 2016-2019, The Karbo developers
+// Copyright (c) 2018-2022 The Cash2 developers
+// Distributed under the MIT/X11 software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
 #pragma once
 
-#include <stdint.h>
-#include <stddef.h>
+#include <crypto/hash.h>
+#include <crypto/random.h>
 
 #define CHACHA8_KEY_SIZE 32
 #define CHACHA8_IV_SIZE 8
 
-#if defined(__cplusplus)
-#include <memory.h>
-#include <string>
-
-#include "hash.h"
-
 namespace Crypto {
-  extern "C" {
-#endif
-    void chacha8(const void* data, size_t length, const uint8_t* key, const uint8_t* iv, char* cipher);
-#if defined(__cplusplus)
-  }
+  void chacha8(const void* data, size_t length, const uint8_t* key, const uint8_t* iv, char* cipher);
 
-#pragma pack(push, 1)
+  #pragma pack(push, 1)
   struct chacha8_key {
     uint8_t data[CHACHA8_KEY_SIZE];
-
-    ~chacha8_key()
-    {
-      memset(data, 0, sizeof(data));
-    }
   };
 
-  // MS VC 2012 doesn't interpret `class chacha8_iv` as POD in spite of [9.0.10], so it is a struct
   struct chacha8_iv {
     uint8_t data[CHACHA8_IV_SIZE];
   };
-#pragma pack(pop)
+  #pragma pack(pop)
 
   static_assert(sizeof(chacha8_key) == CHACHA8_KEY_SIZE && sizeof(chacha8_iv) == CHACHA8_IV_SIZE, "Invalid structure size");
 
@@ -48,6 +40,14 @@ namespace Crypto {
     memcpy(&key, &pwd_hash, sizeof(key));
     memset(&pwd_hash, 0, sizeof(pwd_hash));
   }
+
+  /**
+   * Generates a random chacha8 IV
+   */
+  inline chacha8_iv randomChachaIV() {
+    chacha8_iv result;
+    Random::randomBytes(CHACHA8_IV_SIZE, result.data);
+    return result;
+  }
 }
 
-#endif

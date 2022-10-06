@@ -16,8 +16,6 @@
 
 #include <Logging/LoggerGroup.h>
 
-#include <random>
-
 using namespace Crypto;
 
 namespace {
@@ -344,17 +342,17 @@ uint64_t WalletTransactionSender::selectTransfersToSend(uint64_t neededMoney, bo
     }
   }
 
-  std::default_random_engine randomGenerator(Crypto::rand<std::default_random_engine::result_type>());
   bool selectOneDust = addDust && !unusedDust.empty();
   uint64_t foundMoney = 0;
 
   while (foundMoney < neededMoney && (!unusedTransfers.empty() || !unusedDust.empty())) {
     size_t idx;
+    std::mt19937 urng = Random::generator();
     if (selectOneDust) {
-      idx = popRandomValue(randomGenerator, unusedDust);
+      idx = popRandomValue(urng, unusedDust);
       selectOneDust = false;
     } else {
-      idx = !unusedTransfers.empty() ? popRandomValue(randomGenerator, unusedTransfers) : popRandomValue(randomGenerator, unusedDust);
+      idx = !unusedTransfers.empty() ? popRandomValue(urng, unusedTransfers) : popRandomValue(urng, unusedDust);
     }
 
     selectedTransfers.push_back(outputs[idx]);
