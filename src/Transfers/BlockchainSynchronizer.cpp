@@ -9,6 +9,7 @@
 #include <iostream>
 #include <sstream>
 #include <unordered_set>
+#include <thread>
 
 #include "Common/StreamTools.h"
 #include "Common/StringTools.h"

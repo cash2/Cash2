@@ -478,7 +478,7 @@ void BlockchainExplorer::poolChanged() {
     [this, rawNewTransactionsPtr, removedTransactionsPtr, isBlockchainActualPtr](const INode::Callback& callback) {
       std::vector<Hash> hashes;
       hashes.reserve(knownPoolState.size());
-      for (const std::pair<Hash, TransactionDetails>& kv : knownPoolState) {
+      for (const auto& kv : knownPoolState) {
         hashes.push_back(kv.first);
       }
       node.getPoolSymmetricDifference(
@@ -549,7 +549,7 @@ void BlockchainExplorer::poolChanged() {
               }
             }
 
-            for (const std::pair<Crypto::Hash, TransactionRemoveReason> kv : *removedTransactionsHashesPtr) {
+            for (const auto& kv : *removedTransactionsHashesPtr) {
               auto iter = knownPoolState.find(kv.first);
               if (iter != knownPoolState.end()) {
                 knownPoolState.erase(iter);
