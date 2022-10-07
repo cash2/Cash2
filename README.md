@@ -79,9 +79,7 @@ Fast block times requires a fast hashing algorithm, and BLAKE2b is one of the fa
 ### Linux Ubuntu with GCC
 
 - `sudo apt update`
-- `sudo apt install -y build-essential cmake pkg-config libboost-all-dev libssl-dev libzmq3-dev libpgm-dev libunbound-dev libsodium-dev gcc-10 g++-10`
-- `export CC=gcc-10`
-- `export CXX=g++-10`
+- `sudo apt install -y build-essential cmake pkg-config libboost-all-dev libssl-dev libzmq3-dev libpgm-dev libunbound-dev libsodium-dev`
 - `git clone -b main --single-branch --recursive https://github.com/cash2/cash2`
 - `cd cash2`
 - `make`
