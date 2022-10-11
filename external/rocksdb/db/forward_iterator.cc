@@ -604,7 +604,7 @@ bool ForwardIterator::PrepareValue() {
 Status ForwardIterator::GetProperty(std::string prop_name, std::string* prop) {
   assert(prop != nullptr);
   if (prop_name == "rocksdb.iterator.super-version-number") {
-    *prop = ToString(sv_->version_number);
+    *prop = std::to_string(sv_->version_number);
     return Status::OK();
   }
   return Status::InvalidArgument();
@@ -668,7 +668,8 @@ void ForwardIterator::RebuildIterators(bool refresh_sv) {
   if (!read_options_.ignore_range_deletions) {
     std::unique_ptr<FragmentedRangeTombstoneIterator> range_del_iter(
         sv_->mem->NewRangeTombstoneIterator(
-            read_options_, sv_->current->version_set()->LastSequence()));
+            read_options_, sv_->current->version_set()->LastSequence(),
+            false /* immutable_memtable */));
     range_del_agg.AddTombstones(std::move(range_del_iter));
     // Always return Status::OK().
     Status temp_s = sv_->imm->AddRangeTombstoneIterators(read_options_, &arena_,
@@ -733,7 +734,8 @@ void ForwardIterator::RenewIterators() {
   if (!read_options_.ignore_range_deletions) {
     std::unique_ptr<FragmentedRangeTombstoneIterator> range_del_iter(
         svnew->mem->NewRangeTombstoneIterator(
-            read_options_, sv_->current->version_set()->LastSequence()));
+            read_options_, sv_->current->version_set()->LastSequence(),
+            false /* immutable_memtable */));
     range_del_agg.AddTombstones(std::move(range_del_iter));
     // Always return Status::OK().
     Status temp_s = svnew->imm->AddRangeTombstoneIterators(

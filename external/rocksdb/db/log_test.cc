@@ -17,6 +17,7 @@
 #include "util/coding.h"
 #include "util/crc32c.h"
 #include "util/random.h"
+#include "utilities/memory_allocators.h"
 
 namespace ROCKSDB_NAMESPACE {
 namespace log {
@@ -193,8 +194,17 @@ class LogTest
     std::string scratch;
     Slice record;
     bool ret = false;
-    ret = reader_->ReadRecord(&record, &scratch, wal_recovery_mode);
+    uint64_t record_checksum;
+    ret = reader_->ReadRecord(&record, &scratch, wal_recovery_mode,
+                              &record_checksum);
     if (ret) {
+      if (!allow_retry_read_) {
+        // allow_retry_read_ means using FragmentBufferedReader which does not
+        // support record checksum yet.
+        uint64_t actual_record_checksum =
+            XXH3_64bits(record.data(), record.size());
+        assert(actual_record_checksum == record_checksum);
+      }
       return record.ToString();
     } else {
       return "EOF";
@@ -903,6 +913,11 @@ class CompressionLogTest : public LogTest {
 };
 
 TEST_P(CompressionLogTest, Empty) {
+  CompressionType compression_type = std::get<2>(GetParam());
+  if (!StreamingCompressionTypeSupported(compression_type)) {
+    ROCKSDB_GTEST_SKIP("Test requires support for compression type");
+    return;
+  }
   ASSERT_OK(SetupTestEnv());
   const bool compression_enabled =
       std::get<2>(GetParam()) == kNoCompression ? false : true;
@@ -912,11 +927,136 @@ TEST_P(CompressionLogTest, Empty) {
   ASSERT_EQ("EOF", Read());
 }
 
+TEST_P(CompressionLogTest, ReadWrite) {
+  CompressionType compression_type = std::get<2>(GetParam());
+  if (!StreamingCompressionTypeSupported(compression_type)) {
+    ROCKSDB_GTEST_SKIP("Test requires support for compression type");
+    return;
+  }
+  ASSERT_OK(SetupTestEnv());
+  Write("foo");
+  Write("bar");
+  Write("");
+  Write("xxxx");
+  ASSERT_EQ("foo", Read());
+  ASSERT_EQ("bar", Read());
+  ASSERT_EQ("", Read());
+  ASSERT_EQ("xxxx", Read());
+  ASSERT_EQ("EOF", Read());
+  ASSERT_EQ("EOF", Read());  // Make sure reads at eof work
+}
+
+TEST_P(CompressionLogTest, ManyBlocks) {
+  CompressionType compression_type = std::get<2>(GetParam());
+  if (!StreamingCompressionTypeSupported(compression_type)) {
+    ROCKSDB_GTEST_SKIP("Test requires support for compression type");
+    return;
+  }
+  ASSERT_OK(SetupTestEnv());
+  for (int i = 0; i < 100000; i++) {
+    Write(NumberString(i));
+  }
+  for (int i = 0; i < 100000; i++) {
+    ASSERT_EQ(NumberString(i), Read());
+  }
+  ASSERT_EQ("EOF", Read());
+}
+
+TEST_P(CompressionLogTest, Fragmentation) {
+  CompressionType compression_type = std::get<2>(GetParam());
+  if (!StreamingCompressionTypeSupported(compression_type)) {
+    ROCKSDB_GTEST_SKIP("Test requires support for compression type");
+    return;
+  }
+  ASSERT_OK(SetupTestEnv());
+  Random rnd(301);
+  const std::vector<std::string> wal_entries = {
+      "small",
+      rnd.RandomBinaryString(3 * kBlockSize / 2),  // Spans into block 2
+      rnd.RandomBinaryString(3 * kBlockSize),      // Spans into block 5
+  };
+  for (const std::string& wal_entry : wal_entries) {
+    Write(wal_entry);
+  }
+
+  for (const std::string& wal_entry : wal_entries) {
+    ASSERT_EQ(wal_entry, Read());
+  }
+  ASSERT_EQ("EOF", Read());
+}
+
 INSTANTIATE_TEST_CASE_P(
     Compression, CompressionLogTest,
     ::testing::Combine(::testing::Values(0, 1), ::testing::Bool(),
                        ::testing::Values(CompressionType::kNoCompression,
                                          CompressionType::kZSTD)));
+
+class StreamingCompressionTest
+    : public ::testing::TestWithParam<std::tuple<int, CompressionType>> {};
+
+TEST_P(StreamingCompressionTest, Basic) {
+  size_t input_size = std::get<0>(GetParam());
+  CompressionType compression_type = std::get<1>(GetParam());
+  if (!StreamingCompressionTypeSupported(compression_type)) {
+    ROCKSDB_GTEST_SKIP("Test requires support for compression type");
+    return;
+  }
+  CompressionOptions opts;
+  constexpr uint32_t compression_format_version = 2;
+  StreamingCompress* compress = StreamingCompress::Create(
+      compression_type, opts, compression_format_version, kBlockSize);
+  StreamingUncompress* uncompress = StreamingUncompress::Create(
+      compression_type, compression_format_version, kBlockSize);
+  MemoryAllocator* allocator = new DefaultMemoryAllocator();
+  std::string input_buffer = BigString("abc", input_size);
+  std::vector<std::string> compressed_buffers;
+  size_t remaining;
+  // Call compress till the entire input is consumed
+  do {
+    char* output_buffer = (char*)allocator->Allocate(kBlockSize);
+    size_t output_pos;
+    remaining = compress->Compress(input_buffer.c_str(), input_size,
+                                   output_buffer, &output_pos);
+    if (output_pos > 0) {
+      std::string compressed_buffer;
+      compressed_buffer.assign(output_buffer, output_pos);
+      compressed_buffers.emplace_back(std::move(compressed_buffer));
+    }
+    allocator->Deallocate((void*)output_buffer);
+  } while (remaining > 0);
+  std::string uncompressed_buffer = "";
+  int ret_val = 0;
+  size_t output_pos;
+  char* uncompressed_output_buffer = (char*)allocator->Allocate(kBlockSize);
+  // Uncompress the fragments and concatenate them.
+  for (int i = 0; i < (int)compressed_buffers.size(); i++) {
+    // Call uncompress till either the entire input is consumed or the output
+    // buffer size is equal to the allocated output buffer size.
+    do {
+      ret_val = uncompress->Uncompress(compressed_buffers[i].c_str(),
+                                       compressed_buffers[i].size(),
+                                       uncompressed_output_buffer, &output_pos);
+      if (output_pos > 0) {
+        std::string uncompressed_fragment;
+        uncompressed_fragment.assign(uncompressed_output_buffer, output_pos);
+        uncompressed_buffer += uncompressed_fragment;
+      }
+    } while (ret_val > 0 || output_pos == kBlockSize);
+  }
+  allocator->Deallocate((void*)uncompressed_output_buffer);
+  delete allocator;
+  delete compress;
+  delete uncompress;
+  // The final return value from uncompress() should be 0.
+  ASSERT_EQ(ret_val, 0);
+  ASSERT_EQ(input_buffer, uncompressed_buffer);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    StreamingCompression, StreamingCompressionTest,
+    ::testing::Combine(::testing::Values(10, 100, 1000, kBlockSize,
+                                         kBlockSize * 2),
+                       ::testing::Values(CompressionType::kZSTD)));
 
 }  // namespace log
 }  // namespace ROCKSDB_NAMESPACE

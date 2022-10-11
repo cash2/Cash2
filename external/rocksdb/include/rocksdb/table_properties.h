@@ -69,6 +69,7 @@ struct TablePropertiesNames {
   static const std::string kFileCreationTime;
   static const std::string kSlowCompressionEstimatedDataSize;
   static const std::string kFastCompressionEstimatedDataSize;
+  static const std::string kSequenceNumberTimeMapping;
 };
 
 // `TablePropertiesCollector` provides the mechanism for users to collect
@@ -220,6 +221,7 @@ struct TableProperties {
   // TODO(sagar0): Should be changed to latest_key_time ... but don't know the
   // full implications of backward compatibility. Hence retaining for now.
   uint64_t creation_time = 0;
+
   // Timestamp of the earliest key. 0 means unknown.
   uint64_t oldest_key_time = 0;
   // Actual SST file creation time. 0 means unknown.
@@ -284,6 +286,9 @@ struct TableProperties {
   // Compression options used to compress the SST files.
   std::string compression_options;
 
+  // Sequence number to time mapping, delta encoded.
+  std::string seqno_to_time_mapping;
+
   // user collected properties
   UserCollectedProperties user_collected_properties;
   UserCollectedProperties readable_properties;
@@ -301,6 +306,10 @@ struct TableProperties {
   // between tables. Keys match field names in this class instead
   // of using full property names.
   std::map<std::string, uint64_t> GetAggregatablePropertiesAsMap() const;
+
+  // Return the approximated memory usage of this TableProperties object,
+  // including memory used by the string properties and UserCollectedProperties
+  std::size_t ApproximateMemoryUsage() const;
 };
 
 // Extra properties
