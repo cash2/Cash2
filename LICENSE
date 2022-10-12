@@ -1,7 +1,6 @@
 The MIT License (MIT)
 
 Copyright (c) 2011-2016 The Cryptonote developers
-Copyright (c) 2018-2022 The Cash2 developers
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -102,6 +101,23 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with TurtleCoin.  If not, see <https://www.gnu.org/licenses/>.
+
+****************************************************************
+
+Copyright (c) 2022, The Cash2 Developers
+
+Cash2 is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+Cash2 is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Cash2.  If not, see <https://www.gnu.org/licenses/>.
 
 ****************************************************************
 
