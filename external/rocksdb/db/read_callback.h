@@ -5,14 +5,13 @@
 
 #pragma once
 
-#include "db/dbformat.h"
 #include "rocksdb/types.h"
 
 namespace ROCKSDB_NAMESPACE {
 
 class ReadCallback {
  public:
-  explicit ReadCallback(SequenceNumber last_visible_seq)
+  ReadCallback(SequenceNumber last_visible_seq)
       : max_visible_seq_(last_visible_seq) {}
   ReadCallback(SequenceNumber last_visible_seq, SequenceNumber min_uncommitted)
       : max_visible_seq_(last_visible_seq), min_uncommitted_(min_uncommitted) {}

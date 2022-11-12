@@ -8,10 +8,8 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include "db/dbformat.h"
-
-#include "table/block_based/index_builder.h"
+#include "logging/logging.h"
 #include "test_util/testharness.h"
-#include "test_util/testutil.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -25,15 +23,13 @@ static std::string IKey(const std::string& user_key,
 
 static std::string Shorten(const std::string& s, const std::string& l) {
   std::string result = s;
-  ShortenedIndexBuilder::FindShortestInternalKeySeparator(*BytewiseComparator(),
-                                                          &result, l);
+  InternalKeyComparator(BytewiseComparator()).FindShortestSeparator(&result, l);
   return result;
 }
 
 static std::string ShortSuccessor(const std::string& s) {
   std::string result = s;
-  ShortenedIndexBuilder::FindShortInternalKeySuccessor(*BytewiseComparator(),
-                                                       &result);
+  InternalKeyComparator(BytewiseComparator()).FindShortSuccessor(&result);
   return result;
 }
 
@@ -45,12 +41,12 @@ static void TestKey(const std::string& key,
   Slice in(encoded);
   ParsedInternalKey decoded("", 0, kTypeValue);
 
-  ASSERT_OK(ParseInternalKey(in, &decoded, true /* log_err_key */));
+  ASSERT_TRUE(ParseInternalKey(in, &decoded));
   ASSERT_EQ(key, decoded.user_key.ToString());
   ASSERT_EQ(seq, decoded.sequence);
   ASSERT_EQ(vt, decoded.type);
 
-  ASSERT_NOK(ParseInternalKey(Slice("bar"), &decoded, true /* log_err_key */));
+  ASSERT_TRUE(!ParseInternalKey(Slice("bar"), &decoded));
 }
 
 class FormatTest : public testing::Test {};
@@ -190,7 +186,7 @@ TEST_F(FormatTest, UpdateInternalKey) {
 
   Slice in(ikey);
   ParsedInternalKey decoded;
-  ASSERT_OK(ParseInternalKey(in, &decoded, true /* log_err_key */));
+  ASSERT_TRUE(ParseInternalKey(in, &decoded));
   ASSERT_EQ(user_key, decoded.user_key.ToString());
   ASSERT_EQ(new_seq, decoded.sequence);
   ASSERT_EQ(new_val_type, decoded.type);
@@ -207,6 +203,5 @@ TEST_F(FormatTest, RangeTombstoneSerializeEndKey) {
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  RegisterCustomObjects(argc, argv);
   return RUN_ALL_TESTS();
 }

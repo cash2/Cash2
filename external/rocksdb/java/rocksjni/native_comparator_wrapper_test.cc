@@ -4,13 +4,12 @@
 //  (found in the LICENSE.Apache file in the root directory).
 
 #include <jni.h>
-
 #include <string>
 
-#include "include/org_rocksdb_NativeComparatorWrapperTest_NativeStringComparatorWrapper.h"
 #include "rocksdb/comparator.h"
 #include "rocksdb/slice.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
+
+#include "include/org_rocksdb_NativeComparatorWrapperTest_NativeStringComparatorWrapper.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -41,5 +40,5 @@ jlong Java_org_rocksdb_NativeComparatorWrapperTest_00024NativeStringComparatorWr
     JNIEnv* /*env*/, jobject /*jobj*/) {
   auto* comparator =
       new ROCKSDB_NAMESPACE::NativeComparatorWrapperTestStringComparator();
-  return GET_CPLUSPLUS_POINTER(comparator);
+  return reinterpret_cast<jlong>(comparator);
 }

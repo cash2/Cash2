@@ -12,52 +12,36 @@
 
 #pragma once
 
-#include "rocksdb/rocksdb_namespace.h"
-
-#if defined(OS_WIN) && (defined(_MSC_VER) || defined(__MINGW32__))
+#if defined(OS_WIN) && defined(_MSC_VER)
 
 #include <time.h>
+
+#include "rocksdb/rocksdb_namespace.h"
 
 namespace ROCKSDB_NAMESPACE {
 
 namespace port {
 
-struct TimeVal {
+// Avoid including winsock2.h for this definition
+typedef struct timeval {
   long tv_sec;
   long tv_usec;
-};
+} timeval;
 
-void GetTimeOfDay(TimeVal* tv, struct timezone* tz);
+void gettimeofday(struct timeval* tv, struct timezone* tz);
 
-inline struct tm* LocalTimeR(const time_t* timep, struct tm* result) {
+inline struct tm* localtime_r(const time_t* timep, struct tm* result) {
   errno_t ret = localtime_s(result, timep);
   return (ret == 0) ? result : NULL;
 }
+}
 
-}  // namespace port
-
+using port::timeval;
+using port::gettimeofday;
+using port::localtime_r;
 }  // namespace ROCKSDB_NAMESPACE
 
 #else
 #include <time.h>
 #include <sys/time.h>
-
-namespace ROCKSDB_NAMESPACE {
-
-namespace port {
-
-using TimeVal = struct timeval;
-
-inline void GetTimeOfDay(TimeVal* tv, struct timezone* tz) {
-  gettimeofday(tv, tz);
-}
-
-inline struct tm* LocalTimeR(const time_t* timep, struct tm* result) {
-  return localtime_r(timep, result);
-}
-
-}  // namespace port
-
-}  // namespace ROCKSDB_NAMESPACE
-
 #endif

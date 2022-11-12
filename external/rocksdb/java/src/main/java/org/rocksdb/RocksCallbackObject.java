@@ -5,8 +5,6 @@
 
 package org.rocksdb;
 
-import java.util.List;
-
 /**
  * RocksCallbackObject is similar to {@link RocksObject} but varies
  * in its construction as it is designed for Java objects which have functions
@@ -26,27 +24,6 @@ public abstract class RocksCallbackObject extends
   protected RocksCallbackObject(final long... nativeParameterHandles) {
     super(true);
     this.nativeHandle_ = initializeNative(nativeParameterHandles);
-  }
-
-  /**
-   * Given a list of RocksCallbackObjects, it returns a list
-   * of the native handles of the underlying objects.
-   *
-   * @param objectList the rocks callback objects
-   *
-   * @return the native handles
-   */
-  static /* @Nullable */ long[] toNativeHandleList(
-      /* @Nullable */ final List<? extends RocksCallbackObject> objectList) {
-    if (objectList == null) {
-      return null;
-    }
-    final int len = objectList.size();
-    final long[] handleList = new long[len];
-    for (int i = 0; i < len; i++) {
-      handleList[i] = objectList.get(i).nativeHandle_;
-    }
-    return handleList;
   }
 
   /**

@@ -19,23 +19,21 @@ try_load_options=${4:-"1"}
 ignore_unknown_options=${5:-"0"}
 db_dump=$db_dir"/"$dump_file_name
 base_db_dump=$base_db_dir"/"$dump_file_name
-extra_params=
+extra_param=
 
-if [ "$try_load_options" = "0" ]; then
- extra_params=" --try_load_options=false"
-elif [ "$try_load_options" = "1" ]; then
- extra_params=" --try_load_options=true"
+if [ "$try_load_options" = "1" ]; then
+ extra_param=" --try_load_options "
 fi
 
 if [ "$ignore_unknown_options" = "1" ]; then
- extra_params="$extra_params --ignore_unknown_options"
+ extra_param=" --ignore_unknown_options "
 fi
 
 set -e
 echo == Dumping data from $db_dir to $db_dump
-./ldb dump --db=$db_dir $extra_params > $db_dump
+./ldb dump --db=$db_dir $extra_param > $db_dump
 
 echo == Dumping data from $base_db_dir to $base_db_dump
-./ldb dump --db=$base_db_dir $extra_params > $base_db_dump
+./ldb dump --db=$base_db_dir $extra_param > $base_db_dump
 
-diff $db_dump $base_db_dump
+diff $db_dump $base_db_dir

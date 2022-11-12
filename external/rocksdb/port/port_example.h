@@ -70,7 +70,7 @@ class CondVar {
 //      static void Initializer() { ... do something ...; }
 //      ...
 //      port::InitOnce(&init_control, &Initializer);
-using OnceType = intptr_t;
+typedef intptr_t OnceType;
 #define LEVELDB_ONCE_INIT 0
 extern void InitOnce(port::OnceType*, void (*initializer)());
 

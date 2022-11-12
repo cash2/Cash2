@@ -1,110 +1,56 @@
-# Cash2 - Cash Version 2
+![image](https://user-images.githubusercontent.com/34389545/35821974-62e0e25c-0a70-11e8-87dd-2cfffeb6ed47.png)
 
-https://cash2.org
+#### TurtleCoin is a fun, fast, and easy way to send money to friends and businesses
 
-Welcome to the Cash2 repository on GitHub.
+[![Discord](https://img.shields.io/discord/388915017187328002?label=TurtleCoin%20Discord)](http://chat.turtlecoin.lol) [![GitHub All Releases](https://img.shields.io/github/downloads/turtlecoin/turtlecoin/total?label=Downloads)](http://latest.turtlecoin.lol) [![GitHub contributors](https://img.shields.io/github/contributors-anon/turtlecoin/turtlecoin?label=Contributors)](https://github.com/turtlecoin/turtlecoin/graphs/contributors) [![GitHub issues](https://img.shields.io/github/issues/turtlecoin/turtlecoin?label=Issues)](https://github.com/turtlecoin/turtlecoin/issues) ![GitHub stars](https://img.shields.io/github/stars/turtlecoin/turtlecoin?label=Github%20Stars)
 
-Cash2 is a new cryptocurrency with all the useful properties of cash but with added beneficial features.
+### Contributing to TurtleCoin
 
-Launch date : December 5, 2018 9:00 am EST
+We are a community of people across the world giving our time to make this software better. There are many ways you can help or join us:
 
-## Key highlights of Cash2
-- 9 second block time
-- low transaction fees
-- No premine
-- BLAKE2b hashing algorithm
-- 15,000,000 maximum supply
-- CryptoNote based
-- Recommended mining hardware is the [Antminer A3 by Bitmain](https://shop.bitmain.com/product/detail?pid=000201811071659320918shK4zCH068F)
+-   If you'd like to report a bug, [fill out a bug report](https://github.com/turtlecoin/turtlecoin/issues/new?template=bug_report.md)
+-   If you'd like to submit code for a bug you fixed, [submit a pull-request](https://github.com/turtlecoin/turtlecoin/compare)
+-   If you're a tester submitting tests you've done on a Release Candidate, [click here](https://github.com/turtlecoin/turtlecoin/issues/new?template=release-candidate.md)
+-   If you're a beginner developer, and want a list of easy things you can accomplish to help, [click here for a list of TODOs](https://github.com/turtlecoin/turtlecoin/labels/GOOD%20FIRST%20ISSUE)
+-   **Everyone else just click the ★ star at the top of this repository 😊 It really helps us out!**
 
-[Whitepaper](https://cash2.org/Cash2+Whitepaper+English+11012018.pdf)
+For anyone else wishing to help the community or who needs answers to questions not covered in this document, join us in our [Discord Chat](http://chat.turtlecoin.lol) here.
 
-Recommended Mining Hardware  
-[Antminer A3 by Bitmain](https://shop.bitmain.com/product/detail?pid=000201811071659320918shK4zCH068F)  
-[APW7 by Bitmain](https://shop.bitmain.com/product/detail?pid=000201809111802447941Bf38AO30604)
+### TurtleCoin Build Branches
 
-Contact  
-Paul Aphivantrakul  
-cash2@protonmail.com
+![GitHub Workflow Status (branch)](https://img.shields.io/github/workflow/status/turtlecoin/turtlecoin/Build/master) **Master**
+![GitHub Workflow Status (branch)](https://img.shields.io/github/workflow/status/turtlecoin/turtlecoin/Build/development) **Development**
 
-YouTube  
-https://www.youtube.com/channel/UCJ79rbHYc2tFJ-pL-v9guaw
+### Installing TurtleCoin
 
-Reddit  
-https://www.reddit.com/r/Cash2/
+To use TurtleCoin, you'll need a way to connect to the network, and a wallet to hold your funds. This software includes those things for you, you can compile it yourself, or you can download the ones that we have compiled for you.
 
-Twitter  
-https://twitter.com/aphivantrakul
+**Click here to download: http://latest.turtlecoin.lol**
 
-Paper Wallet  
-https://cash2.org/#paperWallet
+To compile from sourcecode yourself, [click here for build instructions](https://github.com/turtlecoin/turtlecoin/blob/development/COMPILE.md).
 
-USA East Mining Pool  
-https://pool1.cash2.org
+### Getting Started Fast
 
-Block Explorer  
-https://blocks.cash2.org
+Everyone starts somewhere. If you're new or returning, you'll probably want to get in sync with the network so you can use your funds. Syncing from your own node is faster than syncing from a remote node. Here are some handy links to get you there as soon as possible.
 
-## Frequently Asked Questions
+-   **Use checkpoints** - Checkpoints help your node sync faster, [learn more](http://checkpoints.turtlecoin.lol/use.html) or [download here](http://checkpoints.turtlecoin.lol)
+-   **Learn things** - Syncing will take time, to help pass that time [learning how to use TRTL](https://docs.turtlecoin.lol/)
+-   **Backup your keys** - You can generate a wallet right inside the software, or use [this generator](https://turtlecoin.lol/wallet/) that will make a [printable physical paper wallet](https://docs.turtlecoin.lol/guides/wallets/making-a-wallet) to put in a safe place for later.
 
-**What is Cash2?**  
-Cash2 is a new cryptocurrency with all the useful properties of cash but with added beneficial features.
-The goal is for Cash2 to become a mainstream digital currency used for day-to-day purchases.
+### A note for contributing developers
 
-**Is Cash2 a Scam?**  
-No. Cash2 will have no premine, and everyone has an equal opportunity to mine, buy, and sell Cash2.
+Hello, and thank you for helping us! Our work makes use of many brilliant projects from other communities who contributed their code which helped us get to where we are now. To make sure we're always doing things the right way, we try to make sure we get the proper license header in every file we modify. By the terms of this project's license, any open source project may use our software, but the licenses may only be appended to, not altered. 
 
-**How Can I Mine Cash2?**  
-The Antminer A3 by Bitmain is recommend for mining Cash2.
-The Antminer A3 uses the BLAKE2b hashing algorithm.
-The price for one Antminer A3 is $39 USD plus shipping.
-Please check out our YouTube channel for help with mining.
+See [src/config/CryptoNoteConfig.h](https://github.com/turtlecoin/turtlecoin/commit/28cfef2575f2d767f6e512f2a4017adbf44e610e) for an example.
 
-**How Can I Buy Cash2?**  
-Cash2 will be listed on exchanges after it is launched.
+```
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2018-2020, The TurtleCoin Developers
+//
+// Please see the included LICENSE file for more information.
+```
 
-**Is Cash2 a Privacy Coin?**  
-No. Cash2 provides only a basic level of privacy for improved fungibility.
-The focus of Cash2 is towards becoming a mainstream digital currency and not towards absolute privacy.
+### Contributing Projects
 
-**Why does Cash2 use BLAKE2b instead of Cryptonight?**  
-Fast block times requires a fast hashing algorithm, and BLAKE2b is one of the fastest algorithms available.
-
-## Cloning the Cash2 repository
-
-`$ git clone --recursive https://github.com/cash2/cash2`
-
-## How To Compile from Source
-
-### Linux Ubuntu with GCC
-
-- `sudo apt update`
-- `sudo apt install -y build-essential cmake pkg-config libboost-all-dev libssl-dev libzmq3-dev libpgm-dev libunbound-dev libsodium-dev`
-- `git clone -b main --single-branch --recursive https://github.com/cash2/cash2`
-- `cd cash2`
-- `make`
-
-The binaries will be in the `build/release/src/` folder when you are complete.
-
-- cd `build/release/src/`
-- `./cash2d`
-
-### Windows
-
-- Install [Visual Studio 2017 Community Edition](https://www.visualstudio.com/thank-you-downloading-visual-studio/?sku=Community&rel=15&page=inlineinstall)
-- When installing Visual Studio, it is required that you install Desktop development with C++
-- Install the latest version of [Boost](https://bintray.com/boostorg/release/download_file?file_path=1.68.0%2Fbinaries%2Fboost_1_68_0-msvc-14.1-64.exe) - Currently Boost 1.68.
-- From the start menu, search for 'x64 Native Tools Command Prompt for vs2017'.
-- `cd <your cash2 directory>`
-- `mkdir build`
-- `cd build`
-- `set PATH="C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin";%PATH%`
-- `cmake -G "Visual Studio 15 2017 Win64" .. -DBOOST_ROOT=C:/local/boost_1_68_0`
-
-If you have errors on this step about not being able to find the following static libraries, you may need to update your cmake. Open 'Visual Studio Installer' and click 'Update'.
-
-- `MSBuild Cash2.sln /p:Configuration=Release /m`
-
-The `.exe` files will be in the `src/Release` folder when you are complete.
-
-Some instructions were borrowed from Turtlecoin: https://github.com/turtlecoin/turtlecoin
+[![cryptonote](https://user-images.githubusercontent.com/34389545/72484723-d84bf700-37ca-11ea-812e-e24cd7bf9fca.png)](https://cryptonote.org/)[![bytecoin](https://user-images.githubusercontent.com/34389545/72484467-ef3e1980-37c9-11ea-903d-3d1266e9c4c2.png)](https://bytecoin.org/)[![monero](https://user-images.githubusercontent.com/34389545/72484448-e0576700-37c9-11ea-934a-15a7d9231709.png)](https://web.getmonero.org/)[![forknote](https://user-images.githubusercontent.com/34389545/72484430-d59cd200-37c9-11ea-8529-e06ae2426dca.png)](http://forknote.net/)[![turtlecoin](https://user-images.githubusercontent.com/34389545/72484404-c0c03e80-37c9-11ea-8754-0b5a8e797965.png)](https://turtlecoin.lol)

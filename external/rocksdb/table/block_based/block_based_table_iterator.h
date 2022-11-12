@@ -18,7 +18,6 @@ namespace ROCKSDB_NAMESPACE {
 class BlockBasedTableIterator : public InternalIteratorBase<Slice> {
   // compaction_readahead_size: its value will only be used if for_compaction =
   // true
-  // @param read_options Must outlive this iterator.
  public:
   BlockBasedTableIterator(
       const BlockBasedTable* table, const ReadOptions& read_options,
@@ -26,23 +25,21 @@ class BlockBasedTableIterator : public InternalIteratorBase<Slice> {
       std::unique_ptr<InternalIteratorBase<IndexValue>>&& index_iter,
       bool check_filter, bool need_upper_bound_check,
       const SliceTransform* prefix_extractor, TableReaderCaller caller,
-      size_t compaction_readahead_size = 0, bool allow_unprepared_value = false)
-      : index_iter_(std::move(index_iter)),
-        table_(table),
+      size_t compaction_readahead_size = 0,
+      bool allow_unprepared_value = false)
+      : table_(table),
         read_options_(read_options),
         icomp_(icomp),
         user_comparator_(icomp.user_comparator()),
-        pinned_iters_mgr_(nullptr),
-        prefix_extractor_(prefix_extractor),
-        lookup_context_(caller),
-        block_prefetcher_(
-            compaction_readahead_size,
-            table_->get_rep()->table_options.initial_auto_readahead_size),
         allow_unprepared_value_(allow_unprepared_value),
+        index_iter_(std::move(index_iter)),
+        pinned_iters_mgr_(nullptr),
         block_iter_points_to_real_block_(false),
         check_filter_(check_filter),
         need_upper_bound_check_(need_upper_bound_check),
-        async_read_in_progress_(false) {}
+        prefix_extractor_(prefix_extractor),
+        lookup_context_(caller),
+        block_prefetcher_(compaction_readahead_size) {}
 
   ~BlockBasedTableIterator() {}
 
@@ -97,23 +94,17 @@ class BlockBasedTableIterator : public InternalIteratorBase<Slice> {
       return index_iter_->status();
     } else if (block_iter_points_to_real_block_) {
       return block_iter_.status();
-    } else if (async_read_in_progress_) {
-      return Status::TryAgain();
     } else {
       return Status::OK();
     }
   }
 
-  inline IterBoundCheck UpperBoundCheckResult() override {
-    if (is_out_of_bound_) {
-      return IterBoundCheck::kOutOfBound;
-    } else if (block_upper_bound_check_ ==
-               BlockUpperBound::kUpperBoundBeyondCurBlock) {
-      assert(!is_out_of_bound_);
-      return IterBoundCheck::kInbound;
-    } else {
-      return IterBoundCheck::kUnknown;
-    }
+  // Whether iterator invalidated for being out of bound.
+  bool IsOutOfBound() override { return is_out_of_bound_; }
+
+  inline bool MayBeOutOfUpperBound() override {
+    assert(Valid());
+    return !data_block_within_upper_bound_;
   }
 
   void SetPinnedItersMgr(PinnedIteratorsManager* pinned_iters_mgr) override {
@@ -143,7 +134,6 @@ class BlockBasedTableIterator : public InternalIteratorBase<Slice> {
       block_iter_.Invalidate(Status::OK());
       block_iter_points_to_real_block_ = false;
     }
-    block_upper_bound_check_ = BlockUpperBound::kUnknown;
   }
 
   void SavePrevIndexValue() {
@@ -154,98 +144,44 @@ class BlockBasedTableIterator : public InternalIteratorBase<Slice> {
     }
   }
 
-  void GetReadaheadState(ReadaheadFileInfo* readahead_file_info) override {
-    if (block_prefetcher_.prefetch_buffer() != nullptr &&
-        read_options_.adaptive_readahead) {
-      block_prefetcher_.prefetch_buffer()->GetReadaheadState(
-          &(readahead_file_info->data_block_readahead_info));
-      if (index_iter_) {
-        index_iter_->GetReadaheadState(readahead_file_info);
-      }
-    }
-  }
-
-  void SetReadaheadState(ReadaheadFileInfo* readahead_file_info) override {
-    if (read_options_.adaptive_readahead) {
-      block_prefetcher_.SetReadaheadState(
-          &(readahead_file_info->data_block_readahead_info));
-      if (index_iter_) {
-        index_iter_->SetReadaheadState(readahead_file_info);
-      }
-    }
-  }
-
-  std::unique_ptr<InternalIteratorBase<IndexValue>> index_iter_;
-
  private:
   enum class IterDirection {
     kForward,
     kBackward,
   };
-  // This enum indicates whether the upper bound falls into current block
-  // or beyond.
-  //   +-------------+
-  //   |  cur block  |       <-- (1)
-  //   +-------------+
-  //                         <-- (2)
-  //  --- <boundary key> ---
-  //                         <-- (3)
-  //   +-------------+
-  //   |  next block |       <-- (4)
-  //        ......
-  //
-  // When the block is smaller than <boundary key>, kUpperBoundInCurBlock
-  // is the value to use. The examples are (1) or (2) in the graph. It means
-  // all keys in the next block or beyond will be out of bound. Keys within
-  // the current block may or may not be out of bound.
-  // When the block is larger or equal to <boundary key>,
-  // kUpperBoundBeyondCurBlock is to be used. The examples are (3) and (4)
-  // in the graph. It means that all keys in the current block is within the
-  // upper bound and keys in the next block may or may not be within the uppder
-  // bound.
-  // If the boundary key hasn't been checked against the upper bound,
-  // kUnknown can be used.
-  enum class BlockUpperBound {
-    kUpperBoundInCurBlock,
-    kUpperBoundBeyondCurBlock,
-    kUnknown,
-  };
 
   const BlockBasedTable* table_;
-  const ReadOptions& read_options_;
+  const ReadOptions read_options_;
   const InternalKeyComparator& icomp_;
   UserComparatorWrapper user_comparator_;
+  const bool allow_unprepared_value_;
+  std::unique_ptr<InternalIteratorBase<IndexValue>> index_iter_;
   PinnedIteratorsManager* pinned_iters_mgr_;
   DataBlockIter block_iter_;
-  const SliceTransform* prefix_extractor_;
-  uint64_t prev_block_offset_ = std::numeric_limits<uint64_t>::max();
-  BlockCacheLookupContext lookup_context_;
 
-  BlockPrefetcher block_prefetcher_;
-
-  const bool allow_unprepared_value_;
   // True if block_iter_ is initialized and points to the same block
   // as index iterator.
   bool block_iter_points_to_real_block_;
   // See InternalIteratorBase::IsOutOfBound().
   bool is_out_of_bound_ = false;
-  // How current data block's boundary key with the next block is compared with
-  // iterate upper bound.
-  BlockUpperBound block_upper_bound_check_ = BlockUpperBound::kUnknown;
+  // Whether current data block being fully within iterate upper bound.
+  bool data_block_within_upper_bound_ = false;
   // True if we're standing at the first key of a block, and we haven't loaded
   // that block yet. A call to PrepareValue() will trigger loading the block.
   bool is_at_first_key_from_index_ = false;
   bool check_filter_;
   // TODO(Zhongyi): pick a better name
   bool need_upper_bound_check_;
+  const SliceTransform* prefix_extractor_;
+  uint64_t prev_block_offset_ = std::numeric_limits<uint64_t>::max();
+  BlockCacheLookupContext lookup_context_;
 
-  bool async_read_in_progress_;
+  BlockPrefetcher block_prefetcher_;
 
   // If `target` is null, seek to first.
-  void SeekImpl(const Slice* target, bool async_prefetch);
+  void SeekImpl(const Slice* target);
 
   void InitDataBlock();
-  void AsyncInitDataBlock(bool is_first_pass);
   bool MaterializeCurrentBlock();
   void FindKeyForward();
   void FindBlockForward();
@@ -260,14 +196,14 @@ class BlockBasedTableIterator : public InternalIteratorBase<Slice> {
 
   bool CheckPrefixMayMatch(const Slice& ikey, IterDirection direction) {
     if (need_upper_bound_check_ && direction == IterDirection::kBackward) {
-      // Upper bound check isn't sufficient for backward direction to
+      // Upper bound check isn't sufficnet for backward direction to
       // guarantee the same result as total order, so disable prefix
       // check.
       return true;
     }
-    if (check_filter_ && !table_->PrefixRangeMayMatch(
-                             ikey, read_options_, prefix_extractor_,
-                             need_upper_bound_check_, &lookup_context_)) {
+    if (check_filter_ &&
+        !table_->PrefixMayMatch(ikey, read_options_, prefix_extractor_,
+                                need_upper_bound_check_, &lookup_context_)) {
       // TODO remember the iterator is invalidated because of prefix
       // match. This can avoid the upper level file iterator to falsely
       // believe the position is the end of the SST file and move to

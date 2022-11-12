@@ -103,26 +103,31 @@ function main() {
   gem_install fpm
 
   make static_lib
-  LIBDIR=/usr/lib
-  if [[ $FPM_OUTPUT = "rpm" ]]; then
-      LIBDIR=$(rpm --eval '%_libdir')
-  fi
+  make install INSTALL_PATH=package
 
-  rm -rf package
-  make install DESTDIR=package PREFIX=/usr LIBDIR=$LIBDIR
+  cd package
+
+  LIB_DIR=lib
+  if [[ -z "$ARCH" ]]; then
+      ARCH=$(getconf LONG_BIT)
+  fi
+  if [[ ("$FPM_OUTPUT" = "rpm") && ($ARCH -eq 64) ]]; then
+      mv lib lib64
+      LIB_DIR=lib64
+  fi
 
   fpm \
     -s dir \
     -t $FPM_OUTPUT \
-    -C package \
     -n rocksdb \
     -v $1 \
+    --prefix /usr \
     --url http://rocksdb.org/ \
     -m rocksdb@fb.com \
     --license BSD \
     --vendor Facebook \
     --description "RocksDB is an embeddable persistent key-value store for fast storage." \
-    usr
+    include $LIB_DIR
 }
 
 # shellcheck disable=SC2068

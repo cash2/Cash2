@@ -18,7 +18,6 @@
 #include "db/pre_release_callback.h"
 #include "db/read_callback.h"
 #include "db/snapshot_checker.h"
-#include "logging/logging.h"
 #include "rocksdb/db.h"
 #include "rocksdb/options.h"
 #include "rocksdb/utilities/transaction_db.h"
@@ -27,6 +26,7 @@
 #include "util/string_util.h"
 #include "utilities/transactions/pessimistic_transaction.h"
 #include "utilities/transactions/pessimistic_transaction_db.h"
+#include "utilities/transactions/transaction_lock_mgr.h"
 #include "utilities/transactions/write_prepared_txn.h"
 
 namespace ROCKSDB_NAMESPACE {
@@ -397,8 +397,8 @@ class WritePreparedTxnDB : public PessimisticTransactionDB {
       if (delta >= format.DELTA_UPPERBOUND) {
         throw std::runtime_error(
             "commit_seq >> prepare_seq. The allowed distance is " +
-            std::to_string(format.DELTA_UPPERBOUND) + " commit_seq is " +
-            std::to_string(cs) + " prepare_seq is " + std::to_string(ps));
+            ToString(format.DELTA_UPPERBOUND) + " commit_seq is " +
+            ToString(cs) + " prepare_seq is " + ToString(ps));
       }
       rep_ = (ps << format.PAD_BITS) & ~format.COMMIT_FILTER;
       rep_ = rep_ | delta;
@@ -465,16 +465,6 @@ class WritePreparedTxnDB : public PessimisticTransactionDB {
   // Get a dummy snapshot that refers to kMaxSequenceNumber
   Snapshot* GetMaxSnapshot() { return &dummy_max_snapshot_; }
 
-  bool ShouldRollbackWithSingleDelete(ColumnFamilyHandle* column_family,
-                                      const Slice& key) {
-    return rollback_deletion_type_callback_
-               ? rollback_deletion_type_callback_(this, column_family, key)
-               : false;
-  }
-
-  std::function<bool(TransactionDB*, ColumnFamilyHandle*, const Slice&)>
-      rollback_deletion_type_callback_;
-
  private:
   friend class AddPreparedCallback;
   friend class PreparedHeap_BasicsTest_Test;
@@ -513,9 +503,8 @@ class WritePreparedTxnDB : public PessimisticTransactionDB {
   friend class WriteUnpreparedTxn;
   friend class WriteUnpreparedTxnDB;
   friend class WriteUnpreparedTransactionTest_RecoveryTest_Test;
-  friend class MultiOpsTxnsStressTest;
 
-  void Init(const TransactionDBOptions& txn_db_opts);
+  void Init(const TransactionDBOptions& /* unused */);
 
   void WPRecordTick(uint32_t ticker_type) const {
     RecordTick(db_impl_->immutable_db_options_.statistics.get(), ticker_type);
@@ -1082,9 +1071,7 @@ struct SubBatchCounter : public WriteBatch::Handler {
   }
   Status MarkBeginPrepare(bool) override { return Status::OK(); }
   Status MarkRollback(const Slice&) override { return Status::OK(); }
-  Handler::OptionState WriteAfterCommit() const override {
-    return Handler::OptionState::kDisabled;
-  }
+  bool WriteAfterCommit() const override { return false; }
 };
 
 SnapshotBackup WritePreparedTxnDB::AssignMinMaxSeqs(const Snapshot* snapshot,
@@ -1094,8 +1081,6 @@ SnapshotBackup WritePreparedTxnDB::AssignMinMaxSeqs(const Snapshot* snapshot,
     *min =
         static_cast_with_check<const SnapshotImpl>(snapshot)->min_uncommitted_;
     *max = static_cast_with_check<const SnapshotImpl>(snapshot)->number_;
-    // A duplicate of the check in EnhanceSnapshot().
-    assert(*min <= *max + 1);
     return kBackedByDBSnapshot;
   } else {
     *min = SmallestUnCommittedSeq();

@@ -6,15 +6,15 @@
 // This file implements the "bridge" between Java and C++
 // for ROCKSDB_NAMESPACE::Transaction.
 
-#include "rocksdb/utilities/transaction.h"
-
 #include <jni.h>
-
 #include <functional>
 
 #include "include/org_rocksdb_Transaction.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
+
+#include "rocksdb/utilities/transaction.h"
 #include "rocksjni/portal.h"
+
+using namespace std::placeholders;
 
 #if defined(_MSC_VER)
 #pragma warning(push)
@@ -69,7 +69,7 @@ jlong Java_org_rocksdb_Transaction_getSnapshot(JNIEnv* /*env*/,
                                                jlong jhandle) {
   auto* txn = reinterpret_cast<ROCKSDB_NAMESPACE::Transaction*>(jhandle);
   const ROCKSDB_NAMESPACE::Snapshot* snapshot = txn->GetSnapshot();
-  return GET_CPLUSPLUS_POINTER(snapshot);
+  return reinterpret_cast<jlong>(snapshot);
 }
 
 /*
@@ -220,8 +220,8 @@ jbyteArray Java_org_rocksdb_Transaction_get__JJ_3BIJ(
           const ROCKSDB_NAMESPACE::ReadOptions&,
           ROCKSDB_NAMESPACE::ColumnFamilyHandle*,
           const ROCKSDB_NAMESPACE::Slice&, std::string*)>(
-          &ROCKSDB_NAMESPACE::Transaction::Get, txn, std::placeholders::_1,
-          column_family_handle, std::placeholders::_2, std::placeholders::_3);
+          &ROCKSDB_NAMESPACE::Transaction::Get, txn, _1, column_family_handle,
+          _2, _3);
   return txn_get_helper(env, fn_get, jread_options_handle, jkey, jkey_part_len);
 }
 
@@ -238,8 +238,7 @@ jbyteArray Java_org_rocksdb_Transaction_get__JJ_3BI(
       std::bind<ROCKSDB_NAMESPACE::Status (ROCKSDB_NAMESPACE::Transaction::*)(
           const ROCKSDB_NAMESPACE::ReadOptions&,
           const ROCKSDB_NAMESPACE::Slice&, std::string*)>(
-          &ROCKSDB_NAMESPACE::Transaction::Get, txn, std::placeholders::_1,
-          std::placeholders::_2, std::placeholders::_3);
+          &ROCKSDB_NAMESPACE::Transaction::Get, txn, _1, _2, _3);
   return txn_get_helper(env, fn_get, jread_options_handle, jkey, jkey_part_len);
 }
 
@@ -403,8 +402,8 @@ jobjectArray Java_org_rocksdb_Transaction_multiGet__JJ_3_3B_3J(
       const ROCKSDB_NAMESPACE::ReadOptions&,
       const std::vector<ROCKSDB_NAMESPACE::ColumnFamilyHandle*>&,
       const std::vector<ROCKSDB_NAMESPACE::Slice>&, std::vector<std::string>*)>(
-      &ROCKSDB_NAMESPACE::Transaction::MultiGet, txn, std::placeholders::_1,
-      column_family_handles, std::placeholders::_2, std::placeholders::_3);
+      &ROCKSDB_NAMESPACE::Transaction::MultiGet, txn, _1, column_family_handles,
+      _2, _3);
   return txn_multi_get_helper(env, fn_multi_get, jread_options_handle,
                               jkey_parts);
 }
@@ -422,8 +421,7 @@ jobjectArray Java_org_rocksdb_Transaction_multiGet__JJ_3_3B(
       ROCKSDB_NAMESPACE::Transaction::*)(
       const ROCKSDB_NAMESPACE::ReadOptions&,
       const std::vector<ROCKSDB_NAMESPACE::Slice>&, std::vector<std::string>*)>(
-      &ROCKSDB_NAMESPACE::Transaction::MultiGet, txn, std::placeholders::_1,
-      std::placeholders::_2, std::placeholders::_3);
+      &ROCKSDB_NAMESPACE::Transaction::MultiGet, txn, _1, _2, _3);
   return txn_multi_get_helper(env, fn_multi_get, jread_options_handle,
                               jkey_parts);
 }
@@ -446,9 +444,8 @@ jbyteArray Java_org_rocksdb_Transaction_getForUpdate__JJ_3BIJZZ(
           const ROCKSDB_NAMESPACE::ReadOptions&,
           ROCKSDB_NAMESPACE::ColumnFamilyHandle*,
           const ROCKSDB_NAMESPACE::Slice&, std::string*, bool, bool)>(
-          &ROCKSDB_NAMESPACE::Transaction::GetForUpdate, txn,
-          std::placeholders::_1, column_family_handle, std::placeholders::_2,
-          std::placeholders::_3, jexclusive, jdo_validate);
+          &ROCKSDB_NAMESPACE::Transaction::GetForUpdate, txn, _1,
+          column_family_handle, _2, _3, jexclusive, jdo_validate);
   return txn_get_helper(env, fn_get_for_update, jread_options_handle, jkey,
                         jkey_part_len);
 }
@@ -467,8 +464,7 @@ jbyteArray Java_org_rocksdb_Transaction_getForUpdate__JJ_3BIZZ(
       std::bind<ROCKSDB_NAMESPACE::Status (ROCKSDB_NAMESPACE::Transaction::*)(
           const ROCKSDB_NAMESPACE::ReadOptions&,
           const ROCKSDB_NAMESPACE::Slice&, std::string*, bool, bool)>(
-          &ROCKSDB_NAMESPACE::Transaction::GetForUpdate, txn,
-          std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
+          &ROCKSDB_NAMESPACE::Transaction::GetForUpdate, txn, _1, _2, _3,
           jexclusive, jdo_validate);
   return txn_get_helper(env, fn_get_for_update, jread_options_handle, jkey,
                         jkey_part_len);
@@ -496,9 +492,8 @@ jobjectArray Java_org_rocksdb_Transaction_multiGetForUpdate__JJ_3_3B_3J(
       const ROCKSDB_NAMESPACE::ReadOptions&,
       const std::vector<ROCKSDB_NAMESPACE::ColumnFamilyHandle*>&,
       const std::vector<ROCKSDB_NAMESPACE::Slice>&, std::vector<std::string>*)>(
-      &ROCKSDB_NAMESPACE::Transaction::MultiGetForUpdate, txn,
-      std::placeholders::_1, column_family_handles, std::placeholders::_2,
-      std::placeholders::_3);
+      &ROCKSDB_NAMESPACE::Transaction::MultiGetForUpdate, txn, _1,
+      column_family_handles, _2, _3);
   return txn_multi_get_helper(env, fn_multi_get_for_update,
                               jread_options_handle, jkey_parts);
 }
@@ -516,8 +511,7 @@ jobjectArray Java_org_rocksdb_Transaction_multiGetForUpdate__JJ_3_3B(
       ROCKSDB_NAMESPACE::Status> (ROCKSDB_NAMESPACE::Transaction::*)(
       const ROCKSDB_NAMESPACE::ReadOptions&,
       const std::vector<ROCKSDB_NAMESPACE::Slice>&, std::vector<std::string>*)>(
-      &ROCKSDB_NAMESPACE::Transaction::MultiGetForUpdate, txn,
-      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+      &ROCKSDB_NAMESPACE::Transaction::MultiGetForUpdate, txn, _1, _2, _3);
   return txn_multi_get_helper(env, fn_multi_get_for_update,
                               jread_options_handle, jkey_parts);
 }
@@ -534,7 +528,7 @@ jlong Java_org_rocksdb_Transaction_getIterator__JJ(JNIEnv* /*env*/,
   auto* txn = reinterpret_cast<ROCKSDB_NAMESPACE::Transaction*>(jhandle);
   auto* read_options =
       reinterpret_cast<ROCKSDB_NAMESPACE::ReadOptions*>(jread_options_handle);
-  return GET_CPLUSPLUS_POINTER(txn->GetIterator(*read_options));
+  return reinterpret_cast<jlong>(txn->GetIterator(*read_options));
 }
 
 /*
@@ -551,7 +545,7 @@ jlong Java_org_rocksdb_Transaction_getIterator__JJJ(
   auto* column_family_handle =
       reinterpret_cast<ROCKSDB_NAMESPACE::ColumnFamilyHandle*>(
           jcolumn_family_handle);
-  return GET_CPLUSPLUS_POINTER(
+  return reinterpret_cast<jlong>(
       txn->GetIterator(*read_options, column_family_handle));
 }
 
@@ -611,8 +605,7 @@ void Java_org_rocksdb_Transaction_put__J_3BI_3BIJZ(
           ROCKSDB_NAMESPACE::ColumnFamilyHandle*,
           const ROCKSDB_NAMESPACE::Slice&, const ROCKSDB_NAMESPACE::Slice&,
           bool)>(&ROCKSDB_NAMESPACE::Transaction::Put, txn,
-                 column_family_handle, std::placeholders::_1,
-                 std::placeholders::_2, jassume_tracked);
+                 column_family_handle, _1, _2, jassume_tracked);
   txn_write_kv_helper(env, fn_put, jkey, jkey_part_len, jval, jval_len);
 }
 
@@ -630,8 +623,7 @@ void Java_org_rocksdb_Transaction_put__J_3BI_3BI(JNIEnv* env, jobject /*jobj*/,
   FnWriteKV fn_put =
       std::bind<ROCKSDB_NAMESPACE::Status (ROCKSDB_NAMESPACE::Transaction::*)(
           const ROCKSDB_NAMESPACE::Slice&, const ROCKSDB_NAMESPACE::Slice&)>(
-          &ROCKSDB_NAMESPACE::Transaction::Put, txn, std::placeholders::_1,
-          std::placeholders::_2);
+          &ROCKSDB_NAMESPACE::Transaction::Put, txn, _1, _2);
   txn_write_kv_helper(env, fn_put, jkey, jkey_part_len, jval, jval_len);
 }
 
@@ -697,7 +689,6 @@ void txn_write_kv_parts_helper(JNIEnv* env,
       // out of memory
       env->DeleteLocalRef(jobj_value_part);
       env->DeleteLocalRef(jobj_key_part);
-      env->ReleaseByteArrayElements(jba_key_part, jkey_part, JNI_ABORT);
       free_parts(env, jparts_to_free);
       return;
     }
@@ -707,7 +698,6 @@ void txn_write_kv_parts_helper(JNIEnv* env,
       env->ReleaseByteArrayElements(jba_value_part, jvalue_part, JNI_ABORT);
       env->DeleteLocalRef(jobj_value_part);
       env->DeleteLocalRef(jobj_key_part);
-      env->ReleaseByteArrayElements(jba_key_part, jkey_part, JNI_ABORT);
       free_parts(env, jparts_to_free);
       return;
     }
@@ -758,8 +748,8 @@ void Java_org_rocksdb_Transaction_put__J_3_3BI_3_3BIJZ(
           ROCKSDB_NAMESPACE::ColumnFamilyHandle*,
           const ROCKSDB_NAMESPACE::SliceParts&,
           const ROCKSDB_NAMESPACE::SliceParts&, bool)>(
-          &ROCKSDB_NAMESPACE::Transaction::Put, txn, column_family_handle,
-          std::placeholders::_1, std::placeholders::_2, jassume_tracked);
+          &ROCKSDB_NAMESPACE::Transaction::Put, txn, column_family_handle, _1,
+          _2, jassume_tracked);
   txn_write_kv_parts_helper(env, fn_put_parts, jkey_parts, jkey_parts_len,
                             jvalue_parts, jvalue_parts_len);
 }
@@ -776,8 +766,7 @@ void Java_org_rocksdb_Transaction_put__J_3_3BI_3_3BI(
   FnWriteKVParts fn_put_parts = std::bind<ROCKSDB_NAMESPACE::Status (
       ROCKSDB_NAMESPACE::Transaction::*)(const ROCKSDB_NAMESPACE::SliceParts&,
                                          const ROCKSDB_NAMESPACE::SliceParts&)>(
-      &ROCKSDB_NAMESPACE::Transaction::Put, txn, std::placeholders::_1,
-      std::placeholders::_2);
+      &ROCKSDB_NAMESPACE::Transaction::Put, txn, _1, _2);
   txn_write_kv_parts_helper(env, fn_put_parts, jkey_parts, jkey_parts_len,
                             jvalue_parts, jvalue_parts_len);
 }
@@ -800,8 +789,7 @@ void Java_org_rocksdb_Transaction_merge__J_3BI_3BIJZ(
           ROCKSDB_NAMESPACE::ColumnFamilyHandle*,
           const ROCKSDB_NAMESPACE::Slice&, const ROCKSDB_NAMESPACE::Slice&,
           bool)>(&ROCKSDB_NAMESPACE::Transaction::Merge, txn,
-                 column_family_handle, std::placeholders::_1,
-                 std::placeholders::_2, jassume_tracked);
+                 column_family_handle, _1, _2, jassume_tracked);
   txn_write_kv_helper(env, fn_merge, jkey, jkey_part_len, jval, jval_len);
 }
 
@@ -817,8 +805,7 @@ void Java_org_rocksdb_Transaction_merge__J_3BI_3BI(
   FnWriteKV fn_merge =
       std::bind<ROCKSDB_NAMESPACE::Status (ROCKSDB_NAMESPACE::Transaction::*)(
           const ROCKSDB_NAMESPACE::Slice&, const ROCKSDB_NAMESPACE::Slice&)>(
-          &ROCKSDB_NAMESPACE::Transaction::Merge, txn, std::placeholders::_1,
-          std::placeholders::_2);
+          &ROCKSDB_NAMESPACE::Transaction::Merge, txn, _1, _2);
   txn_write_kv_helper(env, fn_merge, jkey, jkey_part_len, jval, jval_len);
 }
 
@@ -867,7 +854,7 @@ void Java_org_rocksdb_Transaction_delete__J_3BIJZ(
           ROCKSDB_NAMESPACE::ColumnFamilyHandle*,
           const ROCKSDB_NAMESPACE::Slice&, bool)>(
           &ROCKSDB_NAMESPACE::Transaction::Delete, txn, column_family_handle,
-          std::placeholders::_1, jassume_tracked);
+          _1, jassume_tracked);
   txn_write_k_helper(env, fn_delete, jkey, jkey_part_len);
 }
 
@@ -882,7 +869,7 @@ void Java_org_rocksdb_Transaction_delete__J_3BI(JNIEnv* env, jobject /*jobj*/,
   auto* txn = reinterpret_cast<ROCKSDB_NAMESPACE::Transaction*>(jhandle);
   FnWriteK fn_delete = std::bind<ROCKSDB_NAMESPACE::Status (
       ROCKSDB_NAMESPACE::Transaction::*)(const ROCKSDB_NAMESPACE::Slice&)>(
-      &ROCKSDB_NAMESPACE::Transaction::Delete, txn, std::placeholders::_1);
+      &ROCKSDB_NAMESPACE::Transaction::Delete, txn, _1);
   txn_write_k_helper(env, fn_delete, jkey, jkey_part_len);
 }
 
@@ -962,7 +949,7 @@ void Java_org_rocksdb_Transaction_delete__J_3_3BIJZ(
           ROCKSDB_NAMESPACE::ColumnFamilyHandle*,
           const ROCKSDB_NAMESPACE::SliceParts&, bool)>(
           &ROCKSDB_NAMESPACE::Transaction::Delete, txn, column_family_handle,
-          std::placeholders::_1, jassume_tracked);
+          _1, jassume_tracked);
   txn_write_k_parts_helper(env, fn_delete_parts, jkey_parts, jkey_parts_len);
 }
 
@@ -978,7 +965,7 @@ void Java_org_rocksdb_Transaction_delete__J_3_3BI(JNIEnv* env, jobject /*jobj*/,
   auto* txn = reinterpret_cast<ROCKSDB_NAMESPACE::Transaction*>(jhandle);
   FnWriteKParts fn_delete_parts = std::bind<ROCKSDB_NAMESPACE::Status (
       ROCKSDB_NAMESPACE::Transaction::*)(const ROCKSDB_NAMESPACE::SliceParts&)>(
-      &ROCKSDB_NAMESPACE::Transaction::Delete, txn, std::placeholders::_1);
+      &ROCKSDB_NAMESPACE::Transaction::Delete, txn, _1);
   txn_write_k_parts_helper(env, fn_delete_parts, jkey_parts, jkey_parts_len);
 }
 
@@ -999,7 +986,7 @@ void Java_org_rocksdb_Transaction_singleDelete__J_3BIJZ(
           ROCKSDB_NAMESPACE::ColumnFamilyHandle*,
           const ROCKSDB_NAMESPACE::Slice&, bool)>(
           &ROCKSDB_NAMESPACE::Transaction::SingleDelete, txn,
-          column_family_handle, std::placeholders::_1, jassume_tracked);
+          column_family_handle, _1, jassume_tracked);
   txn_write_k_helper(env, fn_single_delete, jkey, jkey_part_len);
 }
 
@@ -1016,8 +1003,7 @@ void Java_org_rocksdb_Transaction_singleDelete__J_3BI(JNIEnv* env,
   auto* txn = reinterpret_cast<ROCKSDB_NAMESPACE::Transaction*>(jhandle);
   FnWriteK fn_single_delete = std::bind<ROCKSDB_NAMESPACE::Status (
       ROCKSDB_NAMESPACE::Transaction::*)(const ROCKSDB_NAMESPACE::Slice&)>(
-      &ROCKSDB_NAMESPACE::Transaction::SingleDelete, txn,
-      std::placeholders::_1);
+      &ROCKSDB_NAMESPACE::Transaction::SingleDelete, txn, _1);
   txn_write_k_helper(env, fn_single_delete, jkey, jkey_part_len);
 }
 
@@ -1039,7 +1025,7 @@ void Java_org_rocksdb_Transaction_singleDelete__J_3_3BIJZ(
           ROCKSDB_NAMESPACE::ColumnFamilyHandle*,
           const ROCKSDB_NAMESPACE::SliceParts&, bool)>(
           &ROCKSDB_NAMESPACE::Transaction::SingleDelete, txn,
-          column_family_handle, std::placeholders::_1, jassume_tracked);
+          column_family_handle, _1, jassume_tracked);
   txn_write_k_parts_helper(env, fn_single_delete_parts, jkey_parts,
                            jkey_parts_len);
 }
@@ -1057,8 +1043,7 @@ void Java_org_rocksdb_Transaction_singleDelete__J_3_3BI(JNIEnv* env,
   auto* txn = reinterpret_cast<ROCKSDB_NAMESPACE::Transaction*>(jhandle);
   FnWriteKParts fn_single_delete_parts = std::bind<ROCKSDB_NAMESPACE::Status (
       ROCKSDB_NAMESPACE::Transaction::*)(const ROCKSDB_NAMESPACE::SliceParts&)>(
-      &ROCKSDB_NAMESPACE::Transaction::SingleDelete, txn,
-      std::placeholders::_1);
+      &ROCKSDB_NAMESPACE::Transaction::SingleDelete, txn, _1);
   txn_write_k_parts_helper(env, fn_single_delete_parts, jkey_parts,
                            jkey_parts_len);
 }
@@ -1081,7 +1066,7 @@ void Java_org_rocksdb_Transaction_putUntracked__J_3BI_3BIJ(
           ROCKSDB_NAMESPACE::ColumnFamilyHandle*,
           const ROCKSDB_NAMESPACE::Slice&, const ROCKSDB_NAMESPACE::Slice&)>(
           &ROCKSDB_NAMESPACE::Transaction::PutUntracked, txn,
-          column_family_handle, std::placeholders::_1, std::placeholders::_2);
+          column_family_handle, _1, _2);
   txn_write_kv_helper(env, fn_put_untracked, jkey, jkey_part_len, jval,
                       jval_len);
 }
@@ -1098,8 +1083,7 @@ void Java_org_rocksdb_Transaction_putUntracked__J_3BI_3BI(
   FnWriteKV fn_put_untracked =
       std::bind<ROCKSDB_NAMESPACE::Status (ROCKSDB_NAMESPACE::Transaction::*)(
           const ROCKSDB_NAMESPACE::Slice&, const ROCKSDB_NAMESPACE::Slice&)>(
-          &ROCKSDB_NAMESPACE::Transaction::PutUntracked, txn,
-          std::placeholders::_1, std::placeholders::_2);
+          &ROCKSDB_NAMESPACE::Transaction::PutUntracked, txn, _1, _2);
   txn_write_kv_helper(env, fn_put_untracked, jkey, jkey_part_len, jval,
                       jval_len);
 }
@@ -1122,7 +1106,7 @@ void Java_org_rocksdb_Transaction_putUntracked__J_3_3BI_3_3BIJ(
                                          const ROCKSDB_NAMESPACE::SliceParts&,
                                          const ROCKSDB_NAMESPACE::SliceParts&)>(
       &ROCKSDB_NAMESPACE::Transaction::PutUntracked, txn, column_family_handle,
-      std::placeholders::_1, std::placeholders::_2);
+      _1, _2);
   txn_write_kv_parts_helper(env, fn_put_parts_untracked, jkey_parts,
                             jkey_parts_len, jvalue_parts, jvalue_parts_len);
 }
@@ -1139,8 +1123,7 @@ void Java_org_rocksdb_Transaction_putUntracked__J_3_3BI_3_3BI(
   FnWriteKVParts fn_put_parts_untracked = std::bind<ROCKSDB_NAMESPACE::Status (
       ROCKSDB_NAMESPACE::Transaction::*)(const ROCKSDB_NAMESPACE::SliceParts&,
                                          const ROCKSDB_NAMESPACE::SliceParts&)>(
-      &ROCKSDB_NAMESPACE::Transaction::PutUntracked, txn, std::placeholders::_1,
-      std::placeholders::_2);
+      &ROCKSDB_NAMESPACE::Transaction::PutUntracked, txn, _1, _2);
   txn_write_kv_parts_helper(env, fn_put_parts_untracked, jkey_parts,
                             jkey_parts_len, jvalue_parts, jvalue_parts_len);
 }
@@ -1163,7 +1146,7 @@ void Java_org_rocksdb_Transaction_mergeUntracked__J_3BI_3BIJ(
           ROCKSDB_NAMESPACE::ColumnFamilyHandle*,
           const ROCKSDB_NAMESPACE::Slice&, const ROCKSDB_NAMESPACE::Slice&)>(
           &ROCKSDB_NAMESPACE::Transaction::MergeUntracked, txn,
-          column_family_handle, std::placeholders::_1, std::placeholders::_2);
+          column_family_handle, _1, _2);
   txn_write_kv_helper(env, fn_merge_untracked, jkey, jkey_part_len, jval,
                       jval_len);
 }
@@ -1180,8 +1163,7 @@ void Java_org_rocksdb_Transaction_mergeUntracked__J_3BI_3BI(
   FnWriteKV fn_merge_untracked =
       std::bind<ROCKSDB_NAMESPACE::Status (ROCKSDB_NAMESPACE::Transaction::*)(
           const ROCKSDB_NAMESPACE::Slice&, const ROCKSDB_NAMESPACE::Slice&)>(
-          &ROCKSDB_NAMESPACE::Transaction::MergeUntracked, txn,
-          std::placeholders::_1, std::placeholders::_2);
+          &ROCKSDB_NAMESPACE::Transaction::MergeUntracked, txn, _1, _2);
   txn_write_kv_helper(env, fn_merge_untracked, jkey, jkey_part_len, jval,
                       jval_len);
 }
@@ -1202,7 +1184,7 @@ void Java_org_rocksdb_Transaction_deleteUntracked__J_3BIJ(
       ROCKSDB_NAMESPACE::Transaction::*)(ROCKSDB_NAMESPACE::ColumnFamilyHandle*,
                                          const ROCKSDB_NAMESPACE::Slice&)>(
       &ROCKSDB_NAMESPACE::Transaction::DeleteUntracked, txn,
-      column_family_handle, std::placeholders::_1);
+      column_family_handle, _1);
   txn_write_k_helper(env, fn_delete_untracked, jkey, jkey_part_len);
 }
 
@@ -1219,8 +1201,7 @@ void Java_org_rocksdb_Transaction_deleteUntracked__J_3BI(JNIEnv* env,
   auto* txn = reinterpret_cast<ROCKSDB_NAMESPACE::Transaction*>(jhandle);
   FnWriteK fn_delete_untracked = std::bind<ROCKSDB_NAMESPACE::Status (
       ROCKSDB_NAMESPACE::Transaction::*)(const ROCKSDB_NAMESPACE::Slice&)>(
-      &ROCKSDB_NAMESPACE::Transaction::DeleteUntracked, txn,
-      std::placeholders::_1);
+      &ROCKSDB_NAMESPACE::Transaction::DeleteUntracked, txn, _1);
   txn_write_k_helper(env, fn_delete_untracked, jkey, jkey_part_len);
 }
 
@@ -1241,7 +1222,7 @@ void Java_org_rocksdb_Transaction_deleteUntracked__J_3_3BIJ(
           ROCKSDB_NAMESPACE::ColumnFamilyHandle*,
           const ROCKSDB_NAMESPACE::SliceParts&)>(
           &ROCKSDB_NAMESPACE::Transaction::DeleteUntracked, txn,
-          column_family_handle, std::placeholders::_1);
+          column_family_handle, _1);
   txn_write_k_parts_helper(env, fn_delete_untracked_parts, jkey_parts,
                            jkey_parts_len);
 }
@@ -1258,8 +1239,7 @@ void Java_org_rocksdb_Transaction_deleteUntracked__J_3_3BI(
   FnWriteKParts fn_delete_untracked_parts =
       std::bind<ROCKSDB_NAMESPACE::Status (ROCKSDB_NAMESPACE::Transaction::*)(
           const ROCKSDB_NAMESPACE::SliceParts&)>(
-          &ROCKSDB_NAMESPACE::Transaction::DeleteUntracked, txn,
-          std::placeholders::_1);
+          &ROCKSDB_NAMESPACE::Transaction::DeleteUntracked, txn, _1);
   txn_write_k_parts_helper(env, fn_delete_untracked_parts, jkey_parts,
                            jkey_parts_len);
 }
@@ -1381,7 +1361,7 @@ jlong Java_org_rocksdb_Transaction_getWriteBatch(JNIEnv* /*env*/,
                                                  jobject /*jobj*/,
                                                  jlong jhandle) {
   auto* txn = reinterpret_cast<ROCKSDB_NAMESPACE::Transaction*>(jhandle);
-  return GET_CPLUSPLUS_POINTER(txn->GetWriteBatch());
+  return reinterpret_cast<jlong>(txn->GetWriteBatch());
 }
 
 /*
@@ -1406,7 +1386,7 @@ jlong Java_org_rocksdb_Transaction_getWriteOptions(JNIEnv* /*env*/,
                                                    jobject /*jobj*/,
                                                    jlong jhandle) {
   auto* txn = reinterpret_cast<ROCKSDB_NAMESPACE::Transaction*>(jhandle);
-  return GET_CPLUSPLUS_POINTER(txn->GetWriteOptions());
+  return reinterpret_cast<jlong>(txn->GetWriteOptions());
 }
 
 /*
@@ -1498,7 +1478,7 @@ jlong Java_org_rocksdb_Transaction_getCommitTimeWriteBatch(JNIEnv* /*env*/,
                                                            jobject /*jobj*/,
                                                            jlong jhandle) {
   auto* txn = reinterpret_cast<ROCKSDB_NAMESPACE::Transaction*>(jhandle);
-  return GET_CPLUSPLUS_POINTER(txn->GetCommitTimeWriteBatch());
+  return reinterpret_cast<jlong>(txn->GetCommitTimeWriteBatch());
 }
 
 /*

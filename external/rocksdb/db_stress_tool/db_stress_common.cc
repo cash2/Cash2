@@ -10,17 +10,14 @@
 
 #ifdef GFLAGS
 #include "db_stress_tool/db_stress_common.h"
-
 #include <cmath>
 
-#include "util/file_checksum_helper.h"
-#include "util/xxhash.h"
-
-ROCKSDB_NAMESPACE::Env* db_stress_listener_env = nullptr;
-ROCKSDB_NAMESPACE::Env* db_stress_env = nullptr;
+ROCKSDB_NAMESPACE::DbStressEnvWrapper* db_stress_env = nullptr;
+#ifndef NDEBUG
 // If non-null, injects read error at a rate specified by the
-// read_fault_one_in or write_fault_one_in flag
+// read_fault_one_in flag
 std::shared_ptr<ROCKSDB_NAMESPACE::FaultInjectionTestFS> fault_fs_guard;
+#endif // NDEBUG
 enum ROCKSDB_NAMESPACE::CompressionType compression_type_e =
     ROCKSDB_NAMESPACE::kSnappyCompression;
 enum ROCKSDB_NAMESPACE::CompressionType bottommost_compression_type_e =
@@ -29,7 +26,7 @@ enum ROCKSDB_NAMESPACE::ChecksumType checksum_type_e =
     ROCKSDB_NAMESPACE::kCRC32c;
 enum RepFactory FLAGS_rep_factory = kSkipList;
 std::vector<double> sum_probs(100001);
-constexpr int64_t zipf_sum_size = 100000;
+int64_t zipf_sum_size = 100000;
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -159,10 +156,8 @@ void PrintKeyValue(int cf, uint64_t key, const char* value, size_t sz) {
     snprintf(buf, 4, "%X", value[i]);
     tmp.append(buf);
   }
-  auto key_str = Key(key);
-  Slice key_slice = key_str;
-  fprintf(stdout, "[CF %d] %s (%" PRIi64 ") == > (%" ROCKSDB_PRIszt ") %s\n",
-          cf, key_slice.ToString(true).c_str(), key, sz, tmp.c_str());
+  fprintf(stdout, "[CF %d] %" PRIi64 " == > (%" ROCKSDB_PRIszt ") %s\n", cf,
+          key, sz, tmp.c_str());
 }
 
 // Note that if hot_key_alpha != 0, it generates the key based on Zipfian
@@ -224,198 +219,12 @@ size_t GenerateValue(uint32_t rand, char* v, size_t max_sz) {
       ((rand % kRandomValueMaxFactor) + 1) * FLAGS_value_size_mult;
   assert(value_sz <= max_sz && value_sz >= sizeof(uint32_t));
   (void)max_sz;
-  PutUnaligned(reinterpret_cast<uint32_t*>(v), rand);
+  *((uint32_t*)v) = rand;
   for (size_t i = sizeof(uint32_t); i < value_sz; i++) {
     v[i] = (char)(rand ^ i);
   }
   v[value_sz] = '\0';
   return value_sz;  // the size of the value set.
 }
-
-uint32_t GetValueBase(Slice s) {
-  assert(s.size() >= sizeof(uint32_t));
-  uint32_t res;
-  GetUnaligned(reinterpret_cast<const uint32_t*>(s.data()), &res);
-  return res;
-}
-
-std::string GetNowNanos() {
-  uint64_t t = db_stress_env->NowNanos();
-  std::string ret;
-  PutFixed64(&ret, t);
-  return ret;
-}
-
-namespace {
-
-class MyXXH64Checksum : public FileChecksumGenerator {
- public:
-  explicit MyXXH64Checksum(bool big) : big_(big) {
-    state_ = XXH64_createState();
-    XXH64_reset(state_, 0);
-  }
-
-  virtual ~MyXXH64Checksum() override { XXH64_freeState(state_); }
-
-  void Update(const char* data, size_t n) override {
-    XXH64_update(state_, data, n);
-  }
-
-  void Finalize() override {
-    assert(str_.empty());
-    uint64_t digest = XXH64_digest(state_);
-    // Store as little endian raw bytes
-    PutFixed64(&str_, digest);
-    if (big_) {
-      // Throw in some more data for stress testing (448 bits total)
-      PutFixed64(&str_, GetSliceHash64(str_));
-      PutFixed64(&str_, GetSliceHash64(str_));
-      PutFixed64(&str_, GetSliceHash64(str_));
-      PutFixed64(&str_, GetSliceHash64(str_));
-      PutFixed64(&str_, GetSliceHash64(str_));
-      PutFixed64(&str_, GetSliceHash64(str_));
-    }
-  }
-
-  std::string GetChecksum() const override {
-    assert(!str_.empty());
-    return str_;
-  }
-
-  const char* Name() const override {
-    return big_ ? "MyBigChecksum" : "MyXXH64Checksum";
-  }
-
- private:
-  bool big_;
-  XXH64_state_t* state_;
-  std::string str_;
-};
-
-class DbStressChecksumGenFactory : public FileChecksumGenFactory {
-  std::string default_func_name_;
-
-  std::unique_ptr<FileChecksumGenerator> CreateFromFuncName(
-      const std::string& func_name) {
-    std::unique_ptr<FileChecksumGenerator> rv;
-    if (func_name == "FileChecksumCrc32c") {
-      rv.reset(new FileChecksumGenCrc32c(FileChecksumGenContext()));
-    } else if (func_name == "MyXXH64Checksum") {
-      rv.reset(new MyXXH64Checksum(false /* big */));
-    } else if (func_name == "MyBigChecksum") {
-      rv.reset(new MyXXH64Checksum(true /* big */));
-    } else {
-      // Should be a recognized function when we get here
-      assert(false);
-    }
-    return rv;
-  }
-
- public:
-  explicit DbStressChecksumGenFactory(const std::string& default_func_name)
-      : default_func_name_(default_func_name) {}
-
-  std::unique_ptr<FileChecksumGenerator> CreateFileChecksumGenerator(
-      const FileChecksumGenContext& context) override {
-    if (context.requested_checksum_func_name.empty()) {
-      return CreateFromFuncName(default_func_name_);
-    } else {
-      return CreateFromFuncName(context.requested_checksum_func_name);
-    }
-  }
-
-  const char* Name() const override { return "FileChecksumGenCrc32cFactory"; }
-};
-
-}  // namespace
-
-std::shared_ptr<FileChecksumGenFactory> GetFileChecksumImpl(
-    const std::string& name) {
-  // Translate from friendly names to internal names
-  std::string internal_name;
-  if (name == "crc32c") {
-    internal_name = "FileChecksumCrc32c";
-  } else if (name == "xxh64") {
-    internal_name = "MyXXH64Checksum";
-  } else if (name == "big") {
-    internal_name = "MyBigChecksum";
-  } else {
-    assert(name.empty() || name == "none");
-    return nullptr;
-  }
-  return std::make_shared<DbStressChecksumGenFactory>(internal_name);
-}
-
-Status DeleteFilesInDirectory(const std::string& dirname) {
-  std::vector<std::string> filenames;
-  Status s = Env::Default()->GetChildren(dirname, &filenames);
-  for (size_t i = 0; s.ok() && i < filenames.size(); ++i) {
-    s = Env::Default()->DeleteFile(dirname + "/" + filenames[i]);
-  }
-  return s;
-}
-
-Status SaveFilesInDirectory(const std::string& src_dirname,
-                            const std::string& dst_dirname) {
-  std::vector<std::string> filenames;
-  Status s = Env::Default()->GetChildren(src_dirname, &filenames);
-  for (size_t i = 0; s.ok() && i < filenames.size(); ++i) {
-    bool is_dir = false;
-    s = Env::Default()->IsDirectory(src_dirname + "/" + filenames[i], &is_dir);
-    if (s.ok()) {
-      if (is_dir) {
-        continue;
-      }
-      s = Env::Default()->LinkFile(src_dirname + "/" + filenames[i],
-                                   dst_dirname + "/" + filenames[i]);
-    }
-  }
-  return s;
-}
-
-Status InitUnverifiedSubdir(const std::string& dirname) {
-  Status s = Env::Default()->FileExists(dirname);
-  if (s.IsNotFound()) {
-    return Status::OK();
-  }
-
-  const std::string kUnverifiedDirname = dirname + "/unverified";
-  if (s.ok()) {
-    s = Env::Default()->CreateDirIfMissing(kUnverifiedDirname);
-  }
-  if (s.ok()) {
-    // It might already exist with some stale contents. Delete any such
-    // contents.
-    s = DeleteFilesInDirectory(kUnverifiedDirname);
-  }
-  if (s.ok()) {
-    s = SaveFilesInDirectory(dirname, kUnverifiedDirname);
-  }
-  return s;
-}
-
-Status DestroyUnverifiedSubdir(const std::string& dirname) {
-  Status s = Env::Default()->FileExists(dirname);
-  if (s.IsNotFound()) {
-    return Status::OK();
-  }
-
-  const std::string kUnverifiedDirname = dirname + "/unverified";
-  if (s.ok()) {
-    s = Env::Default()->FileExists(kUnverifiedDirname);
-  }
-  if (s.IsNotFound()) {
-    return Status::OK();
-  }
-
-  if (s.ok()) {
-    s = DeleteFilesInDirectory(kUnverifiedDirname);
-  }
-  if (s.ok()) {
-    s = Env::Default()->DeleteDir(kUnverifiedDirname);
-  }
-  return s;
-}
-
 }  // namespace ROCKSDB_NAMESPACE
 #endif  // GFLAGS

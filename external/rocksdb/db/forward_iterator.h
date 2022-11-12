@@ -4,13 +4,13 @@
 //  (found in the LICENSE.Apache file in the root directory).
 #pragma once
 
-#include "rocksdb/comparator.h"
 #ifndef ROCKSDB_LITE
 
 #include <string>
 #include <vector>
 #include <queue>
 
+#include "db/dbformat.h"
 #include "memory/arena.h"
 #include "rocksdb/db.h"
 #include "rocksdb/iterator.h"
@@ -29,19 +29,18 @@ struct FileMetaData;
 
 class MinIterComparator {
  public:
-  explicit MinIterComparator(const CompareInterface* comparator)
-      : comparator_(comparator) {}
+  explicit MinIterComparator(const Comparator* comparator) :
+    comparator_(comparator) {}
 
   bool operator()(InternalIterator* a, InternalIterator* b) {
     return comparator_->Compare(a->key(), b->key()) > 0;
   }
  private:
-  const CompareInterface* comparator_;
+  const Comparator* comparator_;
 };
 
-using MinIterHeap =
-    std::priority_queue<InternalIterator*, std::vector<InternalIterator*>,
-                        MinIterComparator>;
+typedef std::priority_queue<InternalIterator*, std::vector<InternalIterator*>,
+                            MinIterComparator> MinIterHeap;
 
 /**
  * ForwardIterator is a special type of iterator that only supports Seek()
@@ -98,8 +97,7 @@ class ForwardIterator : public InternalIterator {
 
   void RebuildIterators(bool refresh_sv);
   void RenewIterators();
-  void BuildLevelIterators(const VersionStorageInfo* vstorage,
-                           SuperVersion* sv);
+  void BuildLevelIterators(const VersionStorageInfo* vstorage);
   void ResetIncompleteIterators();
   void SeekInternal(const Slice& internal_key, bool seek_to_first);
   void UpdateCurrent();

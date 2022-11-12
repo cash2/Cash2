@@ -6,13 +6,11 @@
 // This file implements the callback "bridge" between Java and C++ for
 // ROCKSDB_NAMESPACE::Logger.
 
-#include "rocksjni/loggerjnicallback.h"
+#include "include/org_rocksdb_Logger.h"
 
 #include <cstdarg>
 #include <cstdio>
-
-#include "include/org_rocksdb_Logger.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
+#include "rocksjni/loggerjnicallback.h"
 #include "rocksjni/portal.h"
 
 namespace ROCKSDB_NAMESPACE {
@@ -236,7 +234,7 @@ jlong Java_org_rocksdb_Logger_createNewLoggerOptions(JNIEnv* env, jobject jobj,
   auto* options = reinterpret_cast<ROCKSDB_NAMESPACE::Options*>(joptions);
   sptr_logger->get()->SetInfoLogLevel(options->info_log_level);
 
-  return GET_CPLUSPLUS_POINTER(sptr_logger);
+  return reinterpret_cast<jlong>(sptr_logger);
 }
 
 /*
@@ -255,7 +253,7 @@ jlong Java_org_rocksdb_Logger_createNewLoggerDbOptions(JNIEnv* env,
       reinterpret_cast<ROCKSDB_NAMESPACE::DBOptions*>(jdb_options);
   sptr_logger->get()->SetInfoLogLevel(db_options->info_log_level);
 
-  return GET_CPLUSPLUS_POINTER(sptr_logger);
+  return reinterpret_cast<jlong>(sptr_logger);
 }
 
 /*

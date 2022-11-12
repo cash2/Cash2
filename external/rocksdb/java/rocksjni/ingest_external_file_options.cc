@@ -10,7 +10,6 @@
 
 #include "include/org_rocksdb_IngestExternalFileOptions.h"
 #include "rocksdb/options.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 
 /*
  * Class:     org_rocksdb_IngestExternalFileOptions
@@ -20,7 +19,7 @@
 jlong Java_org_rocksdb_IngestExternalFileOptions_newIngestExternalFileOptions__(
     JNIEnv*, jclass) {
   auto* options = new ROCKSDB_NAMESPACE::IngestExternalFileOptions();
-  return GET_CPLUSPLUS_POINTER(options);
+  return reinterpret_cast<jlong>(options);
 }
 
 /*
@@ -37,7 +36,7 @@ jlong Java_org_rocksdb_IngestExternalFileOptions_newIngestExternalFileOptions__Z
   options->snapshot_consistency = static_cast<bool>(jsnapshot_consistency);
   options->allow_global_seqno = static_cast<bool>(jallow_global_seqno);
   options->allow_blocking_flush = static_cast<bool>(jallow_blocking_flush);
-  return GET_CPLUSPLUS_POINTER(options);
+  return reinterpret_cast<jlong>(options);
 }
 
 /*

@@ -26,7 +26,7 @@ public interface MutableColumnFamilyOptionsInterface<
    * @throws java.lang.IllegalArgumentException thrown on 32-Bit platforms
    *   while overflowing the underlying platform specific value.
    */
-  T setWriteBufferSize(long writeBufferSize);
+  MutableColumnFamilyOptionsInterface setWriteBufferSize(long writeBufferSize);
 
   /**
    * Return size of write buffer size.
@@ -43,7 +43,8 @@ public interface MutableColumnFamilyOptionsInterface<
    * @param disableAutoCompactions true if auto-compactions are disabled.
    * @return the reference to the current option.
    */
-  T setDisableAutoCompactions(boolean disableAutoCompactions);
+  MutableColumnFamilyOptionsInterface setDisableAutoCompactions(
+      boolean disableAutoCompactions);
 
   /**
    * Disable automatic compactions. Manual compactions can still
@@ -63,7 +64,8 @@ public interface MutableColumnFamilyOptionsInterface<
    *   level-0 compaction
    * @return the reference to the current option.
    */
-  T setLevel0FileNumCompactionTrigger(int level0FileNumCompactionTrigger);
+  MutableColumnFamilyOptionsInterface setLevel0FileNumCompactionTrigger(
+      int level0FileNumCompactionTrigger);
 
   /**
    * Number of files to trigger level-0 compaction. A value &lt; 0 means that
@@ -84,7 +86,7 @@ public interface MutableColumnFamilyOptionsInterface<
    * @return the reference to the current option.
    * @see #maxCompactionBytes()
    */
-  T setMaxCompactionBytes(final long maxCompactionBytes);
+  MutableColumnFamilyOptionsInterface setMaxCompactionBytes(final long maxCompactionBytes);
 
   /**
    * We try to limit number of bytes in one compaction to be lower than this

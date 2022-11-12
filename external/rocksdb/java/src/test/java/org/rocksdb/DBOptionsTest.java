@@ -5,16 +5,13 @@
 
 package org.rocksdb;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import org.junit.ClassRule;
+import org.junit.Test;
 
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import org.junit.ClassRule;
-import org.junit.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class DBOptionsTest {
 
@@ -34,6 +31,8 @@ public class DBOptionsTest {
     DBOptions copyOpts = new DBOptions(origOpts);
     assertThat(origOpts.createIfMissing()).isEqualTo(copyOpts.createIfMissing());
     assertThat(origOpts.allow2pc()).isEqualTo(copyOpts.allow2pc());
+    assertThat(origOpts.baseBackgroundCompactions()).isEqualTo(
+            copyOpts.baseBackgroundCompactions());
   }
 
   @Test
@@ -213,6 +212,17 @@ public class DBOptionsTest {
       final long longValue = rand.nextLong();
       opt.setDeleteObsoleteFilesPeriodMicros(longValue);
       assertThat(opt.deleteObsoleteFilesPeriodMicros()).isEqualTo(longValue);
+    }
+  }
+
+  @SuppressWarnings("deprecated")
+  @Test
+  public void baseBackgroundCompactions() {
+    try (final DBOptions opt = new DBOptions()) {
+      final int intValue = rand.nextInt();
+      opt.setBaseBackgroundCompactions(intValue);
+      assertThat(opt.baseBackgroundCompactions()).
+          isEqualTo(intValue);
     }
   }
 
@@ -461,6 +471,15 @@ public class DBOptionsTest {
       final AccessHint accessHint = AccessHint.SEQUENTIAL;
       opt.setAccessHintOnCompactionStart(accessHint);
       assertThat(opt.accessHintOnCompactionStart()).isEqualTo(accessHint);
+    }
+  }
+
+  @Test
+  public void newTableReaderForCompactionInputs() {
+    try(final DBOptions opt = new DBOptions()) {
+      final boolean boolValue = rand.nextBoolean();
+      opt.setNewTableReaderForCompactionInputs(boolValue);
+      assertThat(opt.newTableReaderForCompactionInputs()).isEqualTo(boolValue);
     }
   }
 
@@ -722,6 +741,15 @@ public class DBOptionsTest {
   }
 
   @Test
+  public void preserveDeletes() {
+    try (final DBOptions opt = new DBOptions()) {
+      assertThat(opt.preserveDeletes()).isFalse();
+      opt.setPreserveDeletes(true);
+      assertThat(opt.preserveDeletes()).isTrue();
+    }
+  }
+
+  @Test
   public void twoWriteQueues() {
     try (final DBOptions opt = new DBOptions()) {
       assertThat(opt.twoWriteQueues()).isFalse();
@@ -780,125 +808,6 @@ public class DBOptionsTest {
         final DBOptions options = new DBOptions().setStatistics(statistics);
         final Statistics stats = options.statistics()) {
       assertThat(stats).isNotNull();
-    }
-  }
-
-  @Test
-  public void avoidUnnecessaryBlockingIO() {
-    try (final DBOptions options = new DBOptions()) {
-      assertThat(options.avoidUnnecessaryBlockingIO()).isEqualTo(false);
-      assertThat(options.setAvoidUnnecessaryBlockingIO(true)).isEqualTo(options);
-      assertThat(options.avoidUnnecessaryBlockingIO()).isEqualTo(true);
-    }
-  }
-
-  @Test
-  public void persistStatsToDisk() {
-    try (final DBOptions options = new DBOptions()) {
-      assertThat(options.persistStatsToDisk()).isEqualTo(false);
-      assertThat(options.setPersistStatsToDisk(true)).isEqualTo(options);
-      assertThat(options.persistStatsToDisk()).isEqualTo(true);
-    }
-  }
-
-  @Test
-  public void writeDbidToManifest() {
-    try (final DBOptions options = new DBOptions()) {
-      assertThat(options.writeDbidToManifest()).isEqualTo(false);
-      assertThat(options.setWriteDbidToManifest(true)).isEqualTo(options);
-      assertThat(options.writeDbidToManifest()).isEqualTo(true);
-    }
-  }
-
-  @Test
-  public void logReadaheadSize() {
-    try (final DBOptions options = new DBOptions()) {
-      assertThat(options.logReadaheadSize()).isEqualTo(0);
-      final int size = 1024 * 1024 * 100;
-      assertThat(options.setLogReadaheadSize(size)).isEqualTo(options);
-      assertThat(options.logReadaheadSize()).isEqualTo(size);
-    }
-  }
-
-  @Test
-  public void bestEffortsRecovery() {
-    try (final DBOptions options = new DBOptions()) {
-      assertThat(options.bestEffortsRecovery()).isEqualTo(false);
-      assertThat(options.setBestEffortsRecovery(true)).isEqualTo(options);
-      assertThat(options.bestEffortsRecovery()).isEqualTo(true);
-    }
-  }
-
-  @Test
-  public void maxBgerrorResumeCount() {
-    try (final DBOptions options = new DBOptions()) {
-      final int INT_MAX = 2147483647;
-      assertThat(options.maxBgerrorResumeCount()).isEqualTo(INT_MAX);
-      assertThat(options.setMaxBgErrorResumeCount(-1)).isEqualTo(options);
-      assertThat(options.maxBgerrorResumeCount()).isEqualTo(-1);
-    }
-  }
-
-  @Test
-  public void bgerrorResumeRetryInterval() {
-    try (final DBOptions options = new DBOptions()) {
-      assertThat(options.bgerrorResumeRetryInterval()).isEqualTo(1000000);
-      final long newRetryInterval = 24 * 3600 * 1000000L;
-      assertThat(options.setBgerrorResumeRetryInterval(newRetryInterval)).isEqualTo(options);
-      assertThat(options.bgerrorResumeRetryInterval()).isEqualTo(newRetryInterval);
-    }
-  }
-
-  @Test
-  public void maxWriteBatchGroupSizeBytes() {
-    try (final DBOptions options = new DBOptions()) {
-      assertThat(options.maxWriteBatchGroupSizeBytes()).isEqualTo(1024 * 1024);
-      final long size = 1024 * 1024 * 1024 * 10L;
-      assertThat(options.setMaxWriteBatchGroupSizeBytes(size)).isEqualTo(options);
-      assertThat(options.maxWriteBatchGroupSizeBytes()).isEqualTo(size);
-    }
-  }
-
-  @Test
-  public void skipCheckingSstFileSizesOnDbOpen() {
-    try (final DBOptions options = new DBOptions()) {
-      assertThat(options.skipCheckingSstFileSizesOnDbOpen()).isEqualTo(false);
-      assertThat(options.setSkipCheckingSstFileSizesOnDbOpen(true)).isEqualTo(options);
-      assertThat(options.skipCheckingSstFileSizesOnDbOpen()).isEqualTo(true);
-    }
-  }
-
-  @Test
-  public void eventListeners() {
-    final AtomicBoolean wasCalled1 = new AtomicBoolean();
-    final AtomicBoolean wasCalled2 = new AtomicBoolean();
-    try (final DBOptions options = new DBOptions();
-         final AbstractEventListener el1 =
-             new AbstractEventListener() {
-               @Override
-               public void onTableFileDeleted(final TableFileDeletionInfo tableFileDeletionInfo) {
-                 wasCalled1.set(true);
-               }
-             };
-         final AbstractEventListener el2 =
-             new AbstractEventListener() {
-               @Override
-               public void onMemTableSealed(final MemTableInfo memTableInfo) {
-                 wasCalled2.set(true);
-               }
-             }) {
-      assertThat(options.setListeners(Arrays.asList(el1, el2))).isEqualTo(options);
-      List<AbstractEventListener> listeners = options.listeners();
-      assertEquals(el1, listeners.get(0));
-      assertEquals(el2, listeners.get(1));
-      options.setListeners(Collections.<AbstractEventListener>emptyList());
-      listeners.get(0).onTableFileDeleted(null);
-      assertTrue(wasCalled1.get());
-      listeners.get(1).onMemTableSealed(null);
-      assertTrue(wasCalled2.get());
-      List<AbstractEventListener> listeners2 = options.listeners();
-      assertNotNull(listeners2);
-      assertEquals(0, listeners2.size());
     }
   }
 }

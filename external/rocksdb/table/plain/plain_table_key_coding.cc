@@ -85,10 +85,8 @@ IOStatus PlainTableKeyEncoder::AppendKey(const Slice& key,
                                          uint64_t* offset, char* meta_bytes_buf,
                                          size_t* meta_bytes_buf_size) {
   ParsedInternalKey parsed_key;
-  Status pik_status =
-      ParseInternalKey(key, &parsed_key, false /* log_err_key */);  // TODO
-  if (!pik_status.ok()) {
-    return IOStatus::Corruption(pik_status.getState());
+  if (!ParseInternalKey(key, &parsed_key)) {
+    return IOStatus::Corruption(Slice());
   }
 
   Slice key_to_write = key;  // Portion of internal key to write out.
@@ -212,11 +210,9 @@ bool PlainTableFileReader::ReadNonMmap(uint32_t file_offset, uint32_t len,
     new_buffer->buf_len = 0;
   }
   Slice read_result;
-  // TODO: rate limit plain table reads.
   Status s =
       file_info_->file->Read(IOOptions(), file_offset, size_to_read,
-                             &read_result, new_buffer->buf.get(), nullptr,
-                             Env::IO_TOTAL /* rate_limiter_priority */);
+                             &read_result, new_buffer->buf.get(), nullptr);
   if (!s.ok()) {
     status_ = s;
     return false;
@@ -283,12 +279,9 @@ Status PlainTableKeyDecoder::ReadInternalKey(
       return file_reader_.status();
     }
     *internal_key_valid = true;
-    Status pik_status = ParseInternalKey(*internal_key, parsed_key,
-                                         false /* log_err_key */);  // TODO
-    if (!pik_status.ok()) {
+    if (!ParseInternalKey(*internal_key, parsed_key)) {
       return Status::Corruption(
-          Slice("Corrupted key found during next key read. "),
-          pik_status.getState());
+          Slice("Incorrect value type found when reading the next key"));
     }
     *bytes_read += user_key_size + 8;
   }
@@ -494,6 +487,7 @@ Status PlainTableKeyDecoder::NextKeyNoValue(uint32_t start_offset,
   if (seekable != nullptr) {
     *seekable = true;
   }
+  Status s;
   if (encoding_type_ == kPlain) {
     return NextPlainEncodingKey(start_offset, parsed_key, internal_key,
                                 bytes_read, seekable);

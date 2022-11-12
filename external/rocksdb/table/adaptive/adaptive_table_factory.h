@@ -33,18 +33,24 @@ class AdaptiveTableFactory : public TableFactory {
 
   const char* Name() const override { return "AdaptiveTableFactory"; }
 
-  using TableFactory::NewTableReader;
   Status NewTableReader(
-      const ReadOptions& ro, const TableReaderOptions& table_reader_options,
+      const TableReaderOptions& table_reader_options,
       std::unique_ptr<RandomAccessFileReader>&& file, uint64_t file_size,
       std::unique_ptr<TableReader>* table,
       bool prefetch_index_and_filter_in_cache = true) const override;
 
   TableBuilder* NewTableBuilder(
       const TableBuilderOptions& table_builder_options,
-      WritableFileWriter* file) const override;
+      uint32_t column_family_id, WritableFileWriter* file) const override;
 
-  std::string GetPrintableOptions() const override;
+  // Sanitizes the specified DB Options.
+  Status SanitizeOptions(
+      const DBOptions& /*db_opts*/,
+      const ColumnFamilyOptions& /*cf_opts*/) const override {
+    return Status::OK();
+  }
+
+  std::string GetPrintableTableOptions() const override;
 
  private:
   std::shared_ptr<TableFactory> table_factory_to_write_;

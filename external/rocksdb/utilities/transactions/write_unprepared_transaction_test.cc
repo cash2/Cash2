@@ -73,7 +73,7 @@ TEST_P(WriteUnpreparedTransactionTest, ReadYourOwnWrite) {
   for (uint64_t max_skip : {0, std::numeric_limits<int>::max()}) {
     options.max_sequential_skip_in_iterations = max_skip;
     options.disable_auto_compactions = true;
-    ASSERT_OK(ReOpen());
+    ReOpen();
 
     TransactionOptions txn_options;
     WriteOptions woptions;
@@ -87,10 +87,10 @@ TEST_P(WriteUnpreparedTransactionTest, ReadYourOwnWrite) {
     txn->SetSnapshot();
 
     for (int i = 0; i < 5; i++) {
-      std::string stored_value = "v" + std::to_string(i);
+      std::string stored_value = "v" + ToString(i);
       ASSERT_OK(txn->Put("a", stored_value));
       ASSERT_OK(txn->Put("b", stored_value));
-      ASSERT_OK(wup_txn->FlushWriteBatchToDB(false));
+      wup_txn->FlushWriteBatchToDB(false);
 
       // Test Get()
       std::string value;
@@ -136,7 +136,7 @@ TEST_P(WriteUnpreparedTransactionTest, ReadYourOwnWrite) {
   }
 }
 
-#if !defined(ROCKSDB_VALGRIND_RUN) || defined(ROCKSDB_FULL_VALGRIND_RUN)
+#ifndef ROCKSDB_VALGRIND_RUN
 TEST_P(WriteUnpreparedStressTest, ReadYourOwnWriteStress) {
   // This is a stress test where different threads are writing random keys, and
   // then before committing or aborting the transaction, it validates to see
@@ -155,11 +155,11 @@ TEST_P(WriteUnpreparedStressTest, ReadYourOwnWriteStress) {
   WriteOptions write_options;
   txn_db_options.transaction_lock_timeout = -1;
   options.disable_auto_compactions = true;
-  ASSERT_OK(ReOpen());
+  ReOpen();
 
   std::vector<std::string> keys;
   for (uint32_t k = 0; k < kNumKeys * kNumThreads; k++) {
-    keys.push_back("k" + std::to_string(k));
+    keys.push_back("k" + ToString(k));
   }
   RandomShuffle(keys.begin(), keys.end());
 
@@ -188,7 +188,7 @@ TEST_P(WriteUnpreparedStressTest, ReadYourOwnWriteStress) {
       }
 
       txn = db->BeginTransaction(write_options, txn_options);
-      ASSERT_OK(txn->SetName(std::to_string(id)));
+      txn->SetName(ToString(id));
       txn->SetSnapshot();
       if (a >= RO_SNAPSHOT) {
         read_options.snapshot = txn->GetSnapshot();
@@ -273,27 +273,23 @@ TEST_P(WriteUnpreparedStressTest, ReadYourOwnWriteStress) {
         case 1:  // Validate Next()
         {
           Iterator* iter = txn->GetIterator(read_options);
-          ASSERT_OK(iter->status());
           for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
             verify_key(iter->key().ToString(), iter->value().ToString());
           }
-          ASSERT_OK(iter->status());
           delete iter;
           break;
         }
         case 2:  // Validate Prev()
         {
           Iterator* iter = txn->GetIterator(read_options);
-          ASSERT_OK(iter->status());
           for (iter->SeekToLast(); iter->Valid(); iter->Prev()) {
             verify_key(iter->key().ToString(), iter->value().ToString());
           }
-          ASSERT_OK(iter->status());
           delete iter;
           break;
         }
         default:
-          FAIL();
+          ASSERT_TRUE(false);
       }
 
       if (rnd.OneIn(2)) {
@@ -314,7 +310,7 @@ TEST_P(WriteUnpreparedStressTest, ReadYourOwnWriteStress) {
     t.join();
   }
 }
-#endif  // !defined(ROCKSDB_VALGRIND_RUN) || defined(ROCKSDB_FULL_VALGRIND_RUN)
+#endif  // ROCKSDB_VALGRIND_RUN
 
 // This tests how write unprepared behaves during recovery when the DB crashes
 // after a transaction has either been unprepared or prepared, and tests if
@@ -338,22 +334,21 @@ TEST_P(WriteUnpreparedTransactionTest, RecoveryTest) {
         for (int num_batches = 1; num_batches < 10; num_batches++) {
           // Reset database.
           prepared_trans.clear();
-          ASSERT_OK(ReOpen());
+          ReOpen();
           wup_db = dynamic_cast<WriteUnpreparedTxnDB*>(db);
           if (!empty) {
             for (int i = 0; i < num_batches; i++) {
-              ASSERT_OK(db->Put(WriteOptions(), "k" + std::to_string(i),
-                                "before value" + std::to_string(i)));
+              ASSERT_OK(db->Put(WriteOptions(), "k" + ToString(i),
+                                "before value" + ToString(i)));
             }
           }
 
           // Write num_batches unprepared batches.
           Transaction* txn = db->BeginTransaction(write_options, txn_options);
           WriteUnpreparedTxn* wup_txn = dynamic_cast<WriteUnpreparedTxn*>(txn);
-          ASSERT_OK(txn->SetName("xid"));
+          txn->SetName("xid");
           for (int i = 0; i < num_batches; i++) {
-            ASSERT_OK(
-                txn->Put("k" + std::to_string(i), "value" + std::to_string(i)));
+            ASSERT_OK(txn->Put("k" + ToString(i), "value" + ToString(i)));
             if (txn_options.write_batch_flush_threshold == 1) {
               // WriteUnprepared will check write_batch_flush_threshold and
               // possibly flush before appending to the write batch. No flush
@@ -370,14 +365,14 @@ TEST_P(WriteUnpreparedTransactionTest, RecoveryTest) {
             // test that recovery does the rollback.
             wup_txn->unprep_seqs_.clear();
           } else {
-            ASSERT_OK(txn->Prepare());
+            txn->Prepare();
           }
           delete txn;
 
           // Crash and run recovery code paths.
-          ASSERT_OK(wup_db->db_impl_->FlushWAL(true));
+          wup_db->db_impl_->FlushWAL(true);
           wup_db->TEST_Crash();
-          ASSERT_OK(ReOpenNoDelete());
+          ReOpenNoDelete();
           assert(db != nullptr);
 
           db->GetAllPreparedTransactions(&prepared_trans);
@@ -391,25 +386,22 @@ TEST_P(WriteUnpreparedTransactionTest, RecoveryTest) {
           }
 
           Iterator* iter = db->NewIterator(ReadOptions());
-          ASSERT_OK(iter->status());
           iter->SeekToFirst();
           // Check that DB has before values.
           if (!empty || a == COMMIT) {
             for (int i = 0; i < num_batches; i++) {
               ASSERT_TRUE(iter->Valid());
-              ASSERT_EQ(iter->key().ToString(), "k" + std::to_string(i));
+              ASSERT_EQ(iter->key().ToString(), "k" + ToString(i));
               if (a == COMMIT) {
-                ASSERT_EQ(iter->value().ToString(),
-                          "value" + std::to_string(i));
+                ASSERT_EQ(iter->value().ToString(), "value" + ToString(i));
               } else {
                 ASSERT_EQ(iter->value().ToString(),
-                          "before value" + std::to_string(i));
+                          "before value" + ToString(i));
               }
               iter->Next();
             }
           }
           ASSERT_FALSE(iter->Valid());
-          ASSERT_OK(iter->status());
           delete iter;
         }
       }
@@ -430,13 +422,13 @@ TEST_P(WriteUnpreparedTransactionTest, UnpreparedBatch) {
     txn_options.write_batch_flush_threshold = batch_size;
     for (bool prepare : {false, true}) {
       for (bool commit : {false, true}) {
-        ASSERT_OK(ReOpen());
+        ReOpen();
         Transaction* txn = db->BeginTransaction(write_options, txn_options);
         WriteUnpreparedTxn* wup_txn = dynamic_cast<WriteUnpreparedTxn*>(txn);
-        ASSERT_OK(txn->SetName("xid"));
+        txn->SetName("xid");
 
         for (int i = 0; i < kNumKeys; i++) {
-          ASSERT_OK(txn->Put("k" + std::to_string(i), "v" + std::to_string(i)));
+          txn->Put("k" + ToString(i), "v" + ToString(i));
           if (txn_options.write_batch_flush_threshold == 1) {
             // WriteUnprepared will check write_batch_flush_threshold and
             // possibly flush before appending to the write batch. No flush will
@@ -453,11 +445,9 @@ TEST_P(WriteUnpreparedTransactionTest, UnpreparedBatch) {
         }
 
         Iterator* iter = db->NewIterator(ReadOptions());
-        ASSERT_OK(iter->status());
         iter->SeekToFirst();
         assert(!iter->Valid());
         ASSERT_FALSE(iter->Valid());
-        ASSERT_OK(iter->status());
         delete iter;
 
         if (commit) {
@@ -468,17 +458,15 @@ TEST_P(WriteUnpreparedTransactionTest, UnpreparedBatch) {
         delete txn;
 
         iter = db->NewIterator(ReadOptions());
-        ASSERT_OK(iter->status());
         iter->SeekToFirst();
 
         for (int i = 0; i < (commit ? kNumKeys : 0); i++) {
           ASSERT_TRUE(iter->Valid());
-          ASSERT_EQ(iter->key().ToString(), "k" + std::to_string(i));
-          ASSERT_EQ(iter->value().ToString(), "v" + std::to_string(i));
+          ASSERT_EQ(iter->key().ToString(), "k" + ToString(i));
+          ASSERT_EQ(iter->value().ToString(), "v" + ToString(i));
           iter->Next();
         }
         ASSERT_FALSE(iter->Valid());
-        ASSERT_OK(iter->status());
         delete iter;
       }
     }
@@ -502,7 +490,7 @@ TEST_P(WriteUnpreparedTransactionTest, MarkLogWithPrepSection) {
 
   for (bool prepare : {false, true}) {
     for (bool commit : {false, true}) {
-      ASSERT_OK(ReOpen());
+      ReOpen();
       auto wup_db = dynamic_cast<WriteUnpreparedTxnDB*>(db);
       auto db_impl = wup_db->db_impl_;
 
@@ -514,14 +502,13 @@ TEST_P(WriteUnpreparedTransactionTest, MarkLogWithPrepSection) {
 
       // Spread this transaction across multiple log files.
       for (int i = 0; i < kNumKeys; i++) {
-        ASSERT_OK(txn1->Put("k1" + std::to_string(i), "v" + std::to_string(i)));
+        ASSERT_OK(txn1->Put("k1" + ToString(i), "v" + ToString(i)));
         if (i >= kNumKeys / 2) {
-          ASSERT_OK(
-              txn2->Put("k2" + std::to_string(i), "v" + std::to_string(i)));
+          ASSERT_OK(txn2->Put("k2" + ToString(i), "v" + ToString(i)));
         }
 
         if (i > 0) {
-          ASSERT_OK(db_impl->TEST_SwitchWAL());
+          db_impl->TEST_SwitchWAL();
         }
       }
 
@@ -581,14 +568,12 @@ TEST_P(WriteUnpreparedTransactionTest, NoSnapshotWrite) {
   // snapshot, if iterator snapshot is fresh enough.
   ReadOptions roptions;
   auto iter = txn->GetIterator(roptions);
-  ASSERT_OK(iter->status());
   int keys = 0;
   for (iter->SeekToLast(); iter->Valid(); iter->Prev(), keys++) {
     ASSERT_OK(iter->status());
     ASSERT_EQ(iter->key().ToString(), iter->value().ToString());
   }
   ASSERT_EQ(keys, 3);
-  ASSERT_OK(iter->status());
 
   delete iter;
   delete txn;
@@ -604,7 +589,7 @@ TEST_P(WriteUnpreparedTransactionTest, IterateAndWrite) {
 
   for (Action a : {DO_DELETE, DO_UPDATE}) {
     for (int i = 0; i < 100; i++) {
-      ASSERT_OK(db->Put(woptions, std::to_string(i), std::to_string(i)));
+      ASSERT_OK(db->Put(woptions, ToString(i), ToString(i)));
     }
 
     Transaction* txn = db->BeginTransaction(woptions, txn_options);
@@ -613,7 +598,6 @@ TEST_P(WriteUnpreparedTransactionTest, IterateAndWrite) {
 
     ReadOptions roptions;
     auto iter = txn->GetIterator(roptions);
-    ASSERT_OK(iter->status());
     for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
       ASSERT_OK(iter->status());
       if (iter->key() == "9") {
@@ -628,13 +612,11 @@ TEST_P(WriteUnpreparedTransactionTest, IterateAndWrite) {
         ASSERT_OK(txn->Put(iter->key(), "b"));
       }
     }
-    ASSERT_OK(iter->status());
 
     delete iter;
     ASSERT_OK(txn->Commit());
 
     iter = db->NewIterator(roptions);
-    ASSERT_OK(iter->status());
     if (a == DO_DELETE) {
       // Check that db is empty.
       iter->SeekToFirst();
@@ -648,55 +630,8 @@ TEST_P(WriteUnpreparedTransactionTest, IterateAndWrite) {
       }
       ASSERT_EQ(keys, 100);
     }
-    ASSERT_OK(iter->status());
 
     delete iter;
-    delete txn;
-  }
-}
-
-// Test that using an iterator after transaction clear is not supported
-TEST_P(WriteUnpreparedTransactionTest, IterateAfterClear) {
-  WriteOptions woptions;
-  TransactionOptions txn_options;
-  txn_options.write_batch_flush_threshold = 1;
-
-  enum Action { kCommit, kRollback };
-
-  for (Action a : {kCommit, kRollback}) {
-    for (int i = 0; i < 100; i++) {
-      ASSERT_OK(db->Put(woptions, std::to_string(i), std::to_string(i)));
-    }
-
-    Transaction* txn = db->BeginTransaction(woptions, txn_options);
-    ASSERT_OK(txn->Put("9", "a"));
-
-    ReadOptions roptions;
-    auto iter1 = txn->GetIterator(roptions);
-    auto iter2 = txn->GetIterator(roptions);
-    iter1->SeekToFirst();
-    iter2->Seek("9");
-
-    // Check that iterators are valid before transaction finishes.
-    ASSERT_TRUE(iter1->Valid());
-    ASSERT_TRUE(iter2->Valid());
-    ASSERT_OK(iter1->status());
-    ASSERT_OK(iter2->status());
-
-    if (a == kCommit) {
-      ASSERT_OK(txn->Commit());
-    } else {
-      ASSERT_OK(txn->Rollback());
-    }
-
-    // Check that iterators are invalidated after transaction finishes.
-    ASSERT_FALSE(iter1->Valid());
-    ASSERT_FALSE(iter2->Valid());
-    ASSERT_TRUE(iter1->status().IsInvalidArgument());
-    ASSERT_TRUE(iter2->status().IsInvalidArgument());
-
-    delete iter1;
-    delete iter2;
     delete txn;
   }
 }

@@ -1,9 +1,3 @@
-//  Copyright (c) 2011-present, Facebook, Inc.  All rights reserved.
-//  This source code is licensed under both the GPLv2 (found in the
-//  COPYING file in the root directory) and Apache 2.0 License
-//  (found in the LICENSE.Apache file in the root directory).
-//
-
 /**
  * An persistent map : key -> (list of strings), using rocksdb merge.
  * This file is a test-harness / use-case for the StringAppendOperator.
@@ -12,21 +6,19 @@
  * Copyright 2013 Facebook, Inc.
 */
 
-#include "utilities/merge_operators/string_append/stringappend.h"
-
 #include <iostream>
 #include <map>
-#include <tuple>
 
-#include "port/stack_trace.h"
 #include "rocksdb/db.h"
 #include "rocksdb/merge_operator.h"
 #include "rocksdb/utilities/db_ttl.h"
 #include "test_util/testharness.h"
 #include "util/random.h"
 #include "utilities/merge_operators.h"
+#include "utilities/merge_operators/string_append/stringappend.h"
 #include "utilities/merge_operators/string_append/stringappend2.h"
 
+using namespace ROCKSDB_NAMESPACE;
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -35,34 +27,22 @@ const std::string kDbName = test::PerThreadDBPath("stringappend_test");
 
 namespace {
 // OpenDb opens a (possibly new) rocksdb database with a StringAppendOperator
-std::shared_ptr<DB> OpenNormalDb(const std::string& delim) {
+std::shared_ptr<DB> OpenNormalDb(char delim_char) {
   DB* db;
   Options options;
   options.create_if_missing = true;
-  MergeOperator* mergeOperator;
-  if (delim.size() == 1) {
-    mergeOperator = new StringAppendOperator(delim[0]);
-  } else {
-    mergeOperator = new StringAppendOperator(delim);
-  }
-  options.merge_operator.reset(mergeOperator);
+  options.merge_operator.reset(new StringAppendOperator(delim_char));
   EXPECT_OK(DB::Open(options, kDbName, &db));
   return std::shared_ptr<DB>(db);
 }
 
 #ifndef ROCKSDB_LITE  // TtlDb is not supported in Lite
 // Open a TtlDB with a non-associative StringAppendTESTOperator
-std::shared_ptr<DB> OpenTtlDb(const std::string& delim) {
+std::shared_ptr<DB> OpenTtlDb(char delim_char) {
   DBWithTTL* db;
   Options options;
   options.create_if_missing = true;
-  MergeOperator* mergeOperator;
-  if (delim.size() == 1) {
-    mergeOperator = new StringAppendTESTOperator(delim[0]);
-  } else {
-    mergeOperator = new StringAppendTESTOperator(delim);
-  }
-  options.merge_operator.reset(mergeOperator);
+  options.merge_operator.reset(new StringAppendTESTOperator(delim_char));
   EXPECT_OK(DBWithTTL::Open(options, kDbName, &db, 123456));
   return std::shared_ptr<DB>(db);
 }
@@ -128,28 +108,13 @@ class StringLists {
 
 
 // The class for unit-testing
-class StringAppendOperatorTest : public testing::Test,
-                                 public ::testing::WithParamInterface<bool> {
+class StringAppendOperatorTest : public testing::Test {
  public:
   StringAppendOperatorTest() {
-    EXPECT_OK(
-        DestroyDB(kDbName, Options()));  // Start each test with a fresh DB
+    DestroyDB(kDbName, Options());    // Start each test with a fresh DB
   }
 
-  void SetUp() override {
-#ifndef ROCKSDB_LITE  // TtlDb is not supported in Lite
-    bool if_use_ttl = GetParam();
-    if (if_use_ttl) {
-      fprintf(stderr, "Running tests with ttl db and generic operator.\n");
-      StringAppendOperatorTest::SetOpenDbFunction(&OpenTtlDb);
-      return;
-    }
-#endif  // !ROCKSDB_LITE
-    fprintf(stderr, "Running tests with regular db and operator.\n");
-    StringAppendOperatorTest::SetOpenDbFunction(&OpenNormalDb);
-  }
-
-  using OpenFuncPtr = std::shared_ptr<DB> (*)(const std::string&);
+  typedef std::shared_ptr<DB> (* OpenFuncPtr)(char);
 
   // Allows user to open databases with different configurations.
   // e.g.: Can open a DB or a TtlDB, etc.
@@ -164,8 +129,8 @@ StringAppendOperatorTest::OpenFuncPtr StringAppendOperatorTest::OpenDb = nullptr
 
 // THE TEST CASES BEGIN HERE
 
-TEST_P(StringAppendOperatorTest, IteratorTest) {
-  auto db_ = OpenDb(",");
+TEST_F(StringAppendOperatorTest, IteratorTest) {
+  auto db_ = OpenDb(',');
   StringLists slists(db_);
 
   slists.Append("k1", "v1");
@@ -255,10 +220,11 @@ TEST_P(StringAppendOperatorTest, IteratorTest) {
       ASSERT_EQ(res, "g1");
     }
   }
+
 }
 
-TEST_P(StringAppendOperatorTest, SimpleTest) {
-  auto db = OpenDb(",");
+TEST_F(StringAppendOperatorTest, SimpleTest) {
+  auto db = OpenDb(',');
   StringLists slists(db);
 
   slists.Append("k1", "v1");
@@ -266,12 +232,14 @@ TEST_P(StringAppendOperatorTest, SimpleTest) {
   slists.Append("k1", "v3");
 
   std::string res;
-  ASSERT_TRUE(slists.Get("k1", &res));
+  bool status = slists.Get("k1", &res);
+
+  ASSERT_TRUE(status);
   ASSERT_EQ(res, "v1,v2,v3");
 }
 
-TEST_P(StringAppendOperatorTest, SimpleDelimiterTest) {
-  auto db = OpenDb("|");
+TEST_F(StringAppendOperatorTest, SimpleDelimiterTest) {
+  auto db = OpenDb('|');
   StringLists slists(db);
 
   slists.Append("k1", "v1");
@@ -279,64 +247,23 @@ TEST_P(StringAppendOperatorTest, SimpleDelimiterTest) {
   slists.Append("k1", "v3");
 
   std::string res;
-  ASSERT_TRUE(slists.Get("k1", &res));
+  slists.Get("k1", &res);
   ASSERT_EQ(res, "v1|v2|v3");
 }
 
-TEST_P(StringAppendOperatorTest, EmptyDelimiterTest) {
-  auto db = OpenDb("");
-  StringLists slists(db);
-
-  slists.Append("k1", "v1");
-  slists.Append("k1", "v2");
-  slists.Append("k1", "v3");
-
-  std::string res;
-  ASSERT_TRUE(slists.Get("k1", &res));
-  ASSERT_EQ(res, "v1v2v3");
-}
-
-TEST_P(StringAppendOperatorTest, MultiCharDelimiterTest) {
-  auto db = OpenDb("<>");
-  StringLists slists(db);
-
-  slists.Append("k1", "v1");
-  slists.Append("k1", "v2");
-  slists.Append("k1", "v3");
-
-  std::string res;
-  ASSERT_TRUE(slists.Get("k1", &res));
-  ASSERT_EQ(res, "v1<>v2<>v3");
-}
-
-TEST_P(StringAppendOperatorTest, DelimiterIsDefensivelyCopiedTest) {
-  std::string delimiter = "<>";
-  auto db = OpenDb(delimiter);
-  StringLists slists(db);
-
-  slists.Append("k1", "v1");
-  slists.Append("k1", "v2");
-  delimiter.clear();
-  slists.Append("k1", "v3");
-
-  std::string res;
-  ASSERT_TRUE(slists.Get("k1", &res));
-  ASSERT_EQ(res, "v1<>v2<>v3");
-}
-
-TEST_P(StringAppendOperatorTest, OneValueNoDelimiterTest) {
-  auto db = OpenDb("!");
+TEST_F(StringAppendOperatorTest, OneValueNoDelimiterTest) {
+  auto db = OpenDb('!');
   StringLists slists(db);
 
   slists.Append("random_key", "single_val");
 
   std::string res;
-  ASSERT_TRUE(slists.Get("random_key", &res));
+  slists.Get("random_key", &res);
   ASSERT_EQ(res, "single_val");
 }
 
-TEST_P(StringAppendOperatorTest, VariousKeys) {
-  auto db = OpenDb("\n");
+TEST_F(StringAppendOperatorTest, VariousKeys) {
+  auto db = OpenDb('\n');
   StringLists slists(db);
 
   slists.Append("c", "asdasd");
@@ -361,8 +288,8 @@ TEST_P(StringAppendOperatorTest, VariousKeys) {
 }
 
 // Generate semi random keys/words from a small distribution.
-TEST_P(StringAppendOperatorTest, RandomMixGetAppend) {
-  auto db = OpenDb(" ");
+TEST_F(StringAppendOperatorTest, RandomMixGetAppend) {
+  auto db = OpenDb(' ');
   StringLists slists(db);
 
   // Generate a list of random keys and values
@@ -409,10 +336,11 @@ TEST_P(StringAppendOperatorTest, RandomMixGetAppend) {
     }
 
   }
+
 }
 
-TEST_P(StringAppendOperatorTest, BIGRandomMixGetAppend) {
-  auto db = OpenDb(" ");
+TEST_F(StringAppendOperatorTest, BIGRandomMixGetAppend) {
+  auto db = OpenDb(' ');
   StringLists slists(db);
 
   // Generate a list of random keys and values
@@ -459,12 +387,13 @@ TEST_P(StringAppendOperatorTest, BIGRandomMixGetAppend) {
     }
 
   }
+
 }
 
-TEST_P(StringAppendOperatorTest, PersistentVariousKeys) {
+TEST_F(StringAppendOperatorTest, PersistentVariousKeys) {
   // Perform the following operations in limited scope
   {
-    auto db = OpenDb("\n");
+    auto db = OpenDb('\n');
     StringLists slists(db);
 
     slists.Append("c", "asdasd");
@@ -476,9 +405,9 @@ TEST_P(StringAppendOperatorTest, PersistentVariousKeys) {
     slists.Append("c", "asdasd");
 
     std::string a, b, c;
-    ASSERT_TRUE(slists.Get("a", &a));
-    ASSERT_TRUE(slists.Get("b", &b));
-    ASSERT_TRUE(slists.Get("c", &c));
+    slists.Get("a", &a);
+    slists.Get("b", &b);
+    slists.Get("c", &c);
 
     ASSERT_EQ(a, "x\nt\nr");
     ASSERT_EQ(b, "y\n2");
@@ -487,7 +416,7 @@ TEST_P(StringAppendOperatorTest, PersistentVariousKeys) {
 
   // Reopen the database (the previous changes should persist / be remembered)
   {
-    auto db = OpenDb("\n");
+    auto db = OpenDb('\n');
     StringLists slists(db);
 
     slists.Append("c", "bbnagnagsx");
@@ -502,9 +431,9 @@ TEST_P(StringAppendOperatorTest, PersistentVariousKeys) {
     // The most recent changes should be in memory (MemTable)
     // Hence, this will test both Get() paths.
     std::string a, b, c;
-    ASSERT_TRUE(slists.Get("a", &a));
-    ASSERT_TRUE(slists.Get("b", &b));
-    ASSERT_TRUE(slists.Get("c", &c));
+    slists.Get("a", &a);
+    slists.Get("b", &b);
+    slists.Get("c", &c);
 
     ASSERT_EQ(a, "x\nt\nr\nsa\ngh\njk");
     ASSERT_EQ(b, "y\n2\ndf\nl;");
@@ -513,14 +442,14 @@ TEST_P(StringAppendOperatorTest, PersistentVariousKeys) {
 
   // Reopen the database (the previous changes should persist / be remembered)
   {
-    auto db = OpenDb("\n");
+    auto db = OpenDb('\n');
     StringLists slists(db);
 
     // All changes should be on disk. This will test VersionSet Get()
     std::string a, b, c;
-    ASSERT_TRUE(slists.Get("a", &a));
-    ASSERT_TRUE(slists.Get("b", &b));
-    ASSERT_TRUE(slists.Get("c", &c));
+    slists.Get("a", &a);
+    slists.Get("b", &b);
+    slists.Get("c", &c);
 
     ASSERT_EQ(a, "x\nt\nr\nsa\ngh\njk");
     ASSERT_EQ(b, "y\n2\ndf\nl;");
@@ -528,40 +457,47 @@ TEST_P(StringAppendOperatorTest, PersistentVariousKeys) {
   }
 }
 
-TEST_P(StringAppendOperatorTest, PersistentFlushAndCompaction) {
+TEST_F(StringAppendOperatorTest, PersistentFlushAndCompaction) {
   // Perform the following operations in limited scope
   {
-    auto db = OpenDb("\n");
+    auto db = OpenDb('\n');
     StringLists slists(db);
     std::string a, b, c;
+    bool success;
 
     // Append, Flush, Get
     slists.Append("c", "asdasd");
-    ASSERT_OK(db->Flush(ROCKSDB_NAMESPACE::FlushOptions()));
-    ASSERT_TRUE(slists.Get("c", &c));
+    db->Flush(ROCKSDB_NAMESPACE::FlushOptions());
+    success = slists.Get("c", &c);
+    ASSERT_TRUE(success);
     ASSERT_EQ(c, "asdasd");
 
     // Append, Flush, Append, Get
     slists.Append("a", "x");
     slists.Append("b", "y");
-    ASSERT_OK(db->Flush(ROCKSDB_NAMESPACE::FlushOptions()));
+    db->Flush(ROCKSDB_NAMESPACE::FlushOptions());
     slists.Append("a", "t");
     slists.Append("a", "r");
     slists.Append("b", "2");
 
-    ASSERT_TRUE(slists.Get("a", &a));
+    success = slists.Get("a", &a);
+    assert(success == true);
     ASSERT_EQ(a, "x\nt\nr");
 
-    ASSERT_TRUE(slists.Get("b", &b));
+    success = slists.Get("b", &b);
+    assert(success == true);
     ASSERT_EQ(b, "y\n2");
 
     // Append, Get
-    ASSERT_TRUE(slists.Append("c", "asdasd"));
-    ASSERT_TRUE(slists.Append("b", "monkey"));
+    success = slists.Append("c", "asdasd");
+    assert(success);
+    success = slists.Append("b", "monkey");
+    assert(success);
 
-    ASSERT_TRUE(slists.Get("a", &a));
-    ASSERT_TRUE(slists.Get("b", &b));
-    ASSERT_TRUE(slists.Get("c", &c));
+    // I omit the "assert(success)" checks here.
+    slists.Get("a", &a);
+    slists.Get("b", &b);
+    slists.Get("c", &c);
 
     ASSERT_EQ(a, "x\nt\nr");
     ASSERT_EQ(b, "y\n2\nmonkey");
@@ -570,22 +506,22 @@ TEST_P(StringAppendOperatorTest, PersistentFlushAndCompaction) {
 
   // Reopen the database (the previous changes should persist / be remembered)
   {
-    auto db = OpenDb("\n");
+    auto db = OpenDb('\n');
     StringLists slists(db);
     std::string a, b, c;
 
     // Get (Quick check for persistence of previous database)
-    ASSERT_TRUE(slists.Get("a", &a));
+    slists.Get("a", &a);
     ASSERT_EQ(a, "x\nt\nr");
 
     //Append, Compact, Get
     slists.Append("c", "bbnagnagsx");
     slists.Append("a", "sa");
     slists.Append("b", "df");
-    ASSERT_OK(db->CompactRange(CompactRangeOptions(), nullptr, nullptr));
-    ASSERT_TRUE(slists.Get("a", &a));
-    ASSERT_TRUE(slists.Get("b", &b));
-    ASSERT_TRUE(slists.Get("c", &c));
+    db->CompactRange(CompactRangeOptions(), nullptr, nullptr);
+    slists.Get("a", &a);
+    slists.Get("b", &b);
+    slists.Get("c", &c);
     ASSERT_EQ(a, "x\nt\nr\nsa");
     ASSERT_EQ(b, "y\n2\nmonkey\ndf");
     ASSERT_EQ(c, "asdasd\nasdasd\nbbnagnagsx");
@@ -595,30 +531,30 @@ TEST_P(StringAppendOperatorTest, PersistentFlushAndCompaction) {
     slists.Append("a", "jk");
     slists.Append("b", "l;");
     slists.Append("c", "rogosh");
-    ASSERT_TRUE(slists.Get("a", &a));
-    ASSERT_TRUE(slists.Get("b", &b));
-    ASSERT_TRUE(slists.Get("c", &c));
+    slists.Get("a", &a);
+    slists.Get("b", &b);
+    slists.Get("c", &c);
     ASSERT_EQ(a, "x\nt\nr\nsa\ngh\njk");
     ASSERT_EQ(b, "y\n2\nmonkey\ndf\nl;");
     ASSERT_EQ(c, "asdasd\nasdasd\nbbnagnagsx\nrogosh");
 
     // Compact, Get
-    ASSERT_OK(db->CompactRange(CompactRangeOptions(), nullptr, nullptr));
+    db->CompactRange(CompactRangeOptions(), nullptr, nullptr);
     ASSERT_EQ(a, "x\nt\nr\nsa\ngh\njk");
     ASSERT_EQ(b, "y\n2\nmonkey\ndf\nl;");
     ASSERT_EQ(c, "asdasd\nasdasd\nbbnagnagsx\nrogosh");
 
     // Append, Flush, Compact, Get
     slists.Append("b", "afcg");
-    ASSERT_OK(db->Flush(ROCKSDB_NAMESPACE::FlushOptions()));
-    ASSERT_OK(db->CompactRange(CompactRangeOptions(), nullptr, nullptr));
-    ASSERT_TRUE(slists.Get("b", &b));
+    db->Flush(ROCKSDB_NAMESPACE::FlushOptions());
+    db->CompactRange(CompactRangeOptions(), nullptr, nullptr);
+    slists.Get("b", &b);
     ASSERT_EQ(b, "y\n2\nmonkey\ndf\nl;\nafcg");
   }
 }
 
-TEST_P(StringAppendOperatorTest, SimpleTestNullDelimiter) {
-  auto db = OpenDb(std::string(1, '\0'));
+TEST_F(StringAppendOperatorTest, SimpleTestNullDelimiter) {
+  auto db = OpenDb('\0');
   StringLists slists(db);
 
   slists.Append("k1", "v1");
@@ -626,26 +562,40 @@ TEST_P(StringAppendOperatorTest, SimpleTestNullDelimiter) {
   slists.Append("k1", "v3");
 
   std::string res;
-  ASSERT_TRUE(slists.Get("k1", &res));
+  bool status = slists.Get("k1", &res);
+  ASSERT_TRUE(status);
 
   // Construct the desired string. Default constructor doesn't like '\0' chars.
   std::string checker("v1,v2,v3");    // Verify that the string is right size.
   checker[2] = '\0';                  // Use null delimiter instead of comma.
   checker[5] = '\0';
-  ASSERT_EQ(checker.size(), 8);  // Verify it is still the correct size
+  assert(checker.size() == 8);        // Verify it is still the correct size
 
   // Check that the rocksdb result string matches the desired string
-  ASSERT_EQ(res.size(), checker.size());
+  assert(res.size() == checker.size());
   ASSERT_EQ(res, checker);
 }
-
-INSTANTIATE_TEST_CASE_P(StringAppendOperatorTest, StringAppendOperatorTest,
-                        testing::Bool());
 
 }  // namespace ROCKSDB_NAMESPACE
 
 int main(int argc, char** argv) {
-  ROCKSDB_NAMESPACE::port::InstallStackTraceHandler();
   ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+  // Run with regular database
+  int result;
+  {
+    fprintf(stderr, "Running tests with regular db and operator.\n");
+    StringAppendOperatorTest::SetOpenDbFunction(&OpenNormalDb);
+    result = RUN_ALL_TESTS();
+  }
+
+#ifndef ROCKSDB_LITE  // TtlDb is not supported in Lite
+  // Run with TTL
+  {
+    fprintf(stderr, "Running tests with ttl db and generic operator.\n");
+    StringAppendOperatorTest::SetOpenDbFunction(&OpenTtlDb);
+    result |= RUN_ALL_TESTS();
+  }
+#endif  // !ROCKSDB_LITE
+
+  return result;
 }

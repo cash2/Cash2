@@ -5,10 +5,6 @@
 //
 #pragma once
 
-#include <string>
-
-#include "rocksdb/rocksdb_namespace.h"
-
 #ifdef FAILED
 #undef FAILED
 #endif

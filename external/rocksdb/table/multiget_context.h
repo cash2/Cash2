@@ -7,17 +7,13 @@
 #include <algorithm>
 #include <array>
 #include <string>
-
-#include "db/dbformat.h"
 #include "db/lookup_key.h"
 #include "db/merge_context.h"
 #include "rocksdb/env.h"
 #include "rocksdb/statistics.h"
 #include "rocksdb/types.h"
-#include "util/async_file_reader.h"
 #include "util/autovector.h"
 #include "util/math.h"
-#include "util/single_thread_executor.h"
 
 namespace ROCKSDB_NAMESPACE {
 class GetContext;
@@ -25,15 +21,13 @@ class GetContext;
 struct KeyContext {
   const Slice* key;
   LookupKey* lkey;
-  Slice ukey_with_ts;
-  Slice ukey_without_ts;
+  Slice ukey;
   Slice ikey;
   ColumnFamilyHandle* column_family;
   Status* s;
   MergeContext merge_context;
   SequenceNumber max_covering_tombstone_seq;
   bool key_exists;
-  bool is_blob_index;
   void* cb_arg;
   PinnableSlice* value;
   std::string* timestamp;
@@ -47,7 +41,6 @@ struct KeyContext {
         s(stat),
         max_covering_tombstone_seq(0),
         key_exists(false),
-        is_blob_index(false),
         cb_arg(nullptr),
         value(val),
         timestamp(ts),
@@ -94,33 +87,17 @@ struct KeyContext {
 class MultiGetContext {
  public:
   // Limit the number of keys in a batch to this number. Benchmarks show that
-  // there is negligible benefit for batches exceeding this. Keeping this < 32
+  // there is negligible benefit for batches exceeding this. Keeping this < 64
   // simplifies iteration, as well as reduces the amount of stack allocations
-  // that need to be performed
+  // htat need to be performed
   static const int MAX_BATCH_SIZE = 32;
-
-  // A bitmask of at least MAX_BATCH_SIZE - 1 bits, so that
-  // Mask{1} << MAX_BATCH_SIZE is well defined
-  using Mask = uint64_t;
-  static_assert(MAX_BATCH_SIZE < sizeof(Mask) * 8);
 
   MultiGetContext(autovector<KeyContext*, MAX_BATCH_SIZE>* sorted_keys,
                   size_t begin, size_t num_keys, SequenceNumber snapshot,
-                  const ReadOptions& read_opts, FileSystem* fs,
-                  Statistics* stats)
+                  const ReadOptions& read_opts)
       : num_keys_(num_keys),
         value_mask_(0),
-        value_size_(0),
-        lookup_key_ptr_(reinterpret_cast<LookupKey*>(lookup_key_stack_buf))
-#if USE_COROUTINES
-        ,
-        reader_(fs, stats),
-        executor_(reader_)
-#endif  // USE_COROUTINES
-  {
-    (void)fs;
-    (void)stats;
-    assert(num_keys <= MAX_BATCH_SIZE);
+        lookup_key_ptr_(reinterpret_cast<LookupKey*>(lookup_key_stack_buf)) {
     if (num_keys > MAX_LOOKUP_KEYS_ON_STACK) {
       lookup_key_heap_buf.reset(new char[sizeof(LookupKey) * num_keys]);
       lookup_key_ptr_ = reinterpret_cast<LookupKey*>(
@@ -132,14 +109,8 @@ class MultiGetContext {
       sorted_keys_[iter] = (*sorted_keys)[begin + iter];
       sorted_keys_[iter]->lkey = new (&lookup_key_ptr_[iter])
           LookupKey(*sorted_keys_[iter]->key, snapshot, read_opts.timestamp);
-      sorted_keys_[iter]->ukey_with_ts = sorted_keys_[iter]->lkey->user_key();
-      sorted_keys_[iter]->ukey_without_ts = StripTimestampFromUserKey(
-          sorted_keys_[iter]->lkey->user_key(),
-          read_opts.timestamp == nullptr ? 0 : read_opts.timestamp->size());
+      sorted_keys_[iter]->ukey = sorted_keys_[iter]->lkey->user_key();
       sorted_keys_[iter]->ikey = sorted_keys_[iter]->lkey->internal_key();
-      sorted_keys_[iter]->timestamp = (*sorted_keys)[begin + iter]->timestamp;
-      sorted_keys_[iter]->get_context =
-          (*sorted_keys)[begin + iter]->get_context;
     }
   }
 
@@ -149,26 +120,15 @@ class MultiGetContext {
     }
   }
 
-#if USE_COROUTINES
-  SingleThreadExecutor& executor() { return executor_; }
-
-  AsyncFileReader& reader() { return reader_; }
-#endif  // USE_COROUTINES
-
  private:
   static const int MAX_LOOKUP_KEYS_ON_STACK = 16;
   alignas(alignof(LookupKey))
     char lookup_key_stack_buf[sizeof(LookupKey) * MAX_LOOKUP_KEYS_ON_STACK];
   std::array<KeyContext*, MAX_BATCH_SIZE> sorted_keys_;
   size_t num_keys_;
-  Mask value_mask_;
-  uint64_t value_size_;
+  uint64_t value_mask_;
   std::unique_ptr<char[]> lookup_key_heap_buf;
   LookupKey* lookup_key_ptr_;
-#if USE_COROUTINES
-  AsyncFileReader reader_;
-  SingleThreadExecutor executor_;
-#endif  // USE_COROUTINES
 
  public:
   // MultiGetContext::Range - Specifies a range of keys, by start and end index,
@@ -188,35 +148,28 @@ class MultiGetContext {
     class Iterator {
      public:
       // -- iterator traits
-      using self_type = Iterator;
-      using value_type = KeyContext;
-      using reference = KeyContext&;
-      using pointer = KeyContext*;
-      using difference_type = int;
-      using iterator_category = std::forward_iterator_tag;
+      typedef Iterator self_type;
+      typedef KeyContext value_type;
+      typedef KeyContext& reference;
+      typedef KeyContext* pointer;
+      typedef int difference_type;
+      typedef std::forward_iterator_tag iterator_category;
 
       Iterator(const Range* range, size_t idx)
           : range_(range), ctx_(range->ctx_), index_(idx) {
         while (index_ < range_->end_ &&
-               (Mask{1} << index_) &
-                   (range_->ctx_->value_mask_ | range_->skip_mask_ |
-                    range_->invalid_mask_))
+               (uint64_t{1} << index_) &
+                   (range_->ctx_->value_mask_ | range_->skip_mask_))
           index_++;
       }
 
       Iterator(const Iterator&) = default;
-
-      Iterator(const Iterator& other, const Range* range)
-          : range_(range), ctx_(other.ctx_), index_(other.index_) {
-        assert(range->ctx_ == other.ctx_);
-      }
       Iterator& operator=(const Iterator&) = default;
 
       Iterator& operator++() {
         while (++index_ < range_->end_ &&
-               (Mask{1} << index_) &
-                   (range_->ctx_->value_mask_ | range_->skip_mask_ |
-                    range_->invalid_mask_))
+               (uint64_t{1} << index_) &
+                   (range_->ctx_->value_mask_ | range_->skip_mask_))
           ;
         return *this;
       }
@@ -254,17 +207,9 @@ class MultiGetContext {
           const Iterator& first,
           const Iterator& last) {
       ctx_ = mget_range.ctx_;
-      if (first == last) {
-        // This means create an empty range based on mget_range. So just
-        // set start_ and and_ to the same value
-        start_ = mget_range.start_;
-        end_ = start_;
-      } else {
-        start_ = first.index_;
-        end_ = last.index_;
-      }
+      start_ = first.index_;
+      end_ = last.index_;
       skip_mask_ = mget_range.skip_mask_;
-      invalid_mask_ = mget_range.invalid_mask_;
       assert(start_ < 64);
       assert(end_ < 64);
     }
@@ -277,22 +222,18 @@ class MultiGetContext {
 
     bool empty() const { return RemainingMask() == 0; }
 
-    void SkipIndex(size_t index) { skip_mask_ |= Mask{1} << index; }
-
-    void SkipKey(const Iterator& iter) { SkipIndex(iter.index_); }
-
-    bool IsKeySkipped(const Iterator& iter) const {
-      return skip_mask_ & (Mask{1} << iter.index_);
+    void SkipKey(const Iterator& iter) {
+      skip_mask_ |= uint64_t{1} << iter.index_;
     }
 
     // Update the value_mask_ in MultiGetContext so its
     // immediately reflected in all the Range Iterators
     void MarkKeyDone(Iterator& iter) {
-      ctx_->value_mask_ |= (Mask{1} << iter.index_);
+      ctx_->value_mask_ |= (uint64_t{1} << iter.index_);
     }
 
     bool CheckKeyDone(Iterator& iter) const {
-      return ctx_->value_mask_ & (Mask{1} << iter.index_);
+      return ctx_->value_mask_ & (uint64_t{1} << iter.index_);
     }
 
     uint64_t KeysLeft() const { return BitsSetToOne(RemainingMask()); }
@@ -302,97 +243,21 @@ class MultiGetContext {
       skip_mask_ |= other.skip_mask_;
     }
 
-    uint64_t GetValueSize() { return ctx_->value_size_; }
-
-    void AddValueSize(uint64_t value_size) { ctx_->value_size_ += value_size; }
-
-    MultiGetContext* context() const { return ctx_; }
-
-    Range Suffix(const Range& other) const {
-      size_t other_last = other.FindLastRemaining();
-      size_t my_last = FindLastRemaining();
-
-      if (my_last > other_last) {
-        return Range(*this, Iterator(this, other_last),
-                     Iterator(this, my_last));
-      } else {
-        return Range(*this, begin(), begin());
-      }
-    }
-
-    // The += operator expands the number of keys in this range. The expansion
-    // is always to the right, i.e start of the additional range >= end of
-    // current range. There should be no overlap. Any skipped keys in rhs are
-    // marked as invalid in the invalid_mask_.
-    Range& operator+=(const Range& rhs) {
-      assert(rhs.start_ >= end_);
-      // Check for non-overlapping ranges and adjust invalid_mask_ accordingly
-      if (end_ < rhs.start_) {
-        invalid_mask_ |= RangeMask(end_, rhs.start_);
-        skip_mask_ |= RangeMask(end_, rhs.start_);
-      }
-      start_ = std::min<size_t>(start_, rhs.start_);
-      end_ = std::max<size_t>(end_, rhs.end_);
-      skip_mask_ |= rhs.skip_mask_ & RangeMask(rhs.start_, rhs.end_);
-      invalid_mask_ |= (rhs.invalid_mask_ | rhs.skip_mask_) &
-                       RangeMask(rhs.start_, rhs.end_);
-      assert(start_ < 64);
-      assert(end_ < 64);
-      return *this;
-    }
-
-    // The -= operator removes keys from this range. The removed keys should
-    // come from a range completely overlapping the current range. The removed
-    // keys are marked invalid in the invalid_mask_.
-    Range& operator-=(const Range& rhs) {
-      assert(start_ <= rhs.start_ && end_ >= rhs.end_);
-      skip_mask_ |= (~rhs.skip_mask_ | rhs.invalid_mask_) &
-                    RangeMask(rhs.start_, rhs.end_);
-      invalid_mask_ |= (~rhs.skip_mask_ | rhs.invalid_mask_) &
-                       RangeMask(rhs.start_, rhs.end_);
-      return *this;
-    }
-
-    // Return a complement of the current range
-    Range operator~() {
-      Range res = *this;
-      res.skip_mask_ = ~skip_mask_ & RangeMask(start_, end_);
-      return res;
-    }
-
    private:
     friend MultiGetContext;
     MultiGetContext* ctx_;
     size_t start_;
     size_t end_;
-    Mask skip_mask_;
-    Mask invalid_mask_;
+    uint64_t skip_mask_;
 
     Range(MultiGetContext* ctx, size_t num_keys)
-        : ctx_(ctx),
-          start_(0),
-          end_(num_keys),
-          skip_mask_(0),
-          invalid_mask_(0) {
+        : ctx_(ctx), start_(0), end_(num_keys), skip_mask_(0) {
       assert(num_keys < 64);
     }
 
-    static Mask RangeMask(size_t start, size_t end) {
-      return (((Mask{1} << (end - start)) - 1) << start);
-    }
-
-    Mask RemainingMask() const {
-      return (((Mask{1} << end_) - 1) & ~((Mask{1} << start_) - 1) &
+    uint64_t RemainingMask() const {
+      return (((uint64_t{1} << end_) - 1) & ~((uint64_t{1} << start_) - 1) &
               ~(ctx_->value_mask_ | skip_mask_));
-    }
-
-    size_t FindLastRemaining() const {
-      Mask mask = RemainingMask();
-      size_t index = (mask >>= start_) ? start_ : 0;
-      while (mask >>= 1) {
-        index++;
-      }
-      return index;
     }
   };
 

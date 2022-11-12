@@ -12,6 +12,7 @@
 #include <string>
 #include <stdint.h>
 
+#include "db/dbformat.h"
 #include "file/random_access_file_reader.h"
 #include "memory/arena.h"
 #include "rocksdb/env.h"
@@ -66,7 +67,7 @@ class PlainTableReader: public TableReader {
 // whether it points to the data offset of the first key with the key prefix
 // or the offset of it. If there are too many keys share this prefix, it will
 // create a binary search-able index from the suffix to offset on disk.
-  static Status Open(const ImmutableOptions& ioptions,
+  static Status Open(const ImmutableCFOptions& ioptions,
                      const EnvOptions& env_options,
                      const InternalKeyComparator& internal_comparator,
                      std::unique_ptr<RandomAccessFileReader>&& file,
@@ -109,7 +110,7 @@ class PlainTableReader: public TableReader {
     return arena_.MemoryAllocatedBytes();
   }
 
-  PlainTableReader(const ImmutableOptions& ioptions,
+  PlainTableReader(const ImmutableCFOptions& ioptions,
                    std::unique_ptr<RandomAccessFileReader>&& file,
                    const EnvOptions& env_options,
                    const InternalKeyComparator& internal_comparator,
@@ -162,7 +163,7 @@ class PlainTableReader: public TableReader {
   CacheAllocationPtr index_block_alloc_;
   CacheAllocationPtr bloom_block_alloc_;
 
-  const ImmutableOptions& ioptions_;
+  const ImmutableCFOptions& ioptions_;
   std::unique_ptr<Cleanable> dummy_cleanable_;
   uint64_t file_size_;
  protected: // for testing
@@ -179,11 +180,15 @@ class PlainTableReader: public TableReader {
 
   Slice GetPrefix(const Slice& target) const {
     assert(target.size() >= 8);  // target is internal key
-    return GetPrefixFromUserKey(ExtractUserKey(target));
+    return GetPrefixFromUserKey(GetUserKey(target));
   }
 
   Slice GetPrefix(const ParsedInternalKey& target) const {
     return GetPrefixFromUserKey(target.user_key);
+  }
+
+  Slice GetUserKey(const Slice& key) const {
+    return Slice(key.data(), key.size() - 8);
   }
 
   Slice GetPrefixFromUserKey(const Slice& user_key) const {

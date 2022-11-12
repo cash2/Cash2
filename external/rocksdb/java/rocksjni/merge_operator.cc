@@ -7,12 +7,9 @@
 // This file implements the "bridge" between Java and C++
 // for ROCKSDB_NAMESPACE::MergeOperator.
 
-#include "rocksdb/merge_operator.h"
-
 #include <jni.h>
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <memory>
 #include <string>
 
@@ -20,11 +17,11 @@
 #include "include/org_rocksdb_UInt64AddOperator.h"
 #include "rocksdb/db.h"
 #include "rocksdb/memtablerep.h"
+#include "rocksdb/merge_operator.h"
 #include "rocksdb/options.h"
 #include "rocksdb/slice_transform.h"
 #include "rocksdb/statistics.h"
 #include "rocksdb/table.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 #include "rocksjni/portal.h"
 #include "utilities/merge_operators.h"
 
@@ -33,27 +30,13 @@
  * Method:    newSharedStringAppendOperator
  * Signature: (C)J
  */
-jlong Java_org_rocksdb_StringAppendOperator_newSharedStringAppendOperator__C(
+jlong Java_org_rocksdb_StringAppendOperator_newSharedStringAppendOperator(
     JNIEnv* /*env*/, jclass /*jclazz*/, jchar jdelim) {
   auto* sptr_string_append_op =
       new std::shared_ptr<ROCKSDB_NAMESPACE::MergeOperator>(
           ROCKSDB_NAMESPACE::MergeOperators::CreateStringAppendOperator(
               (char)jdelim));
-  return GET_CPLUSPLUS_POINTER(sptr_string_append_op);
-}
-
-jlong Java_org_rocksdb_StringAppendOperator_newSharedStringAppendOperator__Ljava_lang_String_2(
-    JNIEnv* env, jclass /*jclass*/, jstring jdelim) {
-  jboolean has_exception = JNI_FALSE;
-  auto delim =
-      ROCKSDB_NAMESPACE::JniUtil::copyStdString(env, jdelim, &has_exception);
-  if (has_exception == JNI_TRUE) {
-    return 0;
-  }
-  auto* sptr_string_append_op =
-      new std::shared_ptr<ROCKSDB_NAMESPACE::MergeOperator>(
-          ROCKSDB_NAMESPACE::MergeOperators::CreateStringAppendOperator(delim));
-  return GET_CPLUSPLUS_POINTER(sptr_string_append_op);
+  return reinterpret_cast<jlong>(sptr_string_append_op);
 }
 
 /*
@@ -80,7 +63,7 @@ jlong Java_org_rocksdb_UInt64AddOperator_newSharedUInt64AddOperator(
   auto* sptr_uint64_add_op =
       new std::shared_ptr<ROCKSDB_NAMESPACE::MergeOperator>(
           ROCKSDB_NAMESPACE::MergeOperators::CreateUInt64AddOperator());
-  return GET_CPLUSPLUS_POINTER(sptr_uint64_add_op);
+  return reinterpret_cast<jlong>(sptr_uint64_add_op);
 }
 
 /*

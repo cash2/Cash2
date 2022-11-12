@@ -7,8 +7,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#if defined(OS_WIN)
-
 #include "port/win/xpress_win.h"
 #include <windows.h>
 
@@ -129,9 +127,10 @@ bool Compress(const char* input, size_t length, std::string* output) {
 }
 
 char* Decompress(const char* input_data, size_t input_length,
-                 size_t* uncompressed_size) {
+  int* decompress_size) {
+
   assert(input_data != nullptr);
-  assert(uncompressed_size != nullptr);
+  assert(decompress_size != nullptr);
 
   if (input_length == 0) {
     return nullptr;
@@ -184,6 +183,14 @@ char* Decompress(const char* input_data, size_t input_length,
 
   assert(decompressedBufferSize > 0);
 
+  // On Windows we are limited to a 32-bit int for the
+  // output data size argument
+  // so we hopefully never get here
+  if (decompressedBufferSize > std::numeric_limits<int>::max()) {
+    assert(false);
+    return nullptr;
+  }
+
   // The callers are deallocating using delete[]
   // thus we must allocate with new[]
   std::unique_ptr<char[]> outputBuffer(new char[decompressedBufferSize]);
@@ -207,7 +214,7 @@ char* Decompress(const char* input_data, size_t input_length,
     return nullptr;
   }
 
-  *uncompressed_size = decompressedDataSize;
+  *decompress_size = static_cast<int>(decompressedDataSize);
 
   // Return the raw buffer to the caller supporting the tradition
   return outputBuffer.release();
@@ -215,7 +222,5 @@ char* Decompress(const char* input_data, size_t input_length,
 }
 }
 }  // namespace ROCKSDB_NAMESPACE
-
-#endif
 
 #endif

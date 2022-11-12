@@ -23,6 +23,8 @@
 
 #define __declspec(S)
 
+#define ROCKSDB_NOEXCEPT noexcept
+
 #undef PLATFORM_IS_LITTLE_ENDIAN
 #if defined(OS_MACOSX)
   #include <machine/endian.h>
@@ -88,6 +90,16 @@ namespace ROCKSDB_NAMESPACE {
 extern const bool kDefaultToAdaptiveMutex;
 
 namespace port {
+
+// For use at db/file_indexer.h kLevelMaxIndex
+const uint32_t kMaxUint32 = std::numeric_limits<uint32_t>::max();
+const int kMaxInt32 = std::numeric_limits<int32_t>::max();
+const int kMinInt32 = std::numeric_limits<int32_t>::min();
+const uint64_t kMaxUint64 = std::numeric_limits<uint64_t>::max();
+const int64_t kMaxInt64 = std::numeric_limits<int64_t>::max();
+const int64_t kMinInt64 = std::numeric_limits<int64_t>::min();
+const size_t kMaxSizet = std::numeric_limits<size_t>::max();
+
 constexpr bool kLittleEndian = PLATFORM_IS_LITTLE_ENDIAN;
 #undef PLATFORM_IS_LITTLE_ENDIAN
 
@@ -95,8 +107,6 @@ class CondVar;
 
 class Mutex {
  public:
-  static const char* kName() { return "pthread_mutex_t"; }
-
   explicit Mutex(bool adaptive = kDefaultToAdaptiveMutex);
   // No copying
   Mutex(const Mutex&) = delete;
@@ -106,23 +116,15 @@ class Mutex {
 
   void Lock();
   void Unlock();
-
-  bool TryLock();
-
   // this will assert if the mutex is not locked
   // it does NOT verify that mutex is held by a calling thread
   void AssertHeld();
-
-  // Also implement std Lockable
-  inline void lock() { Lock(); }
-  inline void unlock() { Unlock(); }
-  inline bool try_lock() { return TryLock(); }
 
  private:
   friend class CondVar;
   pthread_mutex_t mu_;
 #ifndef NDEBUG
-  bool locked_ = false;
+  bool locked_;
 #endif
 };
 
@@ -165,7 +167,7 @@ static inline void AsmVolatilePause() {
 #if defined(__i386__) || defined(__x86_64__)
   asm volatile("pause");
 #elif defined(__aarch64__)
-  asm volatile("isb");
+  asm volatile("wfe");
 #elif defined(__powerpc64__)
   asm volatile("or 27,27,27");
 #endif
@@ -175,7 +177,7 @@ static inline void AsmVolatilePause() {
 // Returns -1 if not available on this platform
 extern int PhysicalCoreID();
 
-using OnceType = pthread_once_t;
+typedef pthread_once_t OnceType;
 #define LEVELDB_ONCE_INIT PTHREAD_ONCE_INIT
 extern void InitOnce(OnceType* once, void (*initializer)());
 
@@ -188,11 +190,7 @@ extern void InitOnce(OnceType* once, void (*initializer)());
 #define ALIGN_AS(n) /*empty*/
 #else
 #if defined(__s390__)
-#if defined(__GNUC__) && __GNUC__ < 7
-#define CACHE_LINE_SIZE 64U
-#else
 #define CACHE_LINE_SIZE 256U
-#endif
 #elif defined(__powerpc__) || defined(__aarch64__)
 #define CACHE_LINE_SIZE 128U
 #else
@@ -209,16 +207,7 @@ extern void *cacheline_aligned_alloc(size_t size);
 
 extern void cacheline_aligned_free(void *memblock);
 
-#if defined(__aarch64__)
-//  __builtin_prefetch(..., 1) turns into a prefetch into prfm pldl3keep. On
-// arm64 we want this as close to the core as possible to turn it into a
-// L1 prefetech unless locality == 0 in which case it will be turned into a
-// non-temporal prefetch
-#define PREFETCH(addr, rw, locality) \
-  __builtin_prefetch(addr, rw, locality >= 1 ? 3 : locality)
-#else
 #define PREFETCH(addr, rw, locality) __builtin_prefetch(addr, rw, locality)
-#endif
 
 extern void Crash(const std::string& srcfile, int srcline);
 
@@ -229,12 +218,6 @@ extern const size_t kPageSize;
 using ThreadId = pid_t;
 
 extern void SetCpuPriority(ThreadId id, CpuPriority priority);
-
-int64_t GetProcessID();
-
-// Uses platform APIs to generate a 36-character RFC-4122 UUID. Returns
-// true on success or false on failure.
-bool GenerateRfcUuid(std::string* output);
 
 } // namespace port
 }  // namespace ROCKSDB_NAMESPACE

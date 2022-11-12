@@ -36,14 +36,16 @@ public abstract class AbstractImmutableNativeReference
    * freeing the underlying native C++ object
    * <p>
    * This will prevent the object from attempting to delete the underlying
-   * native object in {@code close()}. This must be used when another object
+   * native object in its finalizer. This must be used when another object
    * takes over ownership of the native object or both will attempt to delete
-   * the underlying object when closed.
+   * the underlying object when garbage collected.
    * <p>
-   * When {@code disOwnNativeHandle()} is called, {@code close()} will
+   * When {@code disOwnNativeHandle()} is called, {@code dispose()} will
    * subsequently take no action. As a result, incorrect use of this function
    * may cause a memory leak.
    * </p>
+   *
+   * @see #dispose()
    */
   protected final void disOwnNativeHandle() {
     owningHandle_.set(false);
@@ -57,7 +59,7 @@ public abstract class AbstractImmutableNativeReference
   }
 
   /**
-   * The helper function of {@link AbstractImmutableNativeReference#close()}
+   * The helper function of {@link AbstractImmutableNativeReference#dispose()}
    * which all subclasses of {@code AbstractImmutableNativeReference} must
    * implement to release their underlying native C++ objects.
    */

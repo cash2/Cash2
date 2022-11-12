@@ -3,13 +3,12 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "rocksdb/write_buffer_manager.h"
-
 #include <jni.h>
 
 #include "include/org_rocksdb_WriteBufferManager.h"
+
 #include "rocksdb/cache.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
+#include "rocksdb/write_buffer_manager.h"
 
 /*
  * Class:     org_rocksdb_WriteBufferManager
@@ -17,16 +16,15 @@
  * Signature: (JJ)J
  */
 jlong Java_org_rocksdb_WriteBufferManager_newWriteBufferManager(
-    JNIEnv* /*env*/, jclass /*jclazz*/, jlong jbuffer_size, jlong jcache_handle,
-    jboolean allow_stall) {
+        JNIEnv* /*env*/, jclass /*jclazz*/, jlong jbuffer_size, jlong jcache_handle) {
   auto* cache_ptr =
       reinterpret_cast<std::shared_ptr<ROCKSDB_NAMESPACE::Cache>*>(
           jcache_handle);
   auto* write_buffer_manager =
       new std::shared_ptr<ROCKSDB_NAMESPACE::WriteBufferManager>(
-          std::make_shared<ROCKSDB_NAMESPACE::WriteBufferManager>(
-              jbuffer_size, *cache_ptr, allow_stall));
-  return GET_CPLUSPLUS_POINTER(write_buffer_manager);
+          std::make_shared<ROCKSDB_NAMESPACE::WriteBufferManager>(jbuffer_size,
+                                                                  *cache_ptr));
+  return reinterpret_cast<jlong>(write_buffer_manager);
 }
 
 /*

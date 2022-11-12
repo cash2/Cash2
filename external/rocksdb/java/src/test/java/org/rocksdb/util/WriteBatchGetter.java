@@ -131,9 +131,4 @@ public class WriteBatchGetter extends WriteBatch.Handler {
   public void markCommit(final byte[] xid) throws RocksDBException {
     throw new UnsupportedOperationException();
   }
-
-  @Override
-  public void markCommitWithTimestamp(final byte[] xid, final byte[] ts) throws RocksDBException {
-    throw new UnsupportedOperationException();
-  }
 }

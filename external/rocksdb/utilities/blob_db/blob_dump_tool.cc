@@ -5,19 +5,17 @@
 #ifndef ROCKSDB_LITE
 
 #include "utilities/blob_db/blob_dump_tool.h"
-
 #include <stdio.h>
-
 #include <cinttypes>
 #include <iostream>
 #include <memory>
 #include <string>
-
+#include "env/composite_env_wrapper.h"
 #include "file/random_access_file_reader.h"
 #include "file/readahead_raf.h"
 #include "port/port.h"
 #include "rocksdb/convenience.h"
-#include "rocksdb/file_system.h"
+#include "rocksdb/env.h"
 #include "table/format.h"
 #include "util/coding.h"
 #include "util/string_util.h"
@@ -34,19 +32,18 @@ Status BlobDumpTool::Run(const std::string& filename, DisplayType show_key,
                          bool show_summary) {
   constexpr size_t kReadaheadSize = 2 * 1024 * 1024;
   Status s;
-  const auto fs = FileSystem::Default();
-  IOOptions io_opts;
-  s = fs->FileExists(filename, io_opts, nullptr);
+  Env* env = Env::Default();
+  s = env->FileExists(filename);
   if (!s.ok()) {
     return s;
   }
   uint64_t file_size = 0;
-  s = fs->GetFileSize(filename, io_opts, &file_size, nullptr);
+  s = env->GetFileSize(filename, &file_size);
   if (!s.ok()) {
     return s;
   }
-  std::unique_ptr<FSRandomAccessFile> file;
-  s = fs->NewRandomAccessFile(filename, FileOptions(), &file, nullptr);
+  std::unique_ptr<RandomAccessFile> file;
+  s = env->NewRandomAccessFile(filename, &file, EnvOptions());
   if (!s.ok()) {
     return s;
   }
@@ -54,7 +51,8 @@ Status BlobDumpTool::Run(const std::string& filename, DisplayType show_key,
   if (file_size == 0) {
     return Status::Corruption("File is empty.");
   }
-  reader_.reset(new RandomAccessFileReader(std::move(file), filename));
+  reader_.reset(new RandomAccessFileReader(
+      NewLegacyRandomAccessFileWrapper(file), filename));
   uint64_t offset = 0;
   uint64_t footer_offset = 0;
   CompressionType compression = kNoCompression;
@@ -103,8 +101,8 @@ Status BlobDumpTool::Read(uint64_t offset, size_t size, Slice* result) {
     }
     buffer_.reset(new char[buffer_size_]);
   }
-  Status s = reader_->Read(IOOptions(), offset, size, result, buffer_.get(),
-                           nullptr, Env::IO_TOTAL /* rate_limiter_priority */);
+  Status s =
+      reader_->Read(IOOptions(), offset, size, result, buffer_.get(), nullptr);
   if (!s.ok()) {
     return s;
   }
@@ -134,7 +132,7 @@ Status BlobDumpTool::DumpBlobLogHeader(uint64_t* offset,
   if (!GetStringFromCompressionType(&compression_str, header.compression)
            .ok()) {
     compression_str = "Unrecongnized compression type (" +
-                      std::to_string((int)header.compression) + ")";
+                      ToString((int)header.compression) + ")";
   }
   fprintf(stdout, "  Compression      : %s\n", compression_str.c_str());
   fprintf(stdout, "  Expiration range : %s\n",
@@ -215,7 +213,8 @@ Status BlobDumpTool::DumpRecord(DisplayType show_key, DisplayType show_blob,
                            compression);
     s = UncompressBlockContentsForCompressionType(
         info, slice.data() + key_size, static_cast<size_t>(value_size),
-        &contents, 2 /*compress_format_version*/, ImmutableOptions(Options()));
+        &contents, 2 /*compress_format_version*/,
+        ImmutableCFOptions(Options()));
     if (!s.ok()) {
       return s;
     }
@@ -256,7 +255,7 @@ void BlobDumpTool::DumpSlice(const Slice s, DisplayType type) {
         snprintf(buf + j * 3 + 16, 2, "%x", c & 0xf);
         snprintf(buf + j + 65, 2, "%c", (0x20 <= c && c <= 0x7e) ? c : '.');
       }
-      for (size_t p = 0; p + 1 < sizeof(buf); p++) {
+      for (size_t p = 0; p < sizeof(buf) - 1; p++) {
         if (buf[p] == 0) {
           buf[p] = ' ';
         }
@@ -271,7 +270,7 @@ std::string BlobDumpTool::GetString(std::pair<T, T> p) {
   if (p.first == 0 && p.second == 0) {
     return "nil";
   }
-  return "(" + std::to_string(p.first) + ", " + std::to_string(p.second) + ")";
+  return "(" + ToString(p.first) + ", " + ToString(p.second) + ")";
 }
 
 }  // namespace blob_db

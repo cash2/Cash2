@@ -32,7 +32,7 @@ public class SstFileWriterTest {
 
   enum OpType { PUT, PUT_BYTES, PUT_DIRECT, MERGE, MERGE_BYTES, DELETE, DELETE_BYTES }
 
-  static class KeyValueWithOp {
+  class KeyValueWithOp {
     KeyValueWithOp(String key, String value, OpType opType) {
       this.key = key;
       this.value = value;
@@ -51,9 +51,9 @@ public class SstFileWriterTest {
       return opType;
     }
 
-    private final String key;
-    private final String value;
-    private final OpType opType;
+    private String key;
+    private String value;
+    private OpType opType;
   };
 
   private File newSstFile(final List<KeyValueWithOp> keyValues,

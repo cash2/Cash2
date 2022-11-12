@@ -46,7 +46,7 @@ struct CompactionInputFiles;
 // compaction style specific logic for them.
 class CompactionPicker {
  public:
-  CompactionPicker(const ImmutableOptions& ioptions,
+  CompactionPicker(const ImmutableCFOptions& ioptions,
                    const InternalKeyComparator* icmp);
   virtual ~CompactionPicker();
 
@@ -56,8 +56,7 @@ class CompactionPicker {
   // describes the compaction.  Caller should delete the result.
   virtual Compaction* PickCompaction(
       const std::string& cf_name, const MutableCFOptions& mutable_cf_options,
-      const MutableDBOptions& mutable_db_options, VersionStorageInfo* vstorage,
-      LogBuffer* log_buffer,
+      VersionStorageInfo* vstorage, LogBuffer* log_buffer,
       SequenceNumber earliest_memtable_seqno = kMaxSequenceNumber) = 0;
 
   // Return a compaction object for compacting the range [begin,end] in
@@ -73,12 +72,11 @@ class CompactionPicker {
   // *compaction_end should point to valid InternalKey!
   virtual Compaction* CompactRange(
       const std::string& cf_name, const MutableCFOptions& mutable_cf_options,
-      const MutableDBOptions& mutable_db_options, VersionStorageInfo* vstorage,
-      int input_level, int output_level,
+      VersionStorageInfo* vstorage, int input_level, int output_level,
       const CompactRangeOptions& compact_range_options,
       const InternalKey* begin, const InternalKey* end,
       InternalKey** compaction_end, bool* manual_conflict,
-      uint64_t max_file_num_to_ignore, const std::string& trim_ts);
+      uint64_t max_file_num_to_ignore);
 
   // The maximum allowed output level.  Default value is NumberLevels() - 1.
   virtual int MaxOutputLevel() const { return NumberLevels() - 1; }
@@ -115,7 +113,6 @@ class CompactionPicker {
                            const std::vector<CompactionInputFiles>& input_files,
                            int output_level, VersionStorageInfo* vstorage,
                            const MutableCFOptions& mutable_cf_options,
-                           const MutableDBOptions& mutable_db_options,
                            uint32_t output_path_id);
 
   // Converts a set of compaction input file numbers into
@@ -154,8 +151,7 @@ class CompactionPicker {
   // in *smallest, *largest.
   // REQUIRES: inputs is not empty (at least on entry have one file)
   void GetRange(const std::vector<CompactionInputFiles>& inputs,
-                InternalKey* smallest, InternalKey* largest,
-                int exclude_level) const;
+                InternalKey* smallest, InternalKey* largest) const;
 
   int NumberLevels() const { return ioptions_.num_levels; }
 
@@ -189,8 +185,7 @@ class CompactionPicker {
                         VersionStorageInfo* vstorage,
                         CompactionInputFiles* inputs,
                         CompactionInputFiles* output_level_inputs,
-                        int* parent_index, int base_index,
-                        bool only_expand_towards_right = false);
+                        int* parent_index, int base_index);
 
   void GetGrandparents(VersionStorageInfo* vstorage,
                        const CompactionInputFiles& inputs,
@@ -219,10 +214,8 @@ class CompactionPicker {
     return &compactions_in_progress_;
   }
 
-  const InternalKeyComparator* icmp() const { return icmp_; }
-
  protected:
-  const ImmutableOptions& ioptions_;
+  const ImmutableCFOptions& ioptions_;
 
 // A helper function to SanitizeCompactionInputFiles() that
 // sanitizes "input_files" by adding necessary files.
@@ -248,7 +241,7 @@ class CompactionPicker {
 // compaction.
 class NullCompactionPicker : public CompactionPicker {
  public:
-  NullCompactionPicker(const ImmutableOptions& ioptions,
+  NullCompactionPicker(const ImmutableCFOptions& ioptions,
                        const InternalKeyComparator* icmp)
       : CompactionPicker(ioptions, icmp) {}
   virtual ~NullCompactionPicker() {}
@@ -257,7 +250,6 @@ class NullCompactionPicker : public CompactionPicker {
   Compaction* PickCompaction(
       const std::string& /*cf_name*/,
       const MutableCFOptions& /*mutable_cf_options*/,
-      const MutableDBOptions& /*mutable_db_options*/,
       VersionStorageInfo* /*vstorage*/, LogBuffer* /* log_buffer */,
       SequenceNumber /* earliest_memtable_seqno */) override {
     return nullptr;
@@ -266,7 +258,6 @@ class NullCompactionPicker : public CompactionPicker {
   // Always return "nullptr"
   Compaction* CompactRange(const std::string& /*cf_name*/,
                            const MutableCFOptions& /*mutable_cf_options*/,
-                           const MutableDBOptions& /*mutable_db_options*/,
                            VersionStorageInfo* /*vstorage*/,
                            int /*input_level*/, int /*output_level*/,
                            const CompactRangeOptions& /*compact_range_options*/,
@@ -274,8 +265,7 @@ class NullCompactionPicker : public CompactionPicker {
                            const InternalKey* /*end*/,
                            InternalKey** /*compaction_end*/,
                            bool* /*manual_conflict*/,
-                           uint64_t /*max_file_num_to_ignore*/,
-                           const std::string& /*trim_ts*/) override {
+                           uint64_t /*max_file_num_to_ignore*/) override {
     return nullptr;
   }
 
@@ -309,7 +299,8 @@ bool FindIntraL0Compaction(
     CompactionInputFiles* comp_inputs,
     SequenceNumber earliest_mem_seqno = kMaxSequenceNumber);
 
-CompressionType GetCompressionType(const VersionStorageInfo* vstorage,
+CompressionType GetCompressionType(const ImmutableCFOptions& ioptions,
+                                   const VersionStorageInfo* vstorage,
                                    const MutableCFOptions& mutable_cf_options,
                                    int level, int base_level,
                                    const bool enable_compression = true);

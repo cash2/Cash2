@@ -152,9 +152,8 @@ class ShortenedIndexBuilder : public IndexBuilder {
     if (first_key_in_next_block != nullptr) {
       if (shortening_mode_ !=
           BlockBasedTableOptions::IndexShorteningMode::kNoShortening) {
-        FindShortestInternalKeySeparator(*comparator_->user_comparator(),
-                                         last_key_in_current_block,
-                                         *first_key_in_next_block);
+        comparator_->FindShortestSeparator(last_key_in_current_block,
+                                           *first_key_in_next_block);
       }
       if (!seperator_is_key_plus_seq_ &&
           comparator_->user_comparator()->Compare(
@@ -165,8 +164,7 @@ class ShortenedIndexBuilder : public IndexBuilder {
     } else {
       if (shortening_mode_ == BlockBasedTableOptions::IndexShorteningMode::
                                   kShortenSeparatorsAndSuccessor) {
-        FindShortInternalKeySuccessor(*comparator_->user_comparator(),
-                                      last_key_in_current_block);
+        comparator_->FindShortSuccessor(last_key_in_current_block);
       }
     }
     auto sep = Slice(*last_key_in_current_block);
@@ -213,15 +211,6 @@ class ShortenedIndexBuilder : public IndexBuilder {
   virtual bool seperator_is_key_plus_seq() override {
     return seperator_is_key_plus_seq_;
   }
-
-  // Changes *key to a short string >= *key.
-  //
-  static void FindShortestInternalKeySeparator(const Comparator& comparator,
-                                               std::string* start,
-                                               const Slice& limit);
-
-  static void FindShortInternalKeySuccessor(const Comparator& comparator,
-                                            std::string* key);
 
   friend class PartitionedIndexBuilder;
 
@@ -296,8 +285,8 @@ class HashIndexBuilder : public IndexBuilder {
       }
 
       // need a hard copy otherwise the underlying data changes all the time.
-      // TODO(kailiu) std::to_string() is expensive. We may speed up can avoid
-      // data copy.
+      // TODO(kailiu) ToString() is expensive. We may speed up can avoid data
+      // copy.
       pending_entry_prefix_ = key_prefix.ToString();
       pending_block_num_ = 1;
       pending_entry_index_ = static_cast<uint32_t>(current_restart_index_);
@@ -318,13 +307,12 @@ class HashIndexBuilder : public IndexBuilder {
     if (pending_block_num_ != 0) {
       FlushPendingPrefix();
     }
-    Status s = primary_index_builder_.Finish(index_blocks,
-                                             last_partition_block_handle);
+    primary_index_builder_.Finish(index_blocks, last_partition_block_handle);
     index_blocks->meta_blocks.insert(
         {kHashIndexPrefixesBlock.c_str(), prefix_block_});
     index_blocks->meta_blocks.insert(
         {kHashIndexPrefixesMetadataBlock.c_str(), prefix_meta_block_});
-    return s;
+    return Status::OK();
   }
 
   virtual size_t IndexSize() const override {

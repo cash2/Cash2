@@ -19,7 +19,8 @@ namespace ROCKSDB_NAMESPACE {
 // a time.
 class TraceWriter {
  public:
-  virtual ~TraceWriter() = default;
+  TraceWriter() {}
+  virtual ~TraceWriter() {}
 
   virtual Status Write(const Slice& data) = 0;
   virtual Status Close() = 0;
@@ -27,26 +28,21 @@ class TraceWriter {
 };
 
 // TraceReader allows reading RocksDB traces from any system, one operation at
-// a time. A RocksDB Replayer could depend on this to replay operations.
+// a time. A RocksDB Replayer could depend on this to replay opertions.
 class TraceReader {
  public:
-  virtual ~TraceReader() = default;
+  TraceReader() {}
+  virtual ~TraceReader() {}
 
   virtual Status Read(std::string* data) = 0;
   virtual Status Close() = 0;
-
-  // Seek back to the trace header. Replayer can call this method to restart
-  // replaying. Note this method may fail if the reader is already closed.
-  virtual Status Reset() = 0;
 };
 
-// Factory methods to write/read traces to/from a file.
-// The implementations may not be thread-safe.
+// Factory methods to read/write traces from/to a file.
 Status NewFileTraceWriter(Env* env, const EnvOptions& env_options,
                           const std::string& trace_filename,
                           std::unique_ptr<TraceWriter>* trace_writer);
 Status NewFileTraceReader(Env* env, const EnvOptions& env_options,
                           const std::string& trace_filename,
                           std::unique_ptr<TraceReader>* trace_reader);
-
 }  // namespace ROCKSDB_NAMESPACE

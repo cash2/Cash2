@@ -8,10 +8,8 @@
 #ifndef ROCKSDB_LITE
 
 #include <functional>
-#include <limits>
 #include <string>
 #include <vector>
-
 #include "rocksdb/db.h"
 #include "rocksdb/status.h"
 #include "rocksdb/utilities/stackable_db.h"
@@ -26,12 +24,9 @@ namespace blob_db {
 // The factory needs to be moved to include/rocksdb/utilities to allow
 // users to use blob DB.
 
-constexpr uint64_t kNoExpiration = std::numeric_limits<uint64_t>::max();
-
 struct BlobDBOptions {
-  // Name of the directory under the base DB where blobs will be stored. Using
-  // a directory where the base DB stores its SST files is not supported.
-  // Default is "blob_dir"
+  // name of the directory under main db, where blobs will be stored.
+  // default is "blob_dir"
   std::string blob_dir = "blob_dir";
 
   // whether the blob_dir path is relative or absolute.
@@ -200,7 +195,6 @@ class BlobDB : public StackableDB {
 
   virtual Status Write(const WriteOptions& opts,
                        WriteBatch* updates) override = 0;
-
   using ROCKSDB_NAMESPACE::StackableDB::NewIterator;
   virtual Iterator* NewIterator(const ReadOptions& options) override = 0;
   virtual Iterator* NewIterator(const ReadOptions& options,

@@ -19,12 +19,9 @@
 #include <utility>
 #include <vector>
 
-#include "db/blob/blob_log_format.h"
-#include "db/blob/blob_log_writer.h"
 #include "db/db_iter.h"
 #include "rocksdb/compaction_filter.h"
 #include "rocksdb/db.h"
-#include "rocksdb/file_system.h"
 #include "rocksdb/listener.h"
 #include "rocksdb/options.h"
 #include "rocksdb/statistics.h"
@@ -33,14 +30,15 @@
 #include "util/timer_queue.h"
 #include "utilities/blob_db/blob_db.h"
 #include "utilities/blob_db/blob_file.h"
+#include "utilities/blob_db/blob_log_format.h"
+#include "utilities/blob_db/blob_log_reader.h"
+#include "utilities/blob_db/blob_log_writer.h"
 
 namespace ROCKSDB_NAMESPACE {
 
 class DBImpl;
 class ColumnFamilyHandle;
 class ColumnFamilyData;
-class SystemClock;
-
 struct FlushJobInfo;
 
 namespace blob_db {
@@ -73,7 +71,6 @@ class BlobDBImpl : public BlobDB {
   friend class BlobDBIterator;
   friend class BlobDBListener;
   friend class BlobDBListenerGC;
-  friend class BlobIndexCompactionFilterBase;
   friend class BlobIndexCompactionFilterGC;
 
  public:
@@ -128,7 +125,6 @@ class BlobDBImpl : public BlobDB {
       const std::vector<Slice>& keys,
       std::vector<std::string>* values) override;
 
-  using BlobDB::Write;
   virtual Status Write(const WriteOptions& opts, WriteBatch* updates) override;
 
   virtual Status Close() override;
@@ -172,7 +168,7 @@ class BlobDBImpl : public BlobDB {
 
   // Common part of the two GetCompactionContext methods below.
   // REQUIRES: read lock on mutex_
-  void GetCompactionContextCommon(BlobCompactionContext* context);
+  void GetCompactionContextCommon(BlobCompactionContext* context) const;
 
   void GetCompactionContext(BlobCompactionContext* context);
   void GetCompactionContext(BlobCompactionContext* context,
@@ -236,16 +232,11 @@ class BlobDBImpl : public BlobDB {
   Slice GetCompressedSlice(const Slice& raw,
                            std::string* compression_output) const;
 
-  Status DecompressSlice(const Slice& compressed_value,
-                         CompressionType compression_type,
-                         PinnableSlice* value_output) const;
-
   // Close a file by appending a footer, and removes file from open files list.
   // REQUIRES: lock held on write_mutex_, write lock held on both the db mutex_
   // and the blob file's mutex_. If called on a blob file which is visible only
-  // to a single thread (like in the case of new files written during
-  // compaction/GC), the locks on write_mutex_ and the blob file's mutex_ can be
-  // avoided.
+  // to a single thread (like in the case of new files written during GC), the
+  // locks on write_mutex_ and the blob file's mutex_ can be avoided.
   Status CloseBlobFile(std::shared_ptr<BlobFile> bfile);
 
   // Close a file if its size exceeds blob_file_size
@@ -272,7 +263,7 @@ class BlobDBImpl : public BlobDB {
                                  const ExpirationRange& expiration_range,
                                  const std::string& reason,
                                  std::shared_ptr<BlobFile>* blob_file,
-                                 std::shared_ptr<BlobLogWriter>* writer);
+                                 std::shared_ptr<Writer>* writer);
 
   // Get the open non-TTL blob log file, or create a new one if no such file
   // exists.
@@ -377,10 +368,10 @@ class BlobDBImpl : public BlobDB {
   // creates a sequential (append) writer for this blobfile
   Status CreateWriterLocked(const std::shared_ptr<BlobFile>& bfile);
 
-  // returns a BlobLogWriter object for the file. If writer is not
+  // returns a Writer object for the file. If writer is not
   // already present, creates one. Needs Write Mutex to be held
   Status CheckOrCreateWriterLocked(const std::shared_ptr<BlobFile>& blob_file,
-                                   std::shared_ptr<BlobLogWriter>* writer);
+                                   std::shared_ptr<Writer>* writer);
 
   // checks if there is no snapshot which is referencing the
   // blobs
@@ -389,7 +380,7 @@ class BlobDBImpl : public BlobDB {
 
   void CopyBlobFiles(std::vector<std::shared_ptr<BlobFile>>* bfiles_copy);
 
-  uint64_t EpochNow() { return clock_->NowMicros() / 1000000; }
+  uint64_t EpochNow() { return env_->NowMicros() / 1000000; }
 
   // Check if inserting a new blob will make DB grow out of space.
   // If is_fifo = true, FIFO eviction will be triggered to make room for the
@@ -404,12 +395,12 @@ class BlobDBImpl : public BlobDB {
   // the base DB
   DBImpl* db_impl_;
   Env* env_;
-  SystemClock* clock_;
+
   // the options that govern the behavior of Blob Storage
   BlobDBOptions bdb_options_;
   DBOptions db_options_;
   ColumnFamilyOptions cf_options_;
-  FileOptions file_options_;
+  EnvOptions env_options_;
 
   // Raw pointer of statistic. db_options_ has a std::shared_ptr to hold
   // ownership.
@@ -420,7 +411,7 @@ class BlobDBImpl : public BlobDB {
   std::string blob_dir_;
 
   // pointer to directory
-  std::unique_ptr<FSDirectory> dir_ent_;
+  std::unique_ptr<Directory> dir_ent_;
 
   // Read Write Mutex, which protects all the data structures
   // HEAVILY TRAFFICKED

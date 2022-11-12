@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include "rocksdb/comparator.h"
-
 namespace ROCKSDB_NAMESPACE {
 // A comparator to be used in std::set
 struct SetComparator {

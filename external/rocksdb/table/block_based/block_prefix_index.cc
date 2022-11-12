@@ -69,6 +69,9 @@ struct PrefixRecord {
 
 class BlockPrefixIndex::Builder {
  public:
+  explicit Builder(const SliceTransform* internal_prefix_extractor)
+      : internal_prefix_extractor_(internal_prefix_extractor) {}
+
   void Add(const Slice& key_prefix, uint32_t start_block, uint32_t num_blocks) {
     PrefixRecord* record = reinterpret_cast<PrefixRecord*>(
         arena_.AllocateAligned(sizeof(PrefixRecord)));
@@ -79,7 +82,7 @@ class BlockPrefixIndex::Builder {
     prefixes_.push_back(record);
   }
 
-  BlockPrefixIndex* Finish(const SliceTransform* prefix_extractor) {
+  BlockPrefixIndex* Finish() {
     // For now, use roughly 1:1 prefix to bucket ratio.
     uint32_t num_buckets = static_cast<uint32_t>(prefixes_.size()) + 1;
 
@@ -151,22 +154,25 @@ class BlockPrefixIndex::Builder {
 
     assert(offset == total_block_array_entries);
 
-    return new BlockPrefixIndex(prefix_extractor, num_buckets, buckets,
-                                total_block_array_entries, block_array_buffer);
+    return new BlockPrefixIndex(internal_prefix_extractor_, num_buckets,
+                                buckets, total_block_array_entries,
+                                block_array_buffer);
   }
 
  private:
+  const SliceTransform* internal_prefix_extractor_;
+
   std::vector<PrefixRecord*> prefixes_;
   Arena arena_;
 };
 
-Status BlockPrefixIndex::Create(const SliceTransform* prefix_extractor,
+Status BlockPrefixIndex::Create(const SliceTransform* internal_prefix_extractor,
                                 const Slice& prefixes, const Slice& prefix_meta,
                                 BlockPrefixIndex** prefix_index) {
   uint64_t pos = 0;
   auto meta_pos = prefix_meta;
   Status s;
-  Builder builder;
+  Builder builder(internal_prefix_extractor);
 
   while (!meta_pos.empty()) {
     uint32_t prefix_size = 0;
@@ -195,14 +201,14 @@ Status BlockPrefixIndex::Create(const SliceTransform* prefix_extractor,
   }
 
   if (s.ok()) {
-    *prefix_index = builder.Finish(prefix_extractor);
+    *prefix_index = builder.Finish();
   }
 
   return s;
 }
 
 uint32_t BlockPrefixIndex::GetBlocks(const Slice& key, uint32_t** blocks) {
-  Slice prefix = internal_prefix_extractor_.Transform(key);
+  Slice prefix = internal_prefix_extractor_->Transform(key);
 
   uint32_t bucket = PrefixToBucket(prefix, num_buckets_);
   uint32_t block_id = buckets_[bucket];

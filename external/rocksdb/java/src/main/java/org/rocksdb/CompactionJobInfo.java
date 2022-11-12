@@ -20,8 +20,6 @@ public class CompactionJobInfo extends RocksObject {
    */
   private CompactionJobInfo(final long nativeHandle) {
     super(nativeHandle);
-    // We do not own the native object!
-    disOwnNativeHandle();
   }
 
   /**

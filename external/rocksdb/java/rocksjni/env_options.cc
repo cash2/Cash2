@@ -11,7 +11,6 @@
 
 #include "include/org_rocksdb_EnvOptions.h"
 #include "rocksdb/env.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 
 #define ENV_OPTIONS_SET_BOOL(_jhandle, _opt)                          \
   reinterpret_cast<ROCKSDB_NAMESPACE::EnvOptions *>(_jhandle)->_opt = \
@@ -36,7 +35,7 @@
 jlong Java_org_rocksdb_EnvOptions_newEnvOptions__(
     JNIEnv*, jclass) {
   auto *env_opt = new ROCKSDB_NAMESPACE::EnvOptions();
-  return GET_CPLUSPLUS_POINTER(env_opt);
+  return reinterpret_cast<jlong>(env_opt);
 }
 
 /*
@@ -49,7 +48,7 @@ jlong Java_org_rocksdb_EnvOptions_newEnvOptions__J(
   auto *db_options =
       reinterpret_cast<ROCKSDB_NAMESPACE::DBOptions *>(jdboptions_handle);
   auto *env_opt = new ROCKSDB_NAMESPACE::EnvOptions(*db_options);
-  return GET_CPLUSPLUS_POINTER(env_opt);
+  return reinterpret_cast<jlong>(env_opt);
 }
 
 /*

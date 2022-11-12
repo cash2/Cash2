@@ -19,10 +19,10 @@ namespace ROCKSDB_NAMESPACE {
 
 #ifdef ROCKSDB_JEMALLOC
 
-struct MallocStatus {
+typedef struct {
   char* cur;
   char* end;
-};
+} MallocStatus;
 
 static void GetJemallocStatus(void* mstat_arg, const char* status) {
   MallocStatus* mstat = reinterpret_cast<MallocStatus*>(mstat_arg);

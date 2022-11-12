@@ -5,11 +5,10 @@
 
 #pragma once
 
+#include <stdint.h>
 #include <atomic>
-#include <cstdint>
 #include <mutex>
 #include <set>
-
 #include "util/autovector.h"
 
 namespace ROCKSDB_NAMESPACE {

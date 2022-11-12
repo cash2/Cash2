@@ -6,23 +6,16 @@
 #pragma once
 
 #include <string>
-
-#include "rocksdb/customizable.h"
 #include "rocksdb/table.h"
 
 namespace ROCKSDB_NAMESPACE {
 
 class Slice;
 class BlockBuilder;
-struct ConfigOptions;
 struct Options;
 
 // FlushBlockPolicy provides a configurable way to determine when to flush a
-// block in the block based tables.
-//
-// Exceptions MUST NOT propagate out of overridden functions into RocksDB,
-// because RocksDB is not exception-safe. This could cause undefined behavior
-// including data loss, unreported corruption, deadlocks, and more.
+// block in the block based tables,
 class FlushBlockPolicy {
  public:
   // Keep track of the key/value sequences and return the boolean value to
@@ -32,16 +25,10 @@ class FlushBlockPolicy {
   virtual ~FlushBlockPolicy() {}
 };
 
-class FlushBlockPolicyFactory : public Customizable {
+class FlushBlockPolicyFactory {
  public:
-  static const char* Type() { return "FlushBlockPolicyFactory"; }
-
-  // Creates a FlushBlockPolicyFactory based on the input value.
-  // By default, this method can create EveryKey or BySize PolicyFactory,
-  // which take now config_options.
-  static Status CreateFromString(
-      const ConfigOptions& config_options, const std::string& value,
-      std::shared_ptr<FlushBlockPolicyFactory>* result);
+  // Return the name of the flush block policy.
+  virtual const char* Name() const = 0;
 
   // Return a new block flush policy that flushes data blocks by data size.
   // FlushBlockPolicy may need to access the metadata of the data block
@@ -58,10 +45,9 @@ class FlushBlockPolicyFactory : public Customizable {
 
 class FlushBlockBySizePolicyFactory : public FlushBlockPolicyFactory {
  public:
-  FlushBlockBySizePolicyFactory();
+  FlushBlockBySizePolicyFactory() {}
 
-  static const char* kClassName() { return "FlushBlockBySizePolicyFactory"; }
-  const char* Name() const override { return kClassName(); }
+  const char* Name() const override { return "FlushBlockBySizePolicyFactory"; }
 
   FlushBlockPolicy* NewFlushBlockPolicy(
       const BlockBasedTableOptions& table_options,

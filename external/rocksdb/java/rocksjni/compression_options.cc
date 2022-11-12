@@ -10,7 +10,6 @@
 
 #include "include/org_rocksdb_CompressionOptions.h"
 #include "rocksdb/advanced_options.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 
 /*
  * Class:     org_rocksdb_CompressionOptions
@@ -20,7 +19,7 @@
 jlong Java_org_rocksdb_CompressionOptions_newCompressionOptions(
     JNIEnv*, jclass) {
   const auto* opt = new ROCKSDB_NAMESPACE::CompressionOptions();
-  return GET_CPLUSPLUS_POINTER(opt);
+  return reinterpret_cast<jlong>(opt);
 }
 
 /*
@@ -131,51 +130,6 @@ jint Java_org_rocksdb_CompressionOptions_zstdMaxTrainBytes(
     JNIEnv *, jobject, jlong jhandle) {
   auto* opt = reinterpret_cast<ROCKSDB_NAMESPACE::CompressionOptions*>(jhandle);
   return static_cast<jint>(opt->zstd_max_train_bytes);
-}
-
-/*
- * Class:     org_rocksdb_CompressionOptions
- * Method:    setMaxDictBufferBytes
- * Signature: (JJ)V
- */
-void Java_org_rocksdb_CompressionOptions_setMaxDictBufferBytes(
-    JNIEnv*, jobject, jlong jhandle, jlong jmax_dict_buffer_bytes) {
-  auto* opt = reinterpret_cast<ROCKSDB_NAMESPACE::CompressionOptions*>(jhandle);
-  opt->max_dict_buffer_bytes = static_cast<uint64_t>(jmax_dict_buffer_bytes);
-}
-
-/*
- * Class:     org_rocksdb_CompressionOptions
- * Method:    maxDictBufferBytes
- * Signature: (J)J
- */
-jlong Java_org_rocksdb_CompressionOptions_maxDictBufferBytes(JNIEnv*, jobject,
-                                                             jlong jhandle) {
-  auto* opt = reinterpret_cast<ROCKSDB_NAMESPACE::CompressionOptions*>(jhandle);
-  return static_cast<jlong>(opt->max_dict_buffer_bytes);
-}
-
-/*
- * Class:     org_rocksdb_CompressionOptions
- * Method:    setZstdMaxTrainBytes
- * Signature: (JZ)V
- */
-void Java_org_rocksdb_CompressionOptions_setUseZstdDictTrainer(
-    JNIEnv*, jobject, jlong jhandle, jboolean juse_zstd_dict_trainer) {
-  auto* opt = reinterpret_cast<ROCKSDB_NAMESPACE::CompressionOptions*>(jhandle);
-  opt->use_zstd_dict_trainer = juse_zstd_dict_trainer == JNI_TRUE;
-}
-
-/*
- * Class:     org_rocksdb_CompressionOptions
- * Method:    zstdMaxTrainBytes
- * Signature: (J)Z
- */
-jboolean Java_org_rocksdb_CompressionOptions_useZstdDictTrainer(JNIEnv*,
-                                                                jobject,
-                                                                jlong jhandle) {
-  auto* opt = reinterpret_cast<ROCKSDB_NAMESPACE::CompressionOptions*>(jhandle);
-  return static_cast<bool>(opt->use_zstd_dict_trainer);
 }
 
 /*

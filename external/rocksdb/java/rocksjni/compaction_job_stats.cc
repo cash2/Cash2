@@ -6,12 +6,10 @@
 // This file implements the "bridge" between Java and C++ for
 // ROCKSDB_NAMESPACE::CompactionJobStats.
 
-#include "rocksdb/compaction_job_stats.h"
-
 #include <jni.h>
 
 #include "include/org_rocksdb_CompactionJobStats.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
+#include "rocksdb/compaction_job_stats.h"
 #include "rocksjni/portal.h"
 
 /*
@@ -22,7 +20,7 @@
 jlong Java_org_rocksdb_CompactionJobStats_newCompactionJobStats(
     JNIEnv*, jclass) {
   auto* compact_job_stats = new ROCKSDB_NAMESPACE::CompactionJobStats();
-  return GET_CPLUSPLUS_POINTER(compact_job_stats);
+  return reinterpret_cast<jlong>(compact_job_stats);
 }
 
 /*

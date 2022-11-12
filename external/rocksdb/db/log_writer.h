@@ -8,16 +8,14 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 #pragma once
 
-#include <cstdint>
+#include <stdint.h>
+
 #include <memory>
 
 #include "db/log_format.h"
-#include "rocksdb/compression_type.h"
-#include "rocksdb/env.h"
 #include "rocksdb/io_status.h"
 #include "rocksdb/slice.h"
 #include "rocksdb/status.h"
-#include "util/compression.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -28,7 +26,7 @@ namespace log {
 /**
  * Writer is a general purpose log stream writer. It provides an append-only
  * abstraction for writing data. The details of the how the data is written is
- * handled by the WritableFile sub-class implementation.
+ * handled by the WriteableFile sub-class implementation.
  *
  * File format:
  *
@@ -75,17 +73,14 @@ class Writer {
   // "*dest" must remain live while this Writer is in use.
   explicit Writer(std::unique_ptr<WritableFileWriter>&& dest,
                   uint64_t log_number, bool recycle_log_files,
-                  bool manual_flush = false,
-                  CompressionType compressionType = kNoCompression);
+                  bool manual_flush = false);
   // No copying allowed
   Writer(const Writer&) = delete;
   void operator=(const Writer&) = delete;
 
   ~Writer();
 
-  IOStatus AddRecord(const Slice& slice,
-                     Env::IOPriority rate_limiter_priority = Env::IO_TOTAL);
-  IOStatus AddCompressionTypeRecord();
+  IOStatus AddRecord(const Slice& slice);
 
   WritableFileWriter* file() { return dest_.get(); }
   const WritableFileWriter* file() const { return dest_.get(); }
@@ -109,19 +104,11 @@ class Writer {
   // record type stored in the header.
   uint32_t type_crc_[kMaxRecordType + 1];
 
-  IOStatus EmitPhysicalRecord(
-      RecordType type, const char* ptr, size_t length,
-      Env::IOPriority rate_limiter_priority = Env::IO_TOTAL);
+  IOStatus EmitPhysicalRecord(RecordType type, const char* ptr, size_t length);
 
   // If true, it does not flush after each write. Instead it relies on the upper
   // layer to manually does the flush by calling ::WriteBuffer()
   bool manual_flush_;
-
-  // Compression Type
-  CompressionType compression_type_;
-  StreamingCompress* compress_;
-  // Reusable compressed output buffer
-  std::unique_ptr<char[]> compressed_buffer_;
 };
 
 }  // namespace log

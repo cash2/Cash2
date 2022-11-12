@@ -7,12 +7,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#if defined(OS_WIN)
-
 #include <mutex>
 
+#include <rocksdb/env.h>
 #include "port/win/env_win.h"
-#include "rocksdb/env.h"
 #include "test_util/sync_point.h"
 #include "util/compression_context_cache.h"
 #include "util/thread_local.h"
@@ -26,20 +24,18 @@ namespace port {
 //    dead-lock.
 //    in this manner any remaining threads are terminated OK.
 namespace {
-std::once_flag winenv_once_flag;
-Env* envptr;
-};  // namespace
-}  // namespace port
+  std::once_flag winenv_once_flag;
+  Env* envptr;
+};
+}
 
 Env* Env::Default() {
+  using namespace port;
   ThreadLocalPtr::InitSingletons();
   CompressionContextCache::InitSingleton();
   INIT_SYNC_POINT_SINGLETONS();
-  std::call_once(port::winenv_once_flag,
-                 []() { port::envptr = new port::WinEnv(); });
-  return port::envptr;
+  std::call_once(winenv_once_flag, []() { envptr = new WinEnv(); });
+  return envptr;
 }
 
 }  // namespace ROCKSDB_NAMESPACE
-
-#endif

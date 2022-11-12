@@ -8,7 +8,6 @@
 // from Java side.
 
 #include <jni.h>
-
 #include <string>
 
 #include "include/org_rocksdb_SstFileWriter.h"
@@ -16,7 +15,6 @@
 #include "rocksdb/env.h"
 #include "rocksdb/options.h"
 #include "rocksdb/sst_file_writer.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 #include "rocksjni/portal.h"
 
 /*
@@ -47,7 +45,7 @@ jlong Java_org_rocksdb_SstFileWriter_newSstFileWriter__JJJB(
       reinterpret_cast<const ROCKSDB_NAMESPACE::Options *>(joptions);
   ROCKSDB_NAMESPACE::SstFileWriter *sst_file_writer =
       new ROCKSDB_NAMESPACE::SstFileWriter(*env_options, *options, comparator);
-  return GET_CPLUSPLUS_POINTER(sst_file_writer);
+  return reinterpret_cast<jlong>(sst_file_writer);
 }
 
 /*
@@ -65,7 +63,7 @@ jlong Java_org_rocksdb_SstFileWriter_newSstFileWriter__JJ(JNIEnv * /*env*/,
       reinterpret_cast<const ROCKSDB_NAMESPACE::Options *>(joptions);
   ROCKSDB_NAMESPACE::SstFileWriter *sst_file_writer =
       new ROCKSDB_NAMESPACE::SstFileWriter(*env_options, *options);
-  return GET_CPLUSPLUS_POINTER(sst_file_writer);
+  return reinterpret_cast<jlong>(sst_file_writer);
 }
 
 /*

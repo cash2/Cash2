@@ -12,7 +12,6 @@
 #include "db/column_family.h"
 #include "db/db_impl/db_impl.h"
 #include "db/error_handler.h"
-#include "db/periodic_task_scheduler.h"
 #include "monitoring/thread_status_updater.h"
 #include "util/cast_util.h"
 
@@ -22,13 +21,12 @@ uint64_t DBImpl::TEST_GetLevel0TotalSize() {
   return default_cf_handle_->cfd()->current()->storage_info()->NumLevelBytes(0);
 }
 
-Status DBImpl::TEST_SwitchWAL() {
+void DBImpl::TEST_SwitchWAL() {
   WriteContext write_context;
   InstrumentedMutexLock l(&mutex_);
   void* writer = TEST_BeginWrite();
-  auto s = SwitchWAL(&write_context);
+  SwitchWAL(&write_context);
   TEST_EndWrite(writer);
-  return s;
 }
 
 bool DBImpl::TEST_WALBufferIsEmpty(bool lock) {
@@ -43,13 +41,13 @@ bool DBImpl::TEST_WALBufferIsEmpty(bool lock) {
   return res;
 }
 
-uint64_t DBImpl::TEST_MaxNextLevelOverlappingBytes(
+int64_t DBImpl::TEST_MaxNextLevelOverlappingBytes(
     ColumnFamilyHandle* column_family) {
   ColumnFamilyData* cfd;
   if (column_family == nullptr) {
     cfd = default_cf_handle_->cfd();
   } else {
-    auto cfh = static_cast_with_check<ColumnFamilyHandleImpl>(column_family);
+    auto cfh = reinterpret_cast<ColumnFamilyHandleImpl*>(column_family);
     cfd = cfh->cfd();
   }
   InstrumentedMutexLock l(&mutex_);
@@ -58,39 +56,19 @@ uint64_t DBImpl::TEST_MaxNextLevelOverlappingBytes(
 
 void DBImpl::TEST_GetFilesMetaData(
     ColumnFamilyHandle* column_family,
-    std::vector<std::vector<FileMetaData>>* metadata,
-    std::vector<std::shared_ptr<BlobFileMetaData>>* blob_metadata) {
-  assert(metadata);
-
-  auto cfh = static_cast_with_check<ColumnFamilyHandleImpl>(column_family);
-  assert(cfh);
-
+    std::vector<std::vector<FileMetaData>>* metadata) {
+  auto cfh = reinterpret_cast<ColumnFamilyHandleImpl*>(column_family);
   auto cfd = cfh->cfd();
-  assert(cfd);
-
   InstrumentedMutexLock l(&mutex_);
-
-  const auto* current = cfd->current();
-  assert(current);
-
-  const auto* vstorage = current->storage_info();
-  assert(vstorage);
-
   metadata->resize(NumberLevels());
-
-  for (int level = 0; level < NumberLevels(); ++level) {
-    const std::vector<FileMetaData*>& files = vstorage->LevelFiles(level);
+  for (int level = 0; level < NumberLevels(); level++) {
+    const std::vector<FileMetaData*>& files =
+        cfd->current()->storage_info()->LevelFiles(level);
 
     (*metadata)[level].clear();
-    (*metadata)[level].reserve(files.size());
-
     for (const auto& f : files) {
       (*metadata)[level].push_back(*f);
     }
-  }
-
-  if (blob_metadata) {
-    *blob_metadata = vstorage->GetBlobFiles();
   }
 }
 
@@ -110,7 +88,7 @@ Status DBImpl::TEST_CompactRange(int level, const Slice* begin,
   if (column_family == nullptr) {
     cfd = default_cf_handle_->cfd();
   } else {
-    auto cfh = static_cast_with_check<ColumnFamilyHandleImpl>(column_family);
+    auto cfh = reinterpret_cast<ColumnFamilyHandleImpl*>(column_family);
     cfd = cfh->cfd();
   }
   int output_level =
@@ -118,11 +96,9 @@ Status DBImpl::TEST_CompactRange(int level, const Slice* begin,
        cfd->ioptions()->compaction_style == kCompactionStyleFIFO)
           ? level
           : level + 1;
-  return RunManualCompaction(
-      cfd, level, output_level, CompactRangeOptions(), begin, end, true,
-      disallow_trivial_move,
-      std::numeric_limits<uint64_t>::max() /*max_file_num_to_ignore*/,
-      "" /*trim_ts*/);
+  return RunManualCompaction(cfd, level, output_level, CompactRangeOptions(),
+                             begin, end, true, disallow_trivial_move,
+                             port::kMaxUint64 /*max_file_num_to_ignore*/);
 }
 
 Status DBImpl::TEST_SwitchMemtable(ColumnFamilyData* cfd) {
@@ -155,7 +131,7 @@ Status DBImpl::TEST_FlushMemTable(bool wait, bool allow_write_stall,
   if (cfh == nullptr) {
     cfd = default_cf_handle_->cfd();
   } else {
-    auto cfhi = static_cast_with_check<ColumnFamilyHandleImpl>(cfh);
+    auto cfhi = reinterpret_cast<ColumnFamilyHandleImpl*>(cfh);
     cfd = cfhi->cfd();
   }
   return FlushMemTable(cfd, fo, FlushReason::kTest);
@@ -171,18 +147,12 @@ Status DBImpl::TEST_AtomicFlushMemTables(
   return AtomicFlushMemTables(cfds, flush_opts, FlushReason::kTest);
 }
 
-Status DBImpl::TEST_WaitForBackgroundWork() {
-  InstrumentedMutexLock l(&mutex_);
-  WaitForBackgroundWork();
-  return error_handler_.GetBGError();
-}
-
 Status DBImpl::TEST_WaitForFlushMemTable(ColumnFamilyHandle* column_family) {
   ColumnFamilyData* cfd;
   if (column_family == nullptr) {
     cfd = default_cf_handle_->cfd();
   } else {
-    auto cfh = static_cast_with_check<ColumnFamilyHandleImpl>(column_family);
+    auto cfh = reinterpret_cast<ColumnFamilyHandleImpl*>(column_family);
     cfd = cfh->cfd();
   }
   return WaitForFlushMemTable(cfd, nullptr, false);
@@ -190,19 +160,18 @@ Status DBImpl::TEST_WaitForFlushMemTable(ColumnFamilyHandle* column_family) {
 
 Status DBImpl::TEST_WaitForCompact(bool wait_unscheduled) {
   // Wait until the compaction completes
-  return WaitForCompact(wait_unscheduled);
-}
 
-Status DBImpl::TEST_WaitForPurge() {
+  // TODO: a bug here. This function actually does not necessarily
+  // wait for compact. It actually waits for scheduled compaction
+  // OR flush to finish.
+
   InstrumentedMutexLock l(&mutex_);
-  while (bg_purge_scheduled_ && error_handler_.GetBGError().ok()) {
+  while ((bg_bottom_compaction_scheduled_ || bg_compaction_scheduled_ ||
+          bg_flush_scheduled_ ||
+          (wait_unscheduled && unscheduled_compactions_)) &&
+         (error_handler_.GetBGError() == Status::OK())) {
     bg_cv_.Wait();
   }
-  return error_handler_.GetBGError();
-}
-
-Status DBImpl::TEST_GetBGError() {
-  InstrumentedMutexLock l(&mutex_);
   return error_handler_.GetBGError();
 }
 
@@ -223,7 +192,7 @@ void DBImpl::TEST_EndWrite(void* w) {
 }
 
 size_t DBImpl::TEST_LogsToFreeSize() {
-  InstrumentedMutexLock l(&log_write_mutex_);
+  InstrumentedMutexLock l(&mutex_);
   return logs_to_free_.size();
 }
 
@@ -265,14 +234,15 @@ size_t DBImpl::TEST_LogsWithPrepSize() {
 
 uint64_t DBImpl::TEST_FindMinPrepLogReferencedByMemTable() {
   autovector<MemTable*> empty_list;
-  return FindMinPrepLogReferencedByMemTable(versions_.get(), empty_list);
+  return FindMinPrepLogReferencedByMemTable(versions_.get(), nullptr,
+                                            empty_list);
 }
 
 Status DBImpl::TEST_GetLatestMutableCFOptions(
     ColumnFamilyHandle* column_family, MutableCFOptions* mutable_cf_options) {
   InstrumentedMutexLock l(&mutex_);
 
-  auto cfh = static_cast_with_check<ColumnFamilyHandleImpl>(column_family);
+  auto cfh = reinterpret_cast<ColumnFamilyHandleImpl*>(column_family);
   *mutable_cf_options = *cfh->cfd()->GetLatestMutableCFOptions();
   return Status::OK();
 }
@@ -301,21 +271,21 @@ size_t DBImpl::TEST_GetWalPreallocateBlockSize(
   return GetWalPreallocateBlockSize(write_buffer_size);
 }
 
-#ifndef ROCKSDB_LITE
-void DBImpl::TEST_WaitForPeridicTaskRun(std::function<void()> callback) const {
-  periodic_task_scheduler_.TEST_WaitForRun(callback);
+void DBImpl::TEST_WaitForDumpStatsRun(std::function<void()> callback) const {
+  if (thread_dump_stats_ != nullptr) {
+    thread_dump_stats_->TEST_WaitForRun(callback);
+  }
 }
 
-const PeriodicTaskScheduler& DBImpl::TEST_GetPeriodicTaskScheduler() const {
-  return periodic_task_scheduler_;
+void DBImpl::TEST_WaitForPersistStatsRun(std::function<void()> callback) const {
+  if (thread_persist_stats_ != nullptr) {
+    thread_persist_stats_->TEST_WaitForRun(callback);
+  }
 }
 
-SeqnoToTimeMapping DBImpl::TEST_GetSeqnoToTimeMapping() const {
-  InstrumentedMutexLock l(&mutex_);
-  return seqno_time_mapping_;
+bool DBImpl::TEST_IsPersistentStatsEnabled() const {
+  return thread_persist_stats_ && thread_persist_stats_->IsRunning();
 }
-
-#endif  // !ROCKSDB_LITE
 
 size_t DBImpl::TEST_EstimateInMemoryStatsHistorySize() const {
   return EstimateInMemoryStatsHistorySize();

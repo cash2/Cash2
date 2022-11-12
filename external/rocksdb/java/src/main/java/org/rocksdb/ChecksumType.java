@@ -20,13 +20,7 @@ public enum ChecksumType {
   /**
    * XX Hash
    */
-  kxxHash((byte) 2),
-  /**
-   * XX Hash 64
-   */
-  kxxHash64((byte) 3),
-
-  kXXH3((byte) 4);
+  kxxHash((byte) 2);
 
   /**
    * Returns the byte value of the enumerations value
@@ -37,7 +31,7 @@ public enum ChecksumType {
     return value_;
   }
 
-  private ChecksumType(final byte value) {
+  private ChecksumType(byte value) {
     value_ = value;
   }
 

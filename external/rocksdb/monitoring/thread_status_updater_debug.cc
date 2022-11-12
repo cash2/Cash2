@@ -7,7 +7,6 @@
 
 #include "db/column_family.h"
 #include "monitoring/thread_status_updater.h"
-#include "util/cast_util.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -20,7 +19,7 @@ void ThreadStatusUpdater::TEST_VerifyColumnFamilyInfoMap(
     assert(cf_info_map_.size() == handles.size());
   }
   for (auto* handle : handles) {
-    auto* cfd = static_cast_with_check<ColumnFamilyHandleImpl>(handle)->cfd();
+    auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(handle)->cfd();
     auto iter __attribute__((__unused__)) = cf_info_map_.find(cfd);
     if (check_exist) {
       assert(iter != cf_info_map_.end());

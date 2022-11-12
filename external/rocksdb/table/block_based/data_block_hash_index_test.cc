@@ -3,8 +3,6 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "table/block_based/data_block_hash_index.h"
-
 #include <cstdlib>
 #include <string>
 #include <unordered_map>
@@ -14,11 +12,11 @@
 #include "table/block_based/block.h"
 #include "table/block_based/block_based_table_reader.h"
 #include "table/block_based/block_builder.h"
+#include "table/block_based/data_block_hash_index.h"
 #include "table/get_context.h"
 #include "table/table_builder.h"
 #include "test_util/testharness.h"
 #include "test_util/testutil.h"
-#include "util/random.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -37,6 +35,12 @@ bool SearchForOffset(DataBlockHashIndex& index, const char* data,
   return entry == restart_point;
 }
 
+// Random KV generator similer to block_test
+static std::string RandomString(Random* rnd, int len) {
+  std::string r;
+  test::RandomString(rnd, len, &r);
+  return r;
+}
 std::string GenerateKey(int primary_key, int secondary_key, int padding_size,
                         Random* rnd) {
   char buf[50];
@@ -44,7 +48,7 @@ std::string GenerateKey(int primary_key, int secondary_key, int padding_size,
   snprintf(buf, sizeof(buf), "%6d%4d", primary_key, secondary_key);
   std::string k(p);
   if (padding_size) {
-    k += rnd->RandomString(padding_size);
+    k += RandomString(rnd, padding_size);
   }
 
   return k;
@@ -67,7 +71,7 @@ void GenerateRandomKVs(std::vector<std::string>* keys,
       keys->emplace_back(GenerateKey(i, j, padding_size, &rnd));
 
       // 100 bytes values
-      values->emplace_back(rnd.RandomString(100));
+      values->emplace_back(RandomString(&rnd, 100));
     }
   }
 }
@@ -387,7 +391,7 @@ TEST(DataBlockHashIndex, BlockTestSingleKey) {
   Block reader(std::move(contents));
 
   const InternalKeyComparator icmp(BytewiseComparator());
-  auto iter = reader.NewDataIterator(icmp.user_comparator(),
+  auto iter = reader.NewDataIterator(&icmp, icmp.user_comparator(),
                                      kDisableGlobalSequenceNumber);
   bool may_exist;
   // search in block for the key just inserted
@@ -471,7 +475,7 @@ TEST(DataBlockHashIndex, BlockTestLarge) {
 
   // random seek existent keys
   for (int i = 0; i < num_records; i++) {
-    auto iter = reader.NewDataIterator(icmp.user_comparator(),
+    auto iter = reader.NewDataIterator(&icmp, icmp.user_comparator(),
                                        kDisableGlobalSequenceNumber);
     // find a random key in the lookaside array
     int index = rnd.Uniform(num_records);
@@ -509,7 +513,7 @@ TEST(DataBlockHashIndex, BlockTestLarge) {
   //     C         true          false
 
   for (int i = 0; i < num_records; i++) {
-    auto iter = reader.NewDataIterator(icmp.user_comparator(),
+    auto iter = reader.NewDataIterator(&icmp, icmp.user_comparator(),
                                        kDisableGlobalSequenceNumber);
     // find a random key in the lookaside array
     int index = rnd.Uniform(num_records);
@@ -539,27 +543,26 @@ void TestBoundary(InternalKey& ik1, std::string& v1, InternalKey& ik2,
   int level_ = -1;
 
   std::vector<std::string> keys;
-  const ImmutableOptions ioptions(options);
+  const ImmutableCFOptions ioptions(options);
   const MutableCFOptions moptions(options);
   const InternalKeyComparator internal_comparator(options.comparator);
 
   EnvOptions soptions;
 
   soptions.use_mmap_reads = ioptions.allow_mmap_reads;
-  test::StringSink* sink = new test::StringSink();
-  std::unique_ptr<FSWritableFile> f(sink);
   file_writer.reset(
-      new WritableFileWriter(std::move(f), "" /* don't care */, FileOptions()));
+      test::GetWritableFileWriter(new test::StringSink(), "" /* don't care */));
   std::unique_ptr<TableBuilder> builder;
-  IntTblPropCollectorFactories int_tbl_prop_collector_factories;
+  std::vector<std::unique_ptr<IntTblPropCollectorFactory>>
+      int_tbl_prop_collector_factories;
   std::string column_family_name;
   builder.reset(ioptions.table_factory->NewTableBuilder(
-      TableBuilderOptions(
-          ioptions, moptions, internal_comparator,
-          &int_tbl_prop_collector_factories, options.compression,
-          CompressionOptions(),
-          TablePropertiesCollectorFactory::Context::kUnknownColumnFamily,
-          column_family_name, level_),
+      TableBuilderOptions(ioptions, moptions, internal_comparator,
+                          &int_tbl_prop_collector_factories,
+                          options.compression, options.sample_for_compression,
+                          CompressionOptions(), false /* skip_filters */,
+                          column_family_name, level_),
+      TablePropertiesCollectorFactory::Context::kUnknownColumnFamily,
       file_writer.get()));
 
   builder->Add(ik1.Encode().ToString(), v1);
@@ -567,23 +570,26 @@ void TestBoundary(InternalKey& ik1, std::string& v1, InternalKey& ik2,
   EXPECT_TRUE(builder->status().ok());
 
   Status s = builder->Finish();
-  ASSERT_OK(file_writer->Flush());
+  file_writer->Flush();
   EXPECT_TRUE(s.ok()) << s.ToString();
 
-  EXPECT_EQ(sink->contents().size(), builder->FileSize());
+  EXPECT_EQ(
+      test::GetStringSinkFromLegacyWriter(file_writer.get())->contents().size(),
+      builder->FileSize());
 
   // Open the table
-  test::StringSource* source = new test::StringSource(
-      sink->contents(), 0 /*uniq_id*/, ioptions.allow_mmap_reads);
-  std::unique_ptr<FSRandomAccessFile> file(source);
-  file_reader.reset(new RandomAccessFileReader(std::move(file), "test"));
+  file_reader.reset(test::GetRandomAccessFileReader(new test::StringSource(
+      test::GetStringSinkFromLegacyWriter(file_writer.get())->contents(),
+      0 /*uniq_id*/, ioptions.allow_mmap_reads)));
   const bool kSkipFilters = true;
   const bool kImmortal = true;
-  ASSERT_OK(ioptions.table_factory->NewTableReader(
-      TableReaderOptions(ioptions, moptions.prefix_extractor, soptions,
+  ioptions.table_factory->NewTableReader(
+      TableReaderOptions(ioptions, moptions.prefix_extractor.get(), soptions,
                          internal_comparator, !kSkipFilters, !kImmortal,
                          level_),
-      std::move(file_reader), sink->contents().size(), &table_reader));
+      std::move(file_reader),
+      test::GetStringSinkFromLegacyWriter(file_writer.get())->contents().size(),
+      &table_reader);
   // Search using Get()
   ReadOptions ro;
 
@@ -625,7 +631,7 @@ TEST(DataBlockHashIndex, BlockBoundary) {
     InternalKey seek_ikey(seek_ukey, 60, kTypeValue);
     GetContext get_context(options.comparator, nullptr, nullptr, nullptr,
                            GetContext::kNotFound, seek_ukey, &value, nullptr,
-                           nullptr, nullptr, true, nullptr, nullptr);
+                           nullptr, true, nullptr, nullptr);
 
     TestBoundary(ik1, v1, ik2, v2, seek_ikey, get_context, options);
     ASSERT_EQ(get_context.State(), GetContext::kFound);
@@ -650,7 +656,7 @@ TEST(DataBlockHashIndex, BlockBoundary) {
     InternalKey seek_ikey(seek_ukey, 60, kTypeValue);
     GetContext get_context(options.comparator, nullptr, nullptr, nullptr,
                            GetContext::kNotFound, seek_ukey, &value, nullptr,
-                           nullptr, nullptr, true, nullptr, nullptr);
+                           nullptr, true, nullptr, nullptr);
 
     TestBoundary(ik1, v1, ik2, v2, seek_ikey, get_context, options);
     ASSERT_EQ(get_context.State(), GetContext::kFound);
@@ -675,7 +681,7 @@ TEST(DataBlockHashIndex, BlockBoundary) {
     InternalKey seek_ikey(seek_ukey, 120, kTypeValue);
     GetContext get_context(options.comparator, nullptr, nullptr, nullptr,
                            GetContext::kNotFound, seek_ukey, &value, nullptr,
-                           nullptr, nullptr, true, nullptr, nullptr);
+                           nullptr, true, nullptr, nullptr);
 
     TestBoundary(ik1, v1, ik2, v2, seek_ikey, get_context, options);
     ASSERT_EQ(get_context.State(), GetContext::kFound);
@@ -700,7 +706,7 @@ TEST(DataBlockHashIndex, BlockBoundary) {
     InternalKey seek_ikey(seek_ukey, 5, kTypeValue);
     GetContext get_context(options.comparator, nullptr, nullptr, nullptr,
                            GetContext::kNotFound, seek_ukey, &value, nullptr,
-                           nullptr, nullptr, true, nullptr, nullptr);
+                           nullptr, true, nullptr, nullptr);
 
     TestBoundary(ik1, v1, ik2, v2, seek_ikey, get_context, options);
     ASSERT_EQ(get_context.State(), GetContext::kNotFound);

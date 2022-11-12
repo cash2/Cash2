@@ -7,12 +7,10 @@
 // ROCKSDB_NAMESPACE::CompactionFilterFactory.
 
 #include <jni.h>
-
 #include <memory>
 
 #include "include/org_rocksdb_AbstractCompactionFilterFactory.h"
 #include "rocksjni/compaction_filter_factory_jnicallback.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 
 /*
  * Class:     org_rocksdb_AbstractCompactionFilterFactory
@@ -25,7 +23,7 @@ jlong Java_org_rocksdb_AbstractCompactionFilterFactory_createNewCompactionFilter
       new ROCKSDB_NAMESPACE::CompactionFilterFactoryJniCallback(env, jobj);
   auto* ptr_sptr_cff = new std::shared_ptr<
       ROCKSDB_NAMESPACE::CompactionFilterFactoryJniCallback>(cff);
-  return GET_CPLUSPLUS_POINTER(ptr_sptr_cff);
+  return reinterpret_cast<jlong>(ptr_sptr_cff);
 }
 
 /*

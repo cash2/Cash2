@@ -1,7 +1,7 @@
 // Copyright (c) 2011-present, Facebook, Inc.  All rights reserved.
-// This source code is licensed under both the GPLv2 (found in the
-// COPYING file in the root directory) and Apache 2.0 License
-// (found in the LICENSE.Apache file in the root directory).
+//  This source code is licensed under both the GPLv2 (found in the
+//  COPYING file in the root directory) and Apache 2.0 License
+//  (found in the LICENSE.Apache file in the root directory).
 
 #pragma once
 
@@ -21,17 +21,15 @@
 #include "rocksdb/utilities/transaction_db.h"
 #include "rocksdb/utilities/write_batch_with_index.h"
 #include "util/autovector.h"
-#include "utilities/transactions/lock/lock_tracker.h"
 #include "utilities/transactions/transaction_util.h"
 
 namespace ROCKSDB_NAMESPACE {
 
 class TransactionBaseImpl : public Transaction {
  public:
-  TransactionBaseImpl(DB* db, const WriteOptions& write_options,
-                      const LockTrackerFactory& lock_tracker_factory);
+  TransactionBaseImpl(DB* db, const WriteOptions& write_options);
 
-  ~TransactionBaseImpl() override;
+  virtual ~TransactionBaseImpl();
 
   // Remove pending operations queued in this transaction.
   virtual void Clear();
@@ -202,12 +200,7 @@ class TransactionBaseImpl : public Transaction {
   }
 
   const Snapshot* GetSnapshot() const override {
-    // will return nullptr when there is no snapshot
-    return snapshot_.get();
-  }
-
-  std::shared_ptr<const Snapshot> GetTimestampedSnapshot() const override {
-    return snapshot_;
+    return snapshot_ ? snapshot_.get() : nullptr;
   }
 
   virtual void SetSnapshot() override;
@@ -223,8 +216,6 @@ class TransactionBaseImpl : public Transaction {
   void DisableIndexing() override { indexing_enabled_ = false; }
 
   void EnableIndexing() override { indexing_enabled_ = true; }
-
-  bool IndexingEnabled() const { return indexing_enabled_; }
 
   uint64_t GetElapsedTime() const override;
 
@@ -242,6 +233,10 @@ class TransactionBaseImpl : public Transaction {
     return UndoGetForUpdate(nullptr, key);
   };
 
+  // Get list of keys in this transaction that must not have any conflicts
+  // with writes in other transactions.
+  const TransactionKeyMap& GetTrackedKeys() const { return tracked_keys_; }
+
   WriteOptions* GetWriteOptions() override { return &write_options_; }
 
   void SetWriteOptions(const WriteOptions& write_options) override {
@@ -257,8 +252,6 @@ class TransactionBaseImpl : public Transaction {
 
   WriteBatch* GetCommitTimeWriteBatch() override;
 
-  LockTracker& GetTrackedLocks() { return *tracked_locks_; }
-
  protected:
   // Add a key to the list of tracked keys.
   //
@@ -267,9 +260,16 @@ class TransactionBaseImpl : public Transaction {
   void TrackKey(uint32_t cfh_id, const std::string& key, SequenceNumber seqno,
                 bool readonly, bool exclusive);
 
+  // Helper function to add a key to the given TransactionKeyMap
+  static void TrackKey(TransactionKeyMap* key_map, uint32_t cfh_id,
+                       const std::string& key, SequenceNumber seqno,
+                       bool readonly, bool exclusive);
+
   // Called when UndoGetForUpdate determines that this key can be unlocked.
   virtual void UnlockGetForUpdate(ColumnFamilyHandle* column_family,
                                   const Slice& key) = 0;
+
+  std::unique_ptr<TransactionKeyMap> GetTrackedKeysSinceSavePoint();
 
   // Sets a snapshot if SetSnapshotOnNextOperation() has been called.
   void SetSnapshotIfNeeded();
@@ -280,11 +280,8 @@ class TransactionBaseImpl : public Transaction {
       write_batch_.Clear();
     }
     assert(write_batch_.GetDataSize() == WriteBatchInternal::kHeader);
-    auto s = WriteBatchInternal::InsertNoop(write_batch_.GetWriteBatch());
-    assert(s.ok());
+    WriteBatchInternal::InsertNoop(write_batch_.GetWriteBatch());
   }
-
-  WriteBatchBase* GetBatchForWrite();
 
   DB* db_;
   DBImpl* dbimpl_;
@@ -292,8 +289,6 @@ class TransactionBaseImpl : public Transaction {
   WriteOptions write_options_;
 
   const Comparator* cmp_;
-
-  const LockTrackerFactory& lock_tracker_factory_;
 
   // Stores that time the txn was constructed, in microseconds.
   uint64_t start_time_;
@@ -315,33 +310,30 @@ class TransactionBaseImpl : public Transaction {
     uint64_t num_deletes_ = 0;
     uint64_t num_merges_ = 0;
 
-    // Record all locks tracked since the last savepoint
-    std::shared_ptr<LockTracker> new_locks_;
+    // Record all keys tracked since the last savepoint
+    TransactionKeyMap new_keys_;
 
     SavePoint(std::shared_ptr<const Snapshot> snapshot, bool snapshot_needed,
               std::shared_ptr<TransactionNotifier> snapshot_notifier,
-              uint64_t num_puts, uint64_t num_deletes, uint64_t num_merges,
-              const LockTrackerFactory& lock_tracker_factory)
+              uint64_t num_puts, uint64_t num_deletes, uint64_t num_merges)
         : snapshot_(snapshot),
           snapshot_needed_(snapshot_needed),
           snapshot_notifier_(snapshot_notifier),
           num_puts_(num_puts),
           num_deletes_(num_deletes),
-          num_merges_(num_merges),
-          new_locks_(lock_tracker_factory.Create()) {}
+          num_merges_(num_merges) {}
 
-    explicit SavePoint(const LockTrackerFactory& lock_tracker_factory)
-        : new_locks_(lock_tracker_factory.Create()) {}
+    SavePoint() = default;
   };
 
   // Records writes pending in this transaction
   WriteBatchWithIndex write_batch_;
 
-  // For Pessimistic Transactions this is the set of acquired locks.
-  // Optimistic Transactions will keep note the requested locks (not actually
-  // locked), and do conflict checking until commit time based on the tracked
-  // lock requests.
-  std::unique_ptr<LockTracker> tracked_locks_;
+  // Map from column_family_id to map of keys that are involved in this
+  // transaction.
+  // For Pessimistic Transactions this is the list of locked keys.
+  // Optimistic Transactions will wait till commit time to do conflict checking.
+  TransactionKeyMap tracked_keys_;
 
   // Stack of the Snapshot saved at each save point. Saved snapshots may be
   // nullptr if there was no snapshot at the time SetSavePoint() was called.
@@ -350,9 +342,7 @@ class TransactionBaseImpl : public Transaction {
       save_points_;
 
  private:
-  friend class WriteCommittedTxn;
   friend class WritePreparedTxn;
-
   // Extra data to be persisted with the commit. Note this is only used when
   // prepare phase is not skipped.
   WriteBatch commit_time_batch_;
@@ -375,6 +365,7 @@ class TransactionBaseImpl : public Transaction {
                  bool read_only, bool exclusive, const bool do_validate = true,
                  const bool assume_tracked = false);
 
+  WriteBatchBase* GetBatchForWrite();
   void SetSnapshotInternal(const Snapshot* snapshot);
 };
 

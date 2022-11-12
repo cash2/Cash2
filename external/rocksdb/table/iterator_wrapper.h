@@ -89,13 +89,6 @@ class IteratorWrapperBase {
     valid_ = iter_->NextAndGetResult(&result_);
     assert(!valid_ || iter_->status().ok());
   }
-  bool NextAndGetResult(IterateResult* result) {
-    assert(iter_);
-    valid_ = iter_->NextAndGetResult(&result_);
-    *result = result_;
-    assert(!valid_ || iter_->status().ok());
-    return valid_;
-  }
   void Prev() {
     assert(iter_);
     iter_->Prev();
@@ -127,9 +120,9 @@ class IteratorWrapperBase {
     return iter_->MayBeOutOfLowerBound();
   }
 
-  IterBoundCheck UpperBoundCheckResult() {
+  bool MayBeOutOfUpperBound() {
     assert(Valid());
-    return result_.bound_check_result;
+    return result_.may_be_out_of_upper_bound;
   }
 
   void SetPinnedItersMgr(PinnedIteratorsManager* pinned_iters_mgr) {
@@ -149,30 +142,13 @@ class IteratorWrapperBase {
     return result_.value_prepared;
   }
 
-  Slice user_key() const {
-    assert(Valid());
-    return iter_->user_key();
-  }
-
-  void UpdateReadaheadState(InternalIteratorBase<TValue>* old_iter) {
-    if (old_iter && iter_) {
-      ReadaheadFileInfo readahead_file_info;
-      old_iter->GetReadaheadState(&readahead_file_info);
-      iter_->SetReadaheadState(&readahead_file_info);
-    }
-  }
-
-  bool IsDeleteRangeSentinelKey() const {
-    return iter_->IsDeleteRangeSentinelKey();
-  }
-
  private:
   void Update() {
     valid_ = iter_->Valid();
     if (valid_) {
       assert(iter_->status().ok());
       result_.key = iter_->key();
-      result_.bound_check_result = IterBoundCheck::kUnknown;
+      result_.may_be_out_of_upper_bound = true;
       result_.value_prepared = false;
     }
   }

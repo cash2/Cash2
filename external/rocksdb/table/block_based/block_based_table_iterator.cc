@@ -9,21 +9,11 @@
 #include "table/block_based/block_based_table_iterator.h"
 
 namespace ROCKSDB_NAMESPACE {
+void BlockBasedTableIterator::Seek(const Slice& target) { SeekImpl(&target); }
 
-void BlockBasedTableIterator::SeekToFirst() { SeekImpl(nullptr, false); }
+void BlockBasedTableIterator::SeekToFirst() { SeekImpl(nullptr); }
 
-void BlockBasedTableIterator::Seek(const Slice& target) {
-  SeekImpl(&target, true);
-}
-
-void BlockBasedTableIterator::SeekImpl(const Slice* target,
-                                       bool async_prefetch) {
-  bool is_first_pass = true;
-  if (async_read_in_progress_) {
-    AsyncInitDataBlock(false);
-    is_first_pass = false;
-  }
-
+void BlockBasedTableIterator::SeekImpl(const Slice* target) {
   is_out_of_bound_ = false;
   is_at_first_key_from_index_ = false;
   if (target && !CheckPrefixMayMatch(*target, IterDirection::kForward)) {
@@ -84,20 +74,7 @@ void BlockBasedTableIterator::SeekImpl(const Slice* target,
   } else {
     // Need to use the data block.
     if (!same_block) {
-      if (read_options_.async_io && async_prefetch) {
-        if (is_first_pass) {
-          AsyncInitDataBlock(is_first_pass);
-        }
-        if (async_read_in_progress_) {
-          // Status::TryAgain indicates asynchronous request for retrieval of
-          // data blocks has been submitted. So it should return at this point
-          // and Seek should be called again to retrieve the requested block and
-          // execute the remaining code.
-          return;
-        }
-      } else {
-        InitDataBlock();
-      }
+      InitDataBlock();
     } else {
       // When the user does a reseek, the iterate_upper_bound might have
       // changed. CheckDataBlockWithinUpperBound() needs to be called
@@ -212,7 +189,7 @@ bool BlockBasedTableIterator::NextAndGetResult(IterateResult* result) {
   bool is_valid = Valid();
   if (is_valid) {
     result->key = key();
-    result->bound_check_result = UpperBoundCheckResult();
+    result->may_be_out_of_upper_bound = MayBeOutOfUpperBound();
     result->value_prepared = !is_at_first_key_from_index_;
   }
   return is_valid;
@@ -255,72 +232,19 @@ void BlockBasedTableIterator::InitDataBlock() {
     //   Enabled after 2 sequential IOs when ReadOptions.readahead_size == 0.
     // Explicit user requested readahead:
     //   Enabled from the very first IO when ReadOptions.readahead_size is set.
-    block_prefetcher_.PrefetchIfNeeded(
-        rep, data_block_handle, read_options_.readahead_size, is_for_compaction,
-        /*no_sequential_checking=*/false, read_options_.rate_limiter_priority);
+    block_prefetcher_.PrefetchIfNeeded(rep, data_block_handle,
+                                       read_options_.readahead_size,
+                                       is_for_compaction);
+
     Status s;
     table_->NewDataBlockIterator<DataBlockIter>(
         read_options_, data_block_handle, &block_iter_, BlockType::kData,
-        /*get_context=*/nullptr, &lookup_context_,
+        /*get_context=*/nullptr, &lookup_context_, s,
         block_prefetcher_.prefetch_buffer(),
-        /*for_compaction=*/is_for_compaction, /*async_read=*/false, s);
+        /*for_compaction=*/is_for_compaction);
     block_iter_points_to_real_block_ = true;
     CheckDataBlockWithinUpperBound();
   }
-}
-
-void BlockBasedTableIterator::AsyncInitDataBlock(bool is_first_pass) {
-  BlockHandle data_block_handle = index_iter_->value().handle;
-  bool is_for_compaction =
-      lookup_context_.caller == TableReaderCaller::kCompaction;
-  if (is_first_pass) {
-    if (!block_iter_points_to_real_block_ ||
-        data_block_handle.offset() != prev_block_offset_ ||
-        // if previous attempt of reading the block missed cache, try again
-        block_iter_.status().IsIncomplete()) {
-      if (block_iter_points_to_real_block_) {
-        ResetDataIter();
-      }
-      auto* rep = table_->get_rep();
-      // Prefetch additional data for range scans (iterators).
-      // Implicit auto readahead:
-      //   Enabled after 2 sequential IOs when ReadOptions.readahead_size == 0.
-      // Explicit user requested readahead:
-      //   Enabled from the very first IO when ReadOptions.readahead_size is
-      //   set.
-      // In case of async_io with Implicit readahead, block_prefetcher_ will
-      // always the create the prefetch buffer by setting no_sequential_checking
-      // = true.
-      block_prefetcher_.PrefetchIfNeeded(
-          rep, data_block_handle, read_options_.readahead_size,
-          is_for_compaction, /*no_sequential_checking=*/read_options_.async_io,
-          read_options_.rate_limiter_priority);
-
-      Status s;
-      table_->NewDataBlockIterator<DataBlockIter>(
-          read_options_, data_block_handle, &block_iter_, BlockType::kData,
-          /*get_context=*/nullptr, &lookup_context_,
-          block_prefetcher_.prefetch_buffer(),
-          /*for_compaction=*/is_for_compaction, /*async_read=*/true, s);
-
-      if (s.IsTryAgain()) {
-        async_read_in_progress_ = true;
-        return;
-      }
-    }
-  } else {
-    // Second pass will call the Poll to get the data block which has been
-    // requested asynchronously.
-    Status s;
-    table_->NewDataBlockIterator<DataBlockIter>(
-        read_options_, data_block_handle, &block_iter_, BlockType::kData,
-        /*get_context=*/nullptr, &lookup_context_,
-        block_prefetcher_.prefetch_buffer(),
-        /*for_compaction=*/is_for_compaction, /*async_read=*/false, s);
-  }
-  block_iter_points_to_real_block_ = true;
-  CheckDataBlockWithinUpperBound();
-  async_read_in_progress_ = false;
 }
 
 bool BlockBasedTableIterator::MaterializeCurrentBlock() {
@@ -376,8 +300,7 @@ void BlockBasedTableIterator::FindBlockForward() {
     // Whether next data block is out of upper bound, if there is one.
     const bool next_block_is_out_of_bound =
         read_options_.iterate_upper_bound != nullptr &&
-        block_iter_points_to_real_block_ &&
-        block_upper_bound_check_ == BlockUpperBound::kUpperBoundInCurBlock;
+        block_iter_points_to_real_block_ && !data_block_within_upper_bound_;
     assert(!next_block_is_out_of_bound ||
            user_comparator_.CompareWithoutTimestamp(
                *read_options_.iterate_upper_bound, /*a_has_ts=*/false,
@@ -435,9 +358,7 @@ void BlockBasedTableIterator::FindKeyBackward() {
 }
 
 void BlockBasedTableIterator::CheckOutOfBound() {
-  if (read_options_.iterate_upper_bound != nullptr &&
-      block_upper_bound_check_ != BlockUpperBound::kUpperBoundBeyondCurBlock &&
-      Valid()) {
+  if (read_options_.iterate_upper_bound != nullptr && Valid()) {
     is_out_of_bound_ =
         user_comparator_.CompareWithoutTimestamp(
             *read_options_.iterate_upper_bound, /*a_has_ts=*/false, user_key(),
@@ -448,12 +369,11 @@ void BlockBasedTableIterator::CheckOutOfBound() {
 void BlockBasedTableIterator::CheckDataBlockWithinUpperBound() {
   if (read_options_.iterate_upper_bound != nullptr &&
       block_iter_points_to_real_block_) {
-    block_upper_bound_check_ = (user_comparator_.CompareWithoutTimestamp(
-                                    *read_options_.iterate_upper_bound,
-                                    /*a_has_ts=*/false, index_iter_->user_key(),
-                                    /*b_has_ts=*/true) > 0)
-                                   ? BlockUpperBound::kUpperBoundBeyondCurBlock
-                                   : BlockUpperBound::kUpperBoundInCurBlock;
+    data_block_within_upper_bound_ =
+        (user_comparator_.CompareWithoutTimestamp(
+             *read_options_.iterate_upper_bound, /*a_has_ts=*/false,
+             index_iter_->user_key(),
+             /*b_has_ts=*/true) > 0);
   }
 }
 }  // namespace ROCKSDB_NAMESPACE

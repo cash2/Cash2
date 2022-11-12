@@ -11,7 +11,6 @@
 
 #include "include/org_rocksdb_ConfigOptions.h"
 #include "rocksdb/convenience.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 #include "rocksjni/portal.h"
 
 /*
@@ -33,7 +32,7 @@ void Java_org_rocksdb_ConfigOptions_disposeInternal(JNIEnv *, jobject,
  */
 jlong Java_org_rocksdb_ConfigOptions_newConfigOptions(JNIEnv *, jclass) {
   auto *cfg_opt = new ROCKSDB_NAMESPACE::ConfigOptions();
-  return GET_CPLUSPLUS_POINTER(cfg_opt);
+  return reinterpret_cast<jlong>(cfg_opt);
 }
 
 /*

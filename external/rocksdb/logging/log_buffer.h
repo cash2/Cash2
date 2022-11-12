@@ -35,7 +35,7 @@ class LogBuffer {
  private:
   // One log entry with its timestamp
   struct BufferedLog {
-    port::TimeVal now_tv;   // Timestamp of the log
+    struct timeval now_tv;  // Timestamp of the log
     char message[1];        // Beginning of log message
   };
 

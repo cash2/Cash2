@@ -119,11 +119,6 @@ public class CapturingWriteBatchHandler extends WriteBatch.Handler {
     events.add(new Event(Action.MARK_COMMIT, (byte[])null, (byte[])null));
   }
 
-  @Override
-  public void markCommitWithTimestamp(final byte[] xid, final byte[] ts) throws RocksDBException {
-    events.add(new Event(Action.MARK_COMMIT_WITH_TIMESTAMP, (byte[]) null, (byte[]) null));
-  }
-
   public static class Event {
     public final Action action;
     public final int columnFamilyId;
@@ -161,10 +156,8 @@ public class CapturingWriteBatchHandler extends WriteBatch.Handler {
 
     @Override
     public int hashCode() {
-      int result = Objects.hash(action, columnFamilyId);
-      result = 31 * result + Arrays.hashCode(key);
-      result = 31 * result + Arrays.hashCode(value);
-      return result;
+
+      return Objects.hash(action, columnFamilyId, key, value);
     }
   }
 
@@ -173,18 +166,7 @@ public class CapturingWriteBatchHandler extends WriteBatch.Handler {
    * event actions
    */
   public enum Action {
-    PUT,
-    MERGE,
-    DELETE,
-    SINGLE_DELETE,
-    DELETE_RANGE,
-    LOG,
-    PUT_BLOB_INDEX,
-    MARK_BEGIN_PREPARE,
-    MARK_END_PREPARE,
-    MARK_NOOP,
-    MARK_COMMIT,
-    MARK_ROLLBACK,
-    MARK_COMMIT_WITH_TIMESTAMP
-  }
+    PUT, MERGE, DELETE, SINGLE_DELETE, DELETE_RANGE, LOG, PUT_BLOB_INDEX,
+    MARK_BEGIN_PREPARE, MARK_END_PREPARE, MARK_NOOP, MARK_COMMIT,
+    MARK_ROLLBACK }
 }

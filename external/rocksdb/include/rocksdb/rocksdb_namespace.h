@@ -5,12 +5,6 @@
 
 #pragma once
 
-// For testing purposes
-#if ROCKSDB_NAMESPACE == 42
-#undef ROCKSDB_NAMESPACE
-#endif
-
-// Normal logic
 #ifndef ROCKSDB_NAMESPACE
 #define ROCKSDB_NAMESPACE rocksdb
 #endif

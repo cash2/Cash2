@@ -27,8 +27,9 @@ class FlushBlockEveryKeyPolicyFactory : public FlushBlockPolicyFactory {
  public:
   explicit FlushBlockEveryKeyPolicyFactory() {}
 
-  static const char* kClassName() { return "FlushBlockEveryKeyPolicyFactory"; }
-  const char* Name() const override { return kClassName(); }
+  const char* Name() const override {
+    return "FlushBlockEveryKeyPolicyFactory";
+  }
 
   FlushBlockPolicy* NewFlushBlockPolicy(
       const BlockBasedTableOptions& /*table_options*/,

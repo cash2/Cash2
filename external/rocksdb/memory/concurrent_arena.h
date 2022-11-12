@@ -97,7 +97,11 @@ class ConcurrentArena : public Allocator {
     Shard() : free_begin_(nullptr), allocated_and_unused_(0) {}
   };
 
-  static thread_local size_t tls_cpuid;
+#ifdef ROCKSDB_SUPPORT_THREAD_LOCAL
+  static __thread size_t tls_cpuid;
+#else
+  enum ZeroFirstEnum : size_t { tls_cpuid = 0 };
+#endif
 
   char padding0[56] ROCKSDB_FIELD_UNUSED;
 

@@ -5,8 +5,6 @@
 
 package org.rocksdb;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -47,7 +45,7 @@ public class Transaction extends RocksObject {
 
   /**
    * If a transaction has a snapshot set, the transaction will ensure that
-   * any keys successfully written (or fetched via {@link #getForUpdate}) have
+   * any keys successfully written(or fetched via {@link #getForUpdate}) have
    * not been modified outside of this transaction since the time the snapshot
    * was set.
    *
@@ -178,7 +176,7 @@ public class Transaction extends RocksObject {
   /**
    * Prepare the current transaction for 2PC
    */
-  public void prepare() throws RocksDBException {
+  void prepare() throws RocksDBException {
     //TODO(AR) consider a Java'ish version of this function, which returns an AutoCloseable (commit)
     assert(isOwningHandle());
     prepare(nativeHandle_);
@@ -312,7 +310,7 @@ public class Transaction extends RocksObject {
 
   /**
    * This function is similar to
-   * {@link RocksDB#multiGetAsList} except it will
+   * {@link RocksDB#multiGet(ReadOptions, List, List)} except it will
    * also read pending changes in this transaction.
    * Currently, this function will return Status::MergeInProgress if the most
    * recent write to the queried key in this batch is a Merge.
@@ -338,10 +336,9 @@ public class Transaction extends RocksObject {
    * @throws IllegalArgumentException thrown if the size of passed keys is not
    *    equal to the amount of passed column family handles.
    */
-  @Deprecated
   public byte[][] multiGet(final ReadOptions readOptions,
-      final List<ColumnFamilyHandle> columnFamilyHandles, final byte[][] keys)
-      throws RocksDBException {
+      final List<ColumnFamilyHandle> columnFamilyHandles,
+      final byte[][] keys) throws RocksDBException {
     assert(isOwningHandle());
     // Check if key size equals cfList size. If not a exception must be
     // thrown. If not a Segmentation fault happens.
@@ -363,57 +360,7 @@ public class Transaction extends RocksObject {
 
   /**
    * This function is similar to
-   * {@link RocksDB#multiGetAsList(ReadOptions, List, List)} except it will
-   * also read pending changes in this transaction.
-   * Currently, this function will return Status::MergeInProgress if the most
-   * recent write to the queried key in this batch is a Merge.
-   *
-   * If {@link ReadOptions#snapshot()} is not set, the current version of the
-   * key will be read. Calling {@link #setSnapshot()} does not affect the
-   * version of the data returned.
-   *
-   * Note that setting {@link ReadOptions#setSnapshot(Snapshot)} will affect
-   * what is read from the DB but will NOT change which keys are read from this
-   * transaction (the keys in this transaction do not yet belong to any snapshot
-   * and will be fetched regardless).
-   *
-   * @param readOptions Read options.
-   * @param columnFamilyHandles {@link java.util.List} containing
-   *     {@link org.rocksdb.ColumnFamilyHandle} instances.
-   * @param keys of keys for which values need to be retrieved.
-   *
-   * @return Array of values, one for each key
-   *
-   * @throws RocksDBException thrown if error happens in underlying
-   *    native library.
-   * @throws IllegalArgumentException thrown if the size of passed keys is not
-   *    equal to the amount of passed column family handles.
-   */
-
-  public List<byte[]> multiGetAsList(final ReadOptions readOptions,
-      final List<ColumnFamilyHandle> columnFamilyHandles, final List<byte[]> keys)
-      throws RocksDBException {
-    assert (isOwningHandle());
-    // Check if key size equals cfList size. If not a exception must be
-    // thrown. If not a Segmentation fault happens.
-    if (keys.size() != columnFamilyHandles.size()) {
-      throw new IllegalArgumentException("For each key there must be a ColumnFamilyHandle.");
-    }
-    if (keys.size() == 0) {
-      return new ArrayList<>(0);
-    }
-    final byte[][] keysArray = keys.toArray(new byte[keys.size()][]);
-    final long[] cfHandles = new long[columnFamilyHandles.size()];
-    for (int i = 0; i < columnFamilyHandles.size(); i++) {
-      cfHandles[i] = columnFamilyHandles.get(i).nativeHandle_;
-    }
-
-    return Arrays.asList(multiGet(nativeHandle_, readOptions.nativeHandle_, keysArray, cfHandles));
-  }
-
-  /**
-   * This function is similar to
-   * {@link RocksDB#multiGetAsList} except it will
+   * {@link RocksDB#multiGet(ReadOptions, List)} except it will
    * also read pending changes in this transaction.
    * Currently, this function will return Status::MergeInProgress if the most
    * recent write to the queried key in this batch is a Merge.
@@ -436,9 +383,8 @@ public class Transaction extends RocksObject {
    * @throws RocksDBException thrown if error happens in underlying
    *    native library.
    */
-  @Deprecated
-  public byte[][] multiGet(final ReadOptions readOptions, final byte[][] keys)
-      throws RocksDBException {
+  public byte[][] multiGet(final ReadOptions readOptions,
+      final byte[][] keys) throws RocksDBException {
     assert(isOwningHandle());
     if(keys.length == 0) {
       return new byte[0][0];
@@ -446,41 +392,6 @@ public class Transaction extends RocksObject {
 
     return multiGet(nativeHandle_, readOptions.nativeHandle_,
         keys);
-  }
-
-  /**
-   * This function is similar to
-   * {@link RocksDB#multiGetAsList} except it will
-   * also read pending changes in this transaction.
-   * Currently, this function will return Status::MergeInProgress if the most
-   * recent write to the queried key in this batch is a Merge.
-   *
-   * If {@link ReadOptions#snapshot()} is not set, the current version of the
-   * key will be read. Calling {@link #setSnapshot()} does not affect the
-   * version of the data returned.
-   *
-   * Note that setting {@link ReadOptions#setSnapshot(Snapshot)} will affect
-   * what is read from the DB but will NOT change which keys are read from this
-   * transaction (the keys in this transaction do not yet belong to any snapshot
-   * and will be fetched regardless).
-   *
-   * @param readOptions Read options.=
-   *     {@link org.rocksdb.ColumnFamilyHandle} instances.
-   * @param keys of keys for which values need to be retrieved.
-   *
-   * @return Array of values, one for each key
-   *
-   * @throws RocksDBException thrown if error happens in underlying
-   *    native library.
-   */
-  public List<byte[]> multiGetAsList(final ReadOptions readOptions, final List<byte[]> keys)
-      throws RocksDBException {
-    if (keys.size() == 0) {
-      return new ArrayList<>(0);
-    }
-    final byte[][] keysArray = keys.toArray(new byte[keys.size()][]);
-
-    return Arrays.asList(multiGet(nativeHandle_, readOptions.nativeHandle_, keysArray));
   }
 
   /**
@@ -630,10 +541,9 @@ public class Transaction extends RocksObject {
    * @throws RocksDBException thrown if error happens in underlying
    *    native library.
    */
-  @Deprecated
   public byte[][] multiGetForUpdate(final ReadOptions readOptions,
-      final List<ColumnFamilyHandle> columnFamilyHandles, final byte[][] keys)
-      throws RocksDBException {
+      final List<ColumnFamilyHandle> columnFamilyHandles,
+      final byte[][] keys) throws RocksDBException {
     assert(isOwningHandle());
     // Check if key size equals cfList size. If not a exception must be
     // thrown. If not a Segmentation fault happens.
@@ -653,43 +563,6 @@ public class Transaction extends RocksObject {
   }
 
   /**
-   * A multi-key version of
-   * {@link #getForUpdate(ReadOptions, ColumnFamilyHandle, byte[], boolean)}.
-   *
-   *
-   * @param readOptions Read options.
-   * @param columnFamilyHandles {@link org.rocksdb.ColumnFamilyHandle}
-   *     instances
-   * @param keys the keys to retrieve the values for.
-   *
-   * @return Array of values, one for each key
-   *
-   * @throws RocksDBException thrown if error happens in underlying
-   *    native library.
-   */
-  public List<byte[]> multiGetForUpdateAsList(final ReadOptions readOptions,
-      final List<ColumnFamilyHandle> columnFamilyHandles, final List<byte[]> keys)
-      throws RocksDBException {
-    assert (isOwningHandle());
-    // Check if key size equals cfList size. If not a exception must be
-    // thrown. If not a Segmentation fault happens.
-    if (keys.size() != columnFamilyHandles.size()) {
-      throw new IllegalArgumentException("For each key there must be a ColumnFamilyHandle.");
-    }
-    if (keys.size() == 0) {
-      return new ArrayList<>();
-    }
-    final byte[][] keysArray = keys.toArray(new byte[keys.size()][]);
-
-    final long[] cfHandles = new long[columnFamilyHandles.size()];
-    for (int i = 0; i < columnFamilyHandles.size(); i++) {
-      cfHandles[i] = columnFamilyHandles.get(i).nativeHandle_;
-    }
-    return Arrays.asList(
-        multiGetForUpdate(nativeHandle_, readOptions.nativeHandle_, keysArray, cfHandles));
-  }
-
-  /**
    * A multi-key version of {@link #getForUpdate(ReadOptions, byte[], boolean)}.
    *
    *
@@ -701,9 +574,8 @@ public class Transaction extends RocksObject {
    * @throws RocksDBException thrown if error happens in underlying
    *    native library.
    */
-  @Deprecated
-  public byte[][] multiGetForUpdate(final ReadOptions readOptions, final byte[][] keys)
-      throws RocksDBException {
+  public byte[][] multiGetForUpdate(final ReadOptions readOptions,
+      final byte[][] keys) throws RocksDBException {
     assert(isOwningHandle());
     if(keys.length == 0) {
       return new byte[0][0];
@@ -711,30 +583,6 @@ public class Transaction extends RocksObject {
 
     return multiGetForUpdate(nativeHandle_,
         readOptions.nativeHandle_, keys);
-  }
-
-  /**
-   * A multi-key version of {@link #getForUpdate(ReadOptions, byte[], boolean)}.
-   *
-   *
-   * @param readOptions Read options.
-   * @param keys the keys to retrieve the values for.
-   *
-   * @return List of values, one for each key
-   *
-   * @throws RocksDBException thrown if error happens in underlying
-   *    native library.
-   */
-  public List<byte[]> multiGetForUpdateAsList(
-      final ReadOptions readOptions, final List<byte[]> keys) throws RocksDBException {
-    assert (isOwningHandle());
-    if (keys.size() == 0) {
-      return new ArrayList<>(0);
-    }
-
-    final byte[][] keysArray = keys.toArray(new byte[keys.size()][]);
-
-    return Arrays.asList(multiGetForUpdate(nativeHandle_, readOptions.nativeHandle_, keysArray));
   }
 
   /**
@@ -763,9 +611,9 @@ public class Transaction extends RocksObject {
   }
 
   /**
-   * Returns an iterator that will iterate on all keys in the column family
-   * specified by {@code columnFamilyHandle} including both keys in the DB
-   * and uncommitted keys in this transaction.
+   * Returns an iterator that will iterate on all keys in the default
+   * column family including both keys in the DB and uncommitted keys in this
+   * transaction.
    *
    * Setting {@link ReadOptions#setSnapshot(Snapshot)} will affect what is read
    * from the DB but will NOT change which keys are read from this transaction
@@ -1220,7 +1068,7 @@ public class Transaction extends RocksObject {
    * @param columnFamilyHandle The column family to delete the key/value from
    * @param key the specified key to be deleted.
    * @param assumeTracked true when it is expected that the key is already
-   *     tracked. More specifically, it means the key was previously tracked
+   *     tracked. More specifically, it means the the key was previous tracked
    *     in the same savepoint, with the same exclusive flag, and at a lower
    *     sequence number. If valid then it skips ValidateSnapshot,
    *     throws an error otherwise.
@@ -1304,7 +1152,7 @@ public class Transaction extends RocksObject {
    * @param columnFamilyHandle The column family to delete the key/value from
    * @param keyParts the specified key to be deleted.
    * @param assumeTracked true when it is expected that the key is already
-   *     tracked. More specifically, it means the key was previously tracked
+   *     tracked. More specifically, it means the the key was previous tracked
    *     in the same savepoint, with the same exclusive flag, and at a lower
    *     sequence number. If valid then it skips ValidateSnapshot,
    *     throws an error otherwise.

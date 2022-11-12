@@ -20,7 +20,6 @@ class FileTraceReader : public TraceReader {
 
   virtual Status Read(std::string* data) override;
   virtual Status Close() override;
-  virtual Status Reset() override;
 
  private:
   std::unique_ptr<RandomAccessFileReader> file_reader_;
@@ -34,7 +33,8 @@ class FileTraceReader : public TraceReader {
 // FileTraceWriter allows writing RocksDB traces to a file.
 class FileTraceWriter : public TraceWriter {
  public:
-  explicit FileTraceWriter(std::unique_ptr<WritableFileWriter>&& file_writer);
+  explicit FileTraceWriter(std::unique_ptr<WritableFileWriter>&& file_writer)
+      : file_writer_(std::move(file_writer)) {}
   ~FileTraceWriter();
 
   virtual Status Write(const Slice& data) override;

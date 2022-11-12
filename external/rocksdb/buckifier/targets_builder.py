@@ -10,7 +10,6 @@ except ImportError:
     from __builtin__ import object
     from __builtin__ import str
 import targets_cfg
-import pprint
 
 def pretty_list(lst, indent=8):
     if lst is None or len(lst) == 0:
@@ -26,12 +25,10 @@ def pretty_list(lst, indent=8):
 
 
 class TARGETSBuilder(object):
-    def __init__(self, path, extra_argv):
+    def __init__(self, path):
         self.path = path
-        self.targets_file = open(path, 'wb')
-        header = targets_cfg.rocksdb_target_header_template.format(
-            extra_argv=extra_argv)
-        self.targets_file.write(header.encode("utf-8"))
+        self.targets_file = open(path, 'w')
+        self.targets_file.write(targets_cfg.rocksdb_target_header)
         self.total_lib = 0
         self.total_bin = 0
         self.total_test = 0
@@ -40,74 +37,56 @@ class TARGETSBuilder(object):
     def __del__(self):
         self.targets_file.close()
 
-    def add_library(self, name, srcs, deps=None, headers=None,
-                    extra_external_deps="", link_whole=False,
-                     external_dependencies=None, extra_test_libs=False):
-        if headers is not None:
-            headers = "[" + pretty_list(headers) + "]"
+    def add_library(self, name, srcs, deps=None, headers=None):
+        headers_attr_prefix = ""
+        if headers is None:
+            headers_attr_prefix = "auto_"
+            headers = "AutoHeaders.RECURSIVE_GLOB"
         self.targets_file.write(targets_cfg.library_template.format(
             name=name,
             srcs=pretty_list(srcs),
+            headers_attr_prefix=headers_attr_prefix,
             headers=headers,
-            deps=pretty_list(deps),
-            extra_external_deps=extra_external_deps,
-            link_whole=link_whole,
-            external_dependencies=pretty_list(external_dependencies),
-            extra_test_libs=extra_test_libs
-            ).encode("utf-8"))
+            deps=pretty_list(deps)))
         self.total_lib = self.total_lib + 1
 
-    def add_rocksdb_library(self, name, srcs, headers=None,
-                            external_dependencies=None):
-        if headers is not None:
-            headers = "[" + pretty_list(headers) + "]"
+    def add_rocksdb_library(self, name, srcs, headers=None):
+        headers_attr_prefix = ""
+        if headers is None:
+            headers_attr_prefix = "auto_"
+            headers = "AutoHeaders.RECURSIVE_GLOB"
         self.targets_file.write(targets_cfg.rocksdb_library_template.format(
             name=name,
             srcs=pretty_list(srcs),
-            headers=headers,
-            external_dependencies=pretty_list(external_dependencies)
-            ).encode("utf-8")
-            )
+            headers_attr_prefix=headers_attr_prefix,
+            headers=headers))
         self.total_lib = self.total_lib + 1
 
-    def add_binary(self, name, srcs, deps=None, extra_preprocessor_flags=None,extra_bench_libs=False):
-        self.targets_file.write(targets_cfg.binary_template.format(
-            name=name,
-            srcs=pretty_list(srcs),
-            deps=pretty_list(deps),
-            extra_preprocessor_flags=pretty_list(extra_preprocessor_flags),
-            extra_bench_libs=extra_bench_libs,
-            ).encode("utf-8"))
+    def add_binary(self, name, srcs, deps=None):
+        self.targets_file.write(targets_cfg.binary_template % (
+            name,
+            pretty_list(srcs),
+            pretty_list(deps)))
         self.total_bin = self.total_bin + 1
-
-    def add_c_test(self):
-        self.targets_file.write(b"""
-add_c_test_wrapper()
-""")
-
-    def add_test_header(self):
-        self.targets_file.write(b"""
-        # Generate a test rule for each entry in ROCKS_TESTS
-        # Do not build the tests in opt mode, since SyncPoint and other test code
-        # will not be included.
-""")
-
-    def add_fancy_bench_config(self, name, bench_config, slow, expected_runtime, sl_iterations, regression_threshold):
-        self.targets_file.write(targets_cfg.fancy_bench_template.format(
-                    name=name,
-                    bench_config=pprint.pformat(bench_config),
-                    slow=slow,
-                    expected_runtime=expected_runtime,
-                    sl_iterations=sl_iterations,
-                    regression_threshold=regression_threshold
-                    ).encode("utf-8"))
 
     def register_test(self,
                       test_name,
                       src,
-                      deps,
+                      is_parallel,
+                      extra_deps,
                       extra_compiler_flags):
+        exec_mode = "serial"
+        if is_parallel:
+            exec_mode = "parallel"
+        self.tests_cfg += targets_cfg.test_cfg_template % (
+            test_name,
+            str(src),
+            str(exec_mode),
+            extra_deps,
+            extra_compiler_flags)
 
-        self.targets_file.write(targets_cfg.unittests_template.format(test_name=test_name,test_cc=str(src),deps=deps,
-            extra_compiler_flags=extra_compiler_flags).encode("utf-8"))
         self.total_test = self.total_test + 1
+
+    def flush_tests(self):
+        self.targets_file.write(targets_cfg.unittests_template % self.tests_cfg)
+        self.tests_cfg = ""

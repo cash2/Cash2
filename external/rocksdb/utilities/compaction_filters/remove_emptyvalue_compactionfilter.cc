@@ -12,6 +12,10 @@
 
 namespace ROCKSDB_NAMESPACE {
 
+const char* RemoveEmptyValueCompactionFilter::Name() const {
+  return "RemoveEmptyValueCompactionFilter";
+}
+
 bool RemoveEmptyValueCompactionFilter::Filter(int /*level*/,
                                               const Slice& /*key*/,
                                               const Slice& existing_value,

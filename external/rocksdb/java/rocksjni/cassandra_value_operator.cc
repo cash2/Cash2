@@ -6,7 +6,6 @@
 #include <jni.h>
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <memory>
 #include <string>
 
@@ -18,7 +17,6 @@
 #include "rocksdb/slice_transform.h"
 #include "rocksdb/statistics.h"
 #include "rocksdb/table.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 #include "rocksjni/portal.h"
 #include "utilities/cassandra/merge_operator.h"
 
@@ -33,7 +31,7 @@ jlong Java_org_rocksdb_CassandraValueMergeOperator_newSharedCassandraValueMergeO
   auto* op = new std::shared_ptr<ROCKSDB_NAMESPACE::MergeOperator>(
       new ROCKSDB_NAMESPACE::cassandra::CassandraValueMergeOperator(
           gcGracePeriodInSeconds, operands_limit));
-  return GET_CPLUSPLUS_POINTER(op);
+  return reinterpret_cast<jlong>(op);
 }
 
 /*

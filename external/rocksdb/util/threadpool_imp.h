@@ -51,7 +51,7 @@ class ThreadPoolImpl : public ThreadPool {
 
   // Make threads to run at a lower kernel CPU priority
   // Currently only has effect on Linux
-  void LowerCPUPriority(CpuPriority pri);
+  void LowerCPUPriority();
 
   // Ensure there is at aleast num threads in the pool
   // but do not kill threads if there are more
@@ -87,14 +87,6 @@ class ThreadPoolImpl : public ThreadPool {
 
   // Set the thread priority.
   void SetThreadPriority(Env::Priority priority);
-
-  // Reserve a specific number of threads, prevent them from running other
-  // functions The number of reserved threads could be fewer than the desired
-  // one
-  int ReserveThreads(int threads_to_be_reserved) override;
-
-  // Release a specific number of threads
-  int ReleaseThreads(int threads_to_be_released) override;
 
   static void PthreadCall(const char* label, int result);
 

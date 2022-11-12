@@ -10,7 +10,6 @@
 
 #include "include/org_rocksdb_CompactRangeOptions.h"
 #include "rocksdb/options.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 #include "rocksjni/portal.h"
 
 /*
@@ -21,7 +20,7 @@
 jlong Java_org_rocksdb_CompactRangeOptions_newCompactRangeOptions(
     JNIEnv* /*env*/, jclass /*jclazz*/) {
   auto* options = new ROCKSDB_NAMESPACE::CompactRangeOptions();
-  return GET_CPLUSPLUS_POINTER(options);
+  return reinterpret_cast<jlong>(options);
 }
 
 

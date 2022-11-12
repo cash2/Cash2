@@ -10,7 +10,6 @@
 
 #include "include/org_rocksdb_CompactionJobInfo.h"
 #include "rocksdb/listener.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 #include "rocksjni/portal.h"
 
 /*
@@ -21,7 +20,7 @@
 jlong Java_org_rocksdb_CompactionJobInfo_newCompactionJobInfo(
     JNIEnv*, jclass) {
   auto* compact_job_info = new ROCKSDB_NAMESPACE::CompactionJobInfo();
-  return GET_CPLUSPLUS_POINTER(compact_job_info);
+  return reinterpret_cast<jlong>(compact_job_info);
 }
 
 /*
@@ -228,5 +227,5 @@ jlong Java_org_rocksdb_CompactionJobInfo_stats(
       reinterpret_cast<ROCKSDB_NAMESPACE::CompactionJobInfo*>(jhandle);
   auto* stats = new ROCKSDB_NAMESPACE::CompactionJobStats();
   stats->Add(compact_job_info->stats);
-  return GET_CPLUSPLUS_POINTER(stats);
+  return reinterpret_cast<jlong>(stats);
 }

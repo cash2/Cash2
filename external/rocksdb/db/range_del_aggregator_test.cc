@@ -13,7 +13,6 @@
 #include "db/dbformat.h"
 #include "db/range_tombstone_fragmenter.h"
 #include "test_util/testutil.h"
-#include "util/vector_iterator.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -31,8 +30,8 @@ std::unique_ptr<InternalIterator> MakeRangeDelIter(
     keys.push_back(key_and_value.first.Encode().ToString());
     values.push_back(key_and_value.second.ToString());
   }
-  return std::unique_ptr<VectorIterator>(
-      new VectorIterator(keys, values, &bytewise_icmp));
+  return std::unique_ptr<test::VectorIterator>(
+      new test::VectorIterator(keys, values));
 }
 
 std::vector<std::unique_ptr<FragmentedRangeTombstoneList>>
@@ -76,9 +75,8 @@ ParsedInternalKey UncutEndpoint(const Slice& s) {
   return ParsedInternalKey(s, kMaxSequenceNumber, kTypeRangeDeletion);
 }
 
-ParsedInternalKey InternalValue(const Slice& key, SequenceNumber seq,
-                                ValueType type = kTypeValue) {
-  return ParsedInternalKey(key, seq, type);
+ParsedInternalKey InternalValue(const Slice& key, SequenceNumber seq) {
+  return ParsedInternalKey(key, seq, kTypeValue);
 }
 
 void VerifyIterator(
@@ -293,18 +291,16 @@ TEST_F(RangeDelAggregatorTest, TruncatedIterPartiallyCutTombstones) {
   TruncatedRangeDelIterator iter(std::move(input_iter), &bytewise_icmp,
                                  &smallest, &largest);
 
-  VerifyIterator(
-      &iter, bytewise_icmp,
-      {{InternalValue("d", 7), UncutEndpoint("e"), 10},
-       {UncutEndpoint("e"), UncutEndpoint("g"), 8},
-       {UncutEndpoint("j"), InternalValue("m", 8, kValueTypeForSeek), 4}});
+  VerifyIterator(&iter, bytewise_icmp,
+                 {{InternalValue("d", 7), UncutEndpoint("e"), 10},
+                  {UncutEndpoint("e"), UncutEndpoint("g"), 8},
+                  {UncutEndpoint("j"), InternalValue("m", 8), 4}});
 
   VerifySeek(
       &iter, bytewise_icmp,
       {{"d", InternalValue("d", 7), UncutEndpoint("e"), 10},
        {"e", UncutEndpoint("e"), UncutEndpoint("g"), 8},
-       {"ia", UncutEndpoint("j"), InternalValue("m", 8, kValueTypeForSeek), 4,
-        false /* invalid */},
+       {"ia", UncutEndpoint("j"), InternalValue("m", 8), 4},
        {"n", UncutEndpoint(""), UncutEndpoint(""), 0, true /* invalid */},
        {"", InternalValue("d", 7), UncutEndpoint("e"), 10}});
 
@@ -313,8 +309,7 @@ TEST_F(RangeDelAggregatorTest, TruncatedIterPartiallyCutTombstones) {
       {{"d", InternalValue("d", 7), UncutEndpoint("e"), 10},
        {"e", UncutEndpoint("e"), UncutEndpoint("g"), 8},
        {"ia", UncutEndpoint("e"), UncutEndpoint("g"), 8},
-       {"n", UncutEndpoint("j"), InternalValue("m", 8, kValueTypeForSeek), 4,
-        false /* invalid */},
+       {"n", UncutEndpoint("j"), InternalValue("m", 8), 4},
        {"", UncutEndpoint(""), UncutEndpoint(""), 0, true /* invalid */}});
 }
 

@@ -10,6 +10,7 @@
 #pragma once
 #include <string>
 #include <utility>
+#include "rocksdb/db.h"
 #include "rocksdb/slice.h"
 #include "rocksdb/types.h"
 

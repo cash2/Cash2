@@ -11,21 +11,9 @@
 #include "rocksdb/utilities/transaction.h"
 #include "rocksdb/utilities/transaction_db.h"
 
-using ROCKSDB_NAMESPACE::Options;
-using ROCKSDB_NAMESPACE::ReadOptions;
-using ROCKSDB_NAMESPACE::Snapshot;
-using ROCKSDB_NAMESPACE::Status;
-using ROCKSDB_NAMESPACE::Transaction;
-using ROCKSDB_NAMESPACE::TransactionDB;
-using ROCKSDB_NAMESPACE::TransactionDBOptions;
-using ROCKSDB_NAMESPACE::TransactionOptions;
-using ROCKSDB_NAMESPACE::WriteOptions;
+using namespace ROCKSDB_NAMESPACE;
 
-#if defined(OS_WIN)
-std::string kDBPath = "C:\\Windows\\TEMP\\rocksdb_transaction_example";
-#else
 std::string kDBPath = "/tmp/rocksdb_transaction_example";
-#endif
 
 int main() {
   // open DB
@@ -191,7 +179,7 @@ int main() {
 
   // Cleanup
   delete txn_db;
-  ROCKSDB_NAMESPACE::DestroyDB(kDBPath, options);
+  DestroyDB(kDBPath, options);
   return 0;
 }
 

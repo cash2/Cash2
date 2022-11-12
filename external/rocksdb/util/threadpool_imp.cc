@@ -19,7 +19,6 @@
 #endif
 
 #include <stdlib.h>
-
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
@@ -32,13 +31,12 @@
 #include "monitoring/thread_status_util.h"
 #include "port/port.h"
 #include "test_util/sync_point.h"
-#include "util/string_util.h"
 
 namespace ROCKSDB_NAMESPACE {
 
 void ThreadPoolImpl::PthreadCall(const char* label, int result) {
   if (result != 0) {
-    fprintf(stderr, "pthread %s: %s\n", label, errnoStr(result).c_str());
+    fprintf(stderr, "pthread %s: %s\n", label, strerror(result));
     abort();
   }
 }
@@ -59,7 +57,7 @@ struct ThreadPoolImpl::Impl {
 
   void LowerIOPriority();
 
-  void LowerCPUPriority(CpuPriority pri);
+  void LowerCPUPriority();
 
   void WakeUpAllThreads() {
     bgsignal_.notify_all();
@@ -100,50 +98,16 @@ struct ThreadPoolImpl::Impl {
   // Set the thread priority.
   void SetThreadPriority(Env::Priority priority) { priority_ = priority; }
 
-  int ReserveThreads(int threads_to_be_reserved) {
-    std::unique_lock<std::mutex> lock(mu_);
-    // We can reserve at most num_waiting_threads_ in total so the number of
-    // threads that can be reserved might be fewer than the desired one. In
-    // rare cases, num_waiting_threads_ could be less than reserved_threads
-    // due to SetBackgroundThreadInternal or last excessive threads. If that
-    // happens, we cannot reserve any other threads.
-    int reserved_threads_in_success =
-        std::min(std::max(num_waiting_threads_ - reserved_threads_, 0),
-                 threads_to_be_reserved);
-    reserved_threads_ += reserved_threads_in_success;
-    return reserved_threads_in_success;
-  }
-
-  int ReleaseThreads(int threads_to_be_released) {
-    std::unique_lock<std::mutex> lock(mu_);
-    // We cannot release more than reserved_threads_
-    int released_threads_in_success =
-        std::min(reserved_threads_, threads_to_be_released);
-    reserved_threads_ -= released_threads_in_success;
-    WakeUpAllThreads();
-    return released_threads_in_success;
-  }
-
 private:
  static void BGThreadWrapper(void* arg);
 
  bool low_io_priority_;
- CpuPriority cpu_priority_;
+ bool low_cpu_priority_;
  Env::Priority priority_;
  Env* env_;
 
  int total_threads_limit_;
  std::atomic_uint queue_len_;  // Queue length. Used for stats reporting
- // Number of reserved threads, managed by ReserveThreads(..) and
- // ReleaseThreads(..), if num_waiting_threads_ is no larger than
- // reserved_threads_, its thread will be blocked to ensure the reservation
- // mechanism
- int reserved_threads_;
- // Number of waiting threads (Maximum number of threads that can be
- // reserved), in rare cases, num_waiting_threads_ could be less than
- // reserved_threads due to SetBackgroundThreadInternal or last
- // excessive threads.
- int num_waiting_threads_;
  bool exit_all_threads_;
  bool wait_for_jobs_to_complete_;
 
@@ -162,21 +126,23 @@ private:
   std::vector<port::Thread> bgthreads_;
 };
 
-inline ThreadPoolImpl::Impl::Impl()
-    : low_io_priority_(false),
-      cpu_priority_(CpuPriority::kNormal),
+
+inline
+ThreadPoolImpl::Impl::Impl()
+    :
+      low_io_priority_(false),
+      low_cpu_priority_(false),
       priority_(Env::LOW),
       env_(nullptr),
       total_threads_limit_(0),
       queue_len_(),
-      reserved_threads_(0),
-      num_waiting_threads_(0),
       exit_all_threads_(false),
       wait_for_jobs_to_complete_(false),
       queue_(),
       mu_(),
       bgsignal_(),
-      bgthreads_() {}
+      bgthreads_() {
+}
 
 inline
 ThreadPoolImpl::Impl::~Impl() { assert(bgthreads_.size() == 0U); }
@@ -191,8 +157,6 @@ void ThreadPoolImpl::Impl::JoinThreads(bool wait_for_jobs_to_complete) {
   // prevent threads from being recreated right after they're joined, in case
   // the user is concurrently submitting jobs.
   total_threads_limit_ = 0;
-  reserved_threads_ = 0;
-  num_waiting_threads_ = 0;
 
   lock.unlock();
 
@@ -214,36 +178,24 @@ void ThreadPoolImpl::Impl::LowerIOPriority() {
   low_io_priority_ = true;
 }
 
-inline void ThreadPoolImpl::Impl::LowerCPUPriority(CpuPriority pri) {
+inline
+void ThreadPoolImpl::Impl::LowerCPUPriority() {
   std::lock_guard<std::mutex> lock(mu_);
-  cpu_priority_ = pri;
+  low_cpu_priority_ = true;
 }
 
 void ThreadPoolImpl::Impl::BGThread(size_t thread_id) {
   bool low_io_priority = false;
-  CpuPriority current_cpu_priority = CpuPriority::kNormal;
+  bool low_cpu_priority = false;
 
   while (true) {
     // Wait until there is an item that is ready to run
     std::unique_lock<std::mutex> lock(mu_);
     // Stop waiting if the thread needs to do work or needs to terminate.
-    // Increase num_waiting_threads_ once this task has started waiting
-    num_waiting_threads_++;
-
-    TEST_SYNC_POINT("ThreadPoolImpl::BGThread::WaitingThreadsInc");
-    TEST_IDX_SYNC_POINT("ThreadPoolImpl::BGThread::Start:th", thread_id);
-    // When not exist_all_threads and the current thread id is not the last
-    // excessive thread, it may be blocked due to 3 reasons: 1) queue is empty
-    // 2) it is the excessive thread (not the last one)
-    // 3) the number of waiting threads is not greater than reserved threads
-    // (i.e, no available threads due to full reservation")
     while (!exit_all_threads_ && !IsLastExcessiveThread(thread_id) &&
-           (queue_.empty() || IsExcessiveThread(thread_id) ||
-            num_waiting_threads_ <= reserved_threads_)) {
+           (queue_.empty() || IsExcessiveThread(thread_id))) {
       bgsignal_.wait(lock);
     }
-    // Decrease num_waiting_threads_ once the thread is not waiting
-    num_waiting_threads_--;
 
     if (exit_all_threads_) {  // mechanism to let BG threads exit safely
 
@@ -251,22 +203,20 @@ void ThreadPoolImpl::Impl::BGThread(size_t thread_id) {
           queue_.empty()) {
         break;
        }
-    } else if (IsLastExcessiveThread(thread_id)) {
+    }
+
+    if (IsLastExcessiveThread(thread_id)) {
       // Current thread is the last generated one and is excessive.
       // We always terminate excessive thread in the reverse order of
-      // generation time. But not when `exit_all_threads_ == true`,
-      // otherwise `JoinThreads()` could try to `join()` a `detach()`ed
-      // thread.
+      // generation time.
       auto& terminating_thread = bgthreads_.back();
       terminating_thread.detach();
       bgthreads_.pop_back();
+
       if (HasExcessiveThread()) {
         // There is still at least more excessive thread to terminate.
         WakeUpAllThreads();
       }
-      TEST_IDX_SYNC_POINT("ThreadPoolImpl::BGThread::Termination:th",
-                          thread_id);
-      TEST_SYNC_POINT("ThreadPoolImpl::BGThread::Termination");
       break;
     }
 
@@ -277,20 +227,16 @@ void ThreadPoolImpl::Impl::BGThread(size_t thread_id) {
                      std::memory_order_relaxed);
 
     bool decrease_io_priority = (low_io_priority != low_io_priority_);
-    CpuPriority cpu_priority = cpu_priority_;
+    bool decrease_cpu_priority = (low_cpu_priority != low_cpu_priority_);
     lock.unlock();
 
-    if (cpu_priority < current_cpu_priority) {
-      TEST_SYNC_POINT_CALLBACK("ThreadPoolImpl::BGThread::BeforeSetCpuPriority",
-                               &current_cpu_priority);
+#ifdef OS_LINUX
+    if (decrease_cpu_priority) {
       // 0 means current thread.
-      port::SetCpuPriority(0, cpu_priority);
-      current_cpu_priority = cpu_priority;
-      TEST_SYNC_POINT_CALLBACK("ThreadPoolImpl::BGThread::AfterSetCpuPriority",
-                               &current_cpu_priority);
+      port::SetCpuPriority(0, CpuPriority::kLow);
+      low_cpu_priority = true;
     }
 
-#ifdef OS_LINUX
     if (decrease_io_priority) {
 #define IOPRIO_CLASS_SHIFT (13)
 #define IOPRIO_PRIO_VALUE(class, data) (((class) << IOPRIO_CLASS_SHIFT) | data)
@@ -311,6 +257,7 @@ void ThreadPoolImpl::Impl::BGThread(size_t thread_id) {
     }
 #else
     (void)decrease_io_priority;  // avoid 'unused variable' error
+    (void)decrease_cpu_priority;
 #endif
 
     TEST_SYNC_POINT_CALLBACK("ThreadPoolImpl::Impl::BGThread:BeforeRun",
@@ -386,6 +333,7 @@ int ThreadPoolImpl::Impl::GetBackgroundThreads() {
 void ThreadPoolImpl::Impl::StartBGThreads() {
   // Start background thread if necessary
   while ((int)bgthreads_.size() < total_threads_limit_) {
+
     port::Thread p_t(&BGThreadWrapper,
       new BGThreadMetadata(this, bgthreads_.size()));
 
@@ -399,6 +347,7 @@ void ThreadPoolImpl::Impl::StartBGThreads() {
     for (char c : thread_priority) {
       thread_name_stream << static_cast<char>(tolower(c));
     }
+    thread_name_stream << bgthreads_.size();
     pthread_setname_np(th_handle, thread_name_stream.str().c_str());
 #endif
 #endif
@@ -419,7 +368,7 @@ void ThreadPoolImpl::Impl::Submit(std::function<void()>&& schedule,
 
   // Add to priority queue
   queue_.push_back(BGItem());
-  TEST_SYNC_POINT("ThreadPoolImpl::Submit::Enqueue");
+
   auto& item = queue_.back();
   item.tag = tag;
   item.function = std::move(schedule);
@@ -503,8 +452,8 @@ void ThreadPoolImpl::LowerIOPriority() {
   impl_->LowerIOPriority();
 }
 
-void ThreadPoolImpl::LowerCPUPriority(CpuPriority pri) {
-  impl_->LowerCPUPriority(pri);
+void ThreadPoolImpl::LowerCPUPriority() {
+  impl_->LowerCPUPriority();
 }
 
 void ThreadPoolImpl::IncBackgroundThreadsIfNeeded(int num) {
@@ -548,17 +497,6 @@ Env::Priority ThreadPoolImpl::GetThreadPriority() const {
 // Set the thread priority.
 void ThreadPoolImpl::SetThreadPriority(Env::Priority priority) {
   impl_->SetThreadPriority(priority);
-}
-
-// Reserve a specific number of threads, prevent them from running other
-// functions The number of reserved threads could be fewer than the desired one
-int ThreadPoolImpl::ReserveThreads(int threads_to_be_reserved) {
-  return impl_->ReserveThreads(threads_to_be_reserved);
-}
-
-// Release a specific number of threads
-int ThreadPoolImpl::ReleaseThreads(int threads_to_be_released) {
-  return impl_->ReleaseThreads(threads_to_be_released);
 }
 
 ThreadPool* NewThreadPool(int num_threads) {

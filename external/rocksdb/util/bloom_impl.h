@@ -10,10 +10,8 @@
 #pragma once
 #include <stddef.h>
 #include <stdint.h>
-
 #include <cmath>
 
-#include "port/port.h"  // for PREFETCH
 #include "rocksdb/slice.h"
 #include "util/hash.h"
 
@@ -41,10 +39,6 @@ class BloomMath {
   // cache line size.
   static double CacheLocalFpRate(double bits_per_key, int num_probes,
                                  int cache_line_bits) {
-    if (bits_per_key <= 0.0) {
-      // Fix a discontinuity
-      return 1.0;
-    }
     double keys_per_cache_line = cache_line_bits / bits_per_key;
     // A reasonable estimate is the average of the FP rates for one standard
     // deviation above and below the mean bucket occupancy. See
@@ -93,7 +87,7 @@ class BloomMath {
 
 // A fast, flexible, and accurate cache-local Bloom implementation with
 // SIMD-optimized query performance (currently using AVX2 on Intel). Write
-// performance and non-SIMD read are very good, benefiting from FastRange32
+// performance and non-SIMD read are very good, benefiting from fastrange32
 // used in place of % and single-cycle multiplication on recent processors.
 //
 // Most other SIMD Bloom implementations sacrifice flexibility and/or
@@ -199,7 +193,7 @@ class FastLocalBloomImpl {
 
   static inline void AddHash(uint32_t h1, uint32_t h2, uint32_t len_bytes,
                              int num_probes, char *data) {
-    uint32_t bytes_to_cache_line = FastRange32(len_bytes >> 6, h1) << 6;
+    uint32_t bytes_to_cache_line = fastrange32(len_bytes >> 6, h1) << 6;
     AddHashPrepared(h2, num_probes, data + bytes_to_cache_line);
   }
 
@@ -216,7 +210,7 @@ class FastLocalBloomImpl {
   static inline void PrepareHash(uint32_t h1, uint32_t len_bytes,
                                  const char *data,
                                  uint32_t /*out*/ *byte_offset) {
-    uint32_t bytes_to_cache_line = FastRange32(len_bytes >> 6, h1) << 6;
+    uint32_t bytes_to_cache_line = fastrange32(len_bytes >> 6, h1) << 6;
     PREFETCH(data + bytes_to_cache_line, 0 /* rw */, 1 /* locality */);
     PREFETCH(data + bytes_to_cache_line + 63, 0 /* rw */, 1 /* locality */);
     *byte_offset = bytes_to_cache_line;
@@ -224,7 +218,7 @@ class FastLocalBloomImpl {
 
   static inline bool HashMayMatch(uint32_t h1, uint32_t h2, uint32_t len_bytes,
                                   int num_probes, const char *data) {
-    uint32_t bytes_to_cache_line = FastRange32(len_bytes >> 6, h1) << 6;
+    uint32_t bytes_to_cache_line = fastrange32(len_bytes >> 6, h1) << 6;
     return HashMayMatchPrepared(h2, num_probes, data + bytes_to_cache_line);
   }
 

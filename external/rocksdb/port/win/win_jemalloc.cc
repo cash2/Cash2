@@ -7,8 +7,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#if defined(OS_WIN)
-
 #ifndef ROCKSDB_JEMALLOC
 # error This file can only be part of jemalloc aware build
 #endif
@@ -41,10 +39,10 @@ ZSTD_customMem GetJeZstdAllocationOverrides() {
 
 namespace ROCKSDB_NAMESPACE {
 namespace port {
-void* jemalloc_aligned_alloc(size_t size, size_t alignment) noexcept {
+void* jemalloc_aligned_alloc(size_t size, size_t alignment) ROCKSDB_NOEXCEPT {
   return je_aligned_alloc(alignment, size);
 }
-void jemalloc_aligned_free(void* p) noexcept { je_free(p); }
+void jemalloc_aligned_free(void* p) ROCKSDB_NOEXCEPT { je_free(p); }
 }  // namespace port
 }  // namespace ROCKSDB_NAMESPACE
 
@@ -75,5 +73,3 @@ void operator delete[](void* p) {
     je_free(p);
   }
 }
-
-#endif

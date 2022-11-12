@@ -17,11 +17,24 @@
 
 namespace ROCKSDB_NAMESPACE {
 
-std::unique_ptr<const char[]> Status::CopyState(const char* s) {
-  const size_t cch = std::strlen(s) + 1;  // +1 for the null terminator
-  char* rv = new char[cch];
-  std::strncpy(rv, s, cch);
-  return std::unique_ptr<const char[]>(rv);
+const char* Status::CopyState(const char* state) {
+#ifdef OS_WIN
+  const size_t cch = std::strlen(state) + 1;  // +1 for the null terminator
+  char* result = new char[cch];
+  errno_t ret
+#if defined(_MSC_VER)
+    ;
+#else
+    __attribute__((__unused__));
+#endif
+  ret = strncpy_s(result, cch, state, cch - 1);
+  result[cch - 1] = '\0';
+  assert(ret == 0);
+  return result;
+#else
+  const size_t cch = std::strlen(state) + 1;  // +1 for the null terminator
+  return std::strncpy(new char[cch], state, cch);
+#endif
 }
 
 static const char* msgs[static_cast<int>(Status::kMaxSubCode)] = {
@@ -39,19 +52,13 @@ static const char* msgs[static_cast<int>(Status::kMaxSubCode)] = {
     "Insufficient capacity for merge operands",
     // kManualCompactionPaused
     "Manual compaction paused",
-    " (overwritten)",    // kOverwritten, subcode of OK
-    "Txn not prepared",  // kTxnNotPrepared
-    "IO fenced off",     // kIOFenced
+    " (overwritten)",  // kOverwritten, subcode of OK
 };
 
 Status::Status(Code _code, SubCode _subcode, const Slice& msg,
-               const Slice& msg2, Severity sev)
-    : code_(_code),
-      subcode_(_subcode),
-      sev_(sev),
-      retryable_(false),
-      data_loss_(false),
-      scope_(0) {
+               const Slice& msg2)
+    : code_(_code), subcode_(_subcode), sev_(kNoError) {
+  assert(code_ != kOk);
   assert(subcode_ != kMaxSubCode);
   const size_t len1 = msg.size();
   const size_t len2 = msg2.size();
@@ -64,14 +71,12 @@ Status::Status(Code _code, SubCode _subcode, const Slice& msg,
     memcpy(result + len1 + 2, msg2.data(), len2);
   }
   result[size] = '\0';  // null terminator for C style string
-  state_.reset(result);
+  state_ = result;
 }
 
 std::string Status::ToString() const {
-#ifdef ROCKSDB_ASSERT_STATUS_CHECKED
-  checked_ = true;
-#endif  // ROCKSDB_ASSERT_STATUS_CHECKED
-  const char* type = nullptr;
+  char tmp[30];
+  const char* type;
   switch (code_) {
     case kOk:
       return "OK";
@@ -114,37 +119,24 @@ std::string Status::ToString() const {
     case kTryAgain:
       type = "Operation failed. Try again.: ";
       break;
-    case kCompactionTooLarge:
-      type = "Compaction too large: ";
-      break;
     case kColumnFamilyDropped:
       type = "Column family dropped: ";
       break;
-    case kMaxCode:
-      assert(false);
+    default:
+      snprintf(tmp, sizeof(tmp), "Unknown code(%d): ",
+               static_cast<int>(code()));
+      type = tmp;
       break;
-  }
-  char tmp[30];
-  if (type == nullptr) {
-    // This should not happen since `code_` should be a valid non-`kMaxCode`
-    // member of the `Code` enum. The above switch-statement should have had a
-    // case assigning `type` to a corresponding string.
-    assert(false);
-    snprintf(tmp, sizeof(tmp), "Unknown code(%d): ", static_cast<int>(code()));
-    type = tmp;
   }
   std::string result(type);
   if (subcode_ != kNone) {
     uint32_t index = static_cast<int32_t>(subcode_);
-    assert(sizeof(msgs) / sizeof(msgs[0]) > index);
+    assert(sizeof(msgs) > index);
     result.append(msgs[index]);
   }
 
   if (state_ != nullptr) {
-    if (subcode_ != kNone) {
-      result.append(": ");
-    }
-    result.append(state_.get());
+    result.append(state_);
   }
   return result;
 }

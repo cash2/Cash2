@@ -13,7 +13,6 @@
 #include "table/block_based/block_based_table_factory.h"
 #include "test_util/testharness.h"
 #include "test_util/testutil.h"
-#include "util/random.h"
 #include "util/string_util.h"
 
 namespace ROCKSDB_NAMESPACE {
@@ -24,7 +23,13 @@ class MemoryTest : public testing::Test {
     assert(Env::Default()->CreateDirIfMissing(kDbDir).ok());
   }
 
-  std::string GetDBName(int id) { return kDbDir + "db_" + std::to_string(id); }
+  std::string GetDBName(int id) { return kDbDir + "db_" + ToString(id); }
+
+  std::string RandomString(int len) {
+    std::string r;
+    test::RandomString(&rnd_, len, &r);
+    return r;
+  }
 
   void UpdateUsagesHistory(const std::vector<DB*>& dbs) {
     std::map<MemoryUtil::UsageType, uint64_t> usage_by_type;
@@ -38,10 +43,12 @@ class MemoryTest : public testing::Test {
   void GetCachePointersFromTableFactory(
       const TableFactory* factory,
       std::unordered_set<const Cache*>* cache_set) {
-    const auto bbto = factory->GetOptions<BlockBasedTableOptions>();
-    if (bbto != nullptr) {
-      cache_set->insert(bbto->block_cache.get());
-      cache_set->insert(bbto->block_cache_compressed.get());
+    const BlockBasedTableFactory* bbtf =
+        dynamic_cast<const BlockBasedTableFactory*>(factory);
+    if (bbtf != nullptr) {
+      const auto bbt_opts = bbtf->table_options();
+      cache_set->insert(bbt_opts.block_cache.get());
+      cache_set->insert(bbt_opts.block_cache_compressed.get());
     }
   }
 
@@ -68,8 +75,7 @@ class MemoryTest : public testing::Test {
         ASSERT_OK(db_impl->TEST_GetAllImmutableCFOptions(&iopts_map));
       }
       for (auto pair : iopts_map) {
-        GetCachePointersFromTableFactory(pair.second->table_factory.get(),
-                                         cache_set);
+        GetCachePointersFromTableFactory(pair.second->table_factory, cache_set);
       }
     }
   }
@@ -104,7 +110,7 @@ TEST_F(MemoryTest, SharedBlockCacheTotal) {
   BlockBasedTableOptions bbt_opts;
   bbt_opts.block_cache = NewLRUCache(4096 * 1000 * 10);
   for (int i = 0; i < kNumDBs; ++i) {
-    ASSERT_OK(DestroyDB(GetDBName(i), opt));
+    DestroyDB(GetDBName(i), opt);
     DB* db = nullptr;
     ASSERT_OK(DB::Open(opt, GetDBName(i), &db));
     dbs.push_back(db);
@@ -116,17 +122,17 @@ TEST_F(MemoryTest, SharedBlockCacheTotal) {
   for (int p = 0; p < opt.min_write_buffer_number_to_merge / 2; ++p) {
     for (int i = 0; i < kNumDBs; ++i) {
       for (int j = 0; j < 100; ++j) {
-        keys_by_db[i].emplace_back(rnd_.RandomString(kKeySize));
-        ASSERT_OK(dbs[i]->Put(WriteOptions(), keys_by_db[i].back(),
-                              rnd_.RandomString(kValueSize)));
+        keys_by_db[i].emplace_back(RandomString(kKeySize));
+        dbs[i]->Put(WriteOptions(), keys_by_db[i].back(),
+                    RandomString(kValueSize));
       }
-      ASSERT_OK(dbs[i]->Flush(FlushOptions()));
+      dbs[i]->Flush(FlushOptions());
     }
   }
   for (int i = 0; i < kNumDBs; ++i) {
     for (auto& key : keys_by_db[i]) {
       std::string value;
-      ASSERT_OK(dbs[i]->Get(ReadOptions(), key, &value));
+      dbs[i]->Get(ReadOptions(), key, &value);
     }
     UpdateUsagesHistory(dbs);
   }
@@ -146,10 +152,8 @@ TEST_F(MemoryTest, MemTableAndTableReadersTotal) {
   std::vector<uint64_t> usage_by_type;
   std::vector<std::vector<ColumnFamilyHandle*>> vec_handles;
   const int kNumDBs = 10;
-  // These key/value sizes ensure each KV has its own memtable. Note that the
-  // minimum write_buffer_size allowed is 64 KB.
   const int kKeySize = 100;
-  const int kValueSize = 1 << 16;
+  const int kValueSize = 500;
   Options opt;
   opt.create_if_missing = true;
   opt.create_missing_column_families = true;
@@ -165,7 +169,7 @@ TEST_F(MemoryTest, MemTableAndTableReadersTotal) {
   };
 
   for (int i = 0; i < kNumDBs; ++i) {
-    ASSERT_OK(DestroyDB(GetDBName(i), opt));
+    DestroyDB(GetDBName(i), opt);
     std::vector<ColumnFamilyHandle*> handles;
     dbs.emplace_back();
     vec_handles.emplace_back();
@@ -177,9 +181,8 @@ TEST_F(MemoryTest, MemTableAndTableReadersTotal) {
   for (int p = 0; p < opt.min_write_buffer_number_to_merge / 2; ++p) {
     for (int i = 0; i < kNumDBs; ++i) {
       for (auto* handle : vec_handles[i]) {
-        ASSERT_OK(dbs[i]->Put(WriteOptions(), handle,
-                              rnd_.RandomString(kKeySize),
-                              rnd_.RandomString(kValueSize)));
+        dbs[i]->Put(WriteOptions(), handle, RandomString(kKeySize),
+                    RandomString(kValueSize));
         UpdateUsagesHistory(dbs);
       }
     }
@@ -201,12 +204,11 @@ TEST_F(MemoryTest, MemTableAndTableReadersTotal) {
   // Create an iterator and flush all memtables for each db
   for (int i = 0; i < kNumDBs; ++i) {
     iters.push_back(dbs[i]->NewIterator(ReadOptions()));
-    ASSERT_OK(dbs[i]->Flush(FlushOptions()));
+    dbs[i]->Flush(FlushOptions());
 
     for (int j = 0; j < 100; ++j) {
       std::string value;
-      ASSERT_NOK(
-          dbs[i]->Get(ReadOptions(), rnd_.RandomString(kKeySize), &value));
+      dbs[i]->Get(ReadOptions(), RandomString(kKeySize), &value);
     }
 
     UpdateUsagesHistory(dbs);
@@ -231,8 +233,6 @@ TEST_F(MemoryTest, MemTableAndTableReadersTotal) {
   }
   usage_check_point = usage_history_[MemoryUtil::kMemTableTotal].size();
   for (int i = 0; i < kNumDBs; ++i) {
-    // iterator is not used.
-    ASSERT_OK(iters[i]->status());
     delete iters[i];
     UpdateUsagesHistory(dbs);
   }

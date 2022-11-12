@@ -6,7 +6,6 @@
 #pragma once
 #include "rocksdb/merge_operator.h"
 #include "rocksdb/slice.h"
-#include "utilities/cassandra/cassandra_options.h"
 
 namespace ROCKSDB_NAMESPACE {
 namespace cassandra {
@@ -17,7 +16,9 @@ namespace cassandra {
 class CassandraValueMergeOperator : public MergeOperator {
 public:
  explicit CassandraValueMergeOperator(int32_t gc_grace_period_in_seconds,
-                                      size_t operands_limit = 0);
+                                      size_t operands_limit = 0)
+     : gc_grace_period_in_seconds_(gc_grace_period_in_seconds),
+       operands_limit_(operands_limit) {}
 
  virtual bool FullMergeV2(const MergeOperationInput& merge_in,
                           MergeOperationOutput* merge_out) const override;
@@ -27,18 +28,17 @@ public:
                                 std::string* new_value,
                                 Logger* logger) const override;
 
- const char* Name() const override { return kClassName(); }
- static const char* kClassName() { return "CassandraValueMergeOperator"; }
+ virtual const char* Name() const override;
 
  virtual bool AllowSingleOperand() const override { return true; }
 
  virtual bool ShouldMerge(const std::vector<Slice>& operands) const override {
-   return options_.operands_limit > 0 &&
-          operands.size() >= options_.operands_limit;
+   return operands_limit_ > 0 && operands.size() >= operands_limit_;
  }
 
 private:
- CassandraOptions options_;
+ int32_t gc_grace_period_in_seconds_;
+ size_t operands_limit_;
 };
 } // namespace cassandra
 }  // namespace ROCKSDB_NAMESPACE

@@ -7,15 +7,12 @@
 // ROCKSDB_NAMESPACE::Options.
 
 #include "rocksdb/table.h"
-
 #include <jni.h>
-
 #include "include/org_rocksdb_BlockBasedTableConfig.h"
 #include "include/org_rocksdb_PlainTableConfig.h"
 #include "portal.h"
 #include "rocksdb/cache.h"
 #include "rocksdb/filter_policy.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 
 /*
  * Class:     org_rocksdb_PlainTableConfig
@@ -38,32 +35,32 @@ jlong Java_org_rocksdb_PlainTableConfig_newTableFactoryHandle(
       static_cast<ROCKSDB_NAMESPACE::EncodingType>(jencoding_type);
   options.full_scan_mode = jfull_scan_mode;
   options.store_index_in_file = jstore_index_in_file;
-  return GET_CPLUSPLUS_POINTER(
+  return reinterpret_cast<jlong>(
       ROCKSDB_NAMESPACE::NewPlainTableFactory(options));
 }
 
 /*
  * Class:     org_rocksdb_BlockBasedTableConfig
  * Method:    newTableFactoryHandle
- * Signature: (ZZZZBBDBZJJJJIIIJZZZJZZIIZZBJIJI)J
+ * Signature: (ZZZZBBDBZJJJJIIIJZZJZZIIZZJIJI)J
  */
 jlong Java_org_rocksdb_BlockBasedTableConfig_newTableFactoryHandle(
-    JNIEnv *, jobject, jboolean jcache_index_and_filter_blocks,
+    JNIEnv*, jobject, jboolean jcache_index_and_filter_blocks,
     jboolean jcache_index_and_filter_blocks_with_high_priority,
     jboolean jpin_l0_filter_and_index_blocks_in_cache,
     jboolean jpin_top_level_index_and_filter, jbyte jindex_type_value,
     jbyte jdata_block_index_type_value,
     jdouble jdata_block_hash_table_util_ratio, jbyte jchecksum_type_value,
     jboolean jno_block_cache, jlong jblock_cache_handle,
-    jlong jpersistent_cache_handle, jlong jblock_cache_compressed_handle,
-    jlong jblock_size, jint jblock_size_deviation, jint jblock_restart_interval,
+    jlong jpersistent_cache_handle,
+    jlong jblock_cache_compressed_handle, jlong jblock_size,
+    jint jblock_size_deviation, jint jblock_restart_interval,
     jint jindex_block_restart_interval, jlong jmetadata_block_size,
-    jboolean jpartition_filters, jboolean joptimize_filters_for_memory,
-    jboolean juse_delta_encoding, jlong jfilter_policy_handle,
-    jboolean jwhole_key_filtering, jboolean jverify_compression,
-    jint jread_amp_bytes_per_bit, jint jformat_version,
-    jboolean jenable_index_compression, jboolean jblock_align,
-    jbyte jindex_shortening, jlong jblock_cache_size,
+    jboolean jpartition_filters, jboolean juse_delta_encoding,
+    jlong jfilter_policy_handle, jboolean jwhole_key_filtering,
+    jboolean jverify_compression, jint jread_amp_bytes_per_bit,
+    jint jformat_version, jboolean jenable_index_compression,
+    jboolean jblock_align, jlong jblock_cache_size,
     jint jblock_cache_num_shard_bits, jlong jblock_cache_compressed_size,
     jint jblock_cache_compressed_num_shard_bits) {
   ROCKSDB_NAMESPACE::BlockBasedTableOptions options;
@@ -134,8 +131,6 @@ jlong Java_org_rocksdb_BlockBasedTableConfig_newTableFactoryHandle(
   options.index_block_restart_interval = static_cast<int>(jindex_block_restart_interval);
   options.metadata_block_size = static_cast<uint64_t>(jmetadata_block_size);
   options.partition_filters = static_cast<bool>(jpartition_filters);
-  options.optimize_filters_for_memory =
-      static_cast<bool>(joptimize_filters_for_memory);
   options.use_delta_encoding = static_cast<bool>(juse_delta_encoding);
   if (jfilter_policy_handle > 0) {
     std::shared_ptr<ROCKSDB_NAMESPACE::FilterPolicy> *pFilterPolicy =
@@ -149,10 +144,7 @@ jlong Java_org_rocksdb_BlockBasedTableConfig_newTableFactoryHandle(
   options.format_version = static_cast<uint32_t>(jformat_version);
   options.enable_index_compression = static_cast<bool>(jenable_index_compression);
   options.block_align = static_cast<bool>(jblock_align);
-  options.index_shortening =
-      ROCKSDB_NAMESPACE::IndexShorteningModeJni::toCppIndexShorteningMode(
-          jindex_shortening);
 
-  return GET_CPLUSPLUS_POINTER(
+  return reinterpret_cast<jlong>(
       ROCKSDB_NAMESPACE::NewBlockBasedTableFactory(options));
 }

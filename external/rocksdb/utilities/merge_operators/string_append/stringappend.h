@@ -14,7 +14,6 @@ class StringAppendOperator : public AssociativeMergeOperator {
  public:
   // Constructor: specify delimiter
   explicit StringAppendOperator(char delim_char);
-  explicit StringAppendOperator(const std::string& delim);
 
   virtual bool Merge(const Slice& key,
                      const Slice* existing_value,
@@ -22,13 +21,11 @@ class StringAppendOperator : public AssociativeMergeOperator {
                      std::string* new_value,
                      Logger* logger) const override;
 
-  static const char* kClassName() { return "StringAppendOperator"; }
-  static const char* kNickName() { return "stringappend"; }
-  virtual const char* Name() const override { return kClassName(); }
-  virtual const char* NickName() const override { return kNickName(); }
+  virtual const char* Name() const override;
 
  private:
-  std::string delim_;  // The delimiter is inserted between elements
+  char delim_;         // The delimiter is inserted between elements
+
 };
 
 }  // namespace ROCKSDB_NAMESPACE

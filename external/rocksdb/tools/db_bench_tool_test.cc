@@ -8,8 +8,6 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include "rocksdb/db_bench_tool.h"
-
-#include "db/db_impl/db_impl.h"
 #include "options/options_parser.h"
 #include "rocksdb/utilities/options_util.h"
 #include "test_util/testharness.h"
@@ -55,29 +53,9 @@ class DBBenchTest : public testing::Test {
     }
   }
 
-  // Gets the default options for this test/db_bench.
-  // Note that db_bench may change some of the default option values and that
-  // the database might as well.  The options changed by db_bench are
-  // specified here; the ones by the DB are set via SanitizeOptions
-  Options GetDefaultOptions(CompactionStyle style = kCompactionStyleLevel,
-                            int levels = 7) const {
-    Options opt;
-
-    opt.create_if_missing = true;
-    opt.max_open_files = 256;
-    opt.max_background_compactions = 10;
-    opt.dump_malloc_stats = true;  // db_bench uses a different default
-    opt.compaction_style = style;
-    opt.num_levels = levels;
-    opt.compression = kNoCompression;
-    opt.arena_block_size = 8388608;
-
-    return SanitizeOptions(db_path_, opt);
-  }
-
   void RunDbBench(const std::string& options_file_name) {
     AppendArgs({"./db_bench", "--benchmarks=fillseq", "--use_existing_db=0",
-                "--num=1000", "--compression_type=none",
+                "--num=1000",
                 std::string(std::string("--db=") + db_path_).c_str(),
                 std::string(std::string("--wal_dir=") + wal_path_).c_str(),
                 std::string(std::string("--options_file=") + options_file_name)
@@ -88,22 +66,19 @@ class DBBenchTest : public testing::Test {
   void VerifyOptions(const Options& opt) {
     DBOptions loaded_db_opts;
     std::vector<ColumnFamilyDescriptor> cf_descs;
-    ASSERT_OK(LoadLatestOptions(db_path_, Env::Default(), &loaded_db_opts,
-                                &cf_descs));
+    ASSERT_OK(LoadLatestOptions(db_path_, FileSystem::Default(),
+                                &loaded_db_opts, &cf_descs));
 
-    ConfigOptions exact;
-    exact.input_strings_escaped = false;
-    exact.sanity_level = ConfigOptions::kSanityLevelExactMatch;
-    ASSERT_OK(RocksDBOptionsParser::VerifyDBOptions(exact, DBOptions(opt),
-                                                    loaded_db_opts));
-    ASSERT_OK(RocksDBOptionsParser::VerifyCFOptions(
-        exact, ColumnFamilyOptions(opt), cf_descs[0].options));
+    ASSERT_OK(
+        RocksDBOptionsParser::VerifyDBOptions(DBOptions(opt), loaded_db_opts));
+    ASSERT_OK(RocksDBOptionsParser::VerifyCFOptions(ColumnFamilyOptions(opt),
+                                                    cf_descs[0].options));
 
     // check with the default rocksdb options and expect failure
-    ASSERT_NOK(RocksDBOptionsParser::VerifyDBOptions(exact, DBOptions(),
-                                                     loaded_db_opts));
-    ASSERT_NOK(RocksDBOptionsParser::VerifyCFOptions(
-        exact, ColumnFamilyOptions(), cf_descs[0].options));
+    ASSERT_NOK(
+        RocksDBOptionsParser::VerifyDBOptions(DBOptions(), loaded_db_opts));
+    ASSERT_NOK(RocksDBOptionsParser::VerifyCFOptions(ColumnFamilyOptions(),
+                                                     cf_descs[0].options));
   }
 
   char** argv() { return argv_; }
@@ -125,17 +100,21 @@ namespace {}  // namespace
 
 TEST_F(DBBenchTest, OptionsFile) {
   const std::string kOptionsFileName = test_path_ + "/OPTIONS_test";
-  Options opt = GetDefaultOptions();
+
+  Options opt;
+  opt.create_if_missing = true;
+  opt.max_open_files = 256;
+  opt.max_background_compactions = 10;
+  opt.arena_block_size = 8388608;
   ASSERT_OK(PersistRocksDBOptions(DBOptions(opt), {"default"},
                                   {ColumnFamilyOptions(opt)}, kOptionsFileName,
-                                  opt.env->GetFileSystem().get()));
+                                  Env::Default()));
 
   // override the following options as db_bench will not take these
   // options from the options file
   opt.wal_dir = wal_path_;
 
   RunDbBench(kOptionsFileName);
-  opt.delayed_write_rate = 16 * 1024 * 1024;  // Set by SanitizeOptions
 
   VerifyOptions(opt);
 }
@@ -143,15 +122,21 @@ TEST_F(DBBenchTest, OptionsFile) {
 TEST_F(DBBenchTest, OptionsFileUniversal) {
   const std::string kOptionsFileName = test_path_ + "/OPTIONS_test";
 
-  Options opt = GetDefaultOptions(kCompactionStyleUniversal, 1);
-
+  Options opt;
+  opt.compaction_style = kCompactionStyleUniversal;
+  opt.num_levels = 1;
+  opt.create_if_missing = true;
+  opt.max_open_files = 256;
+  opt.max_background_compactions = 10;
+  opt.arena_block_size = 8388608;
   ASSERT_OK(PersistRocksDBOptions(DBOptions(opt), {"default"},
                                   {ColumnFamilyOptions(opt)}, kOptionsFileName,
-                                  opt.env->GetFileSystem().get()));
+                                  Env::Default()));
 
   // override the following options as db_bench will not take these
   // options from the options file
   opt.wal_dir = wal_path_;
+
   RunDbBench(kOptionsFileName);
 
   VerifyOptions(opt);
@@ -160,17 +145,23 @@ TEST_F(DBBenchTest, OptionsFileUniversal) {
 TEST_F(DBBenchTest, OptionsFileMultiLevelUniversal) {
   const std::string kOptionsFileName = test_path_ + "/OPTIONS_test";
 
-  Options opt = GetDefaultOptions(kCompactionStyleUniversal, 12);
-
+  Options opt;
+  opt.compaction_style = kCompactionStyleUniversal;
+  opt.num_levels = 12;
+  opt.create_if_missing = true;
+  opt.max_open_files = 256;
+  opt.max_background_compactions = 10;
+  opt.arena_block_size = 8388608;
   ASSERT_OK(PersistRocksDBOptions(DBOptions(opt), {"default"},
                                   {ColumnFamilyOptions(opt)}, kOptionsFileName,
-                                  opt.env->GetFileSystem().get()));
+                                  Env::Default()));
 
   // override the following options as db_bench will not take these
   // options from the options file
   opt.wal_dir = wal_path_;
 
   RunDbBench(kOptionsFileName);
+
   VerifyOptions(opt);
 }
 
@@ -194,10 +185,12 @@ const std::string options_file_content = R"OPTIONS_FILE(
   use_adaptive_mutex=false
   max_total_wal_size=18446744073709551615
   compaction_readahead_size=0
+  new_table_reader_for_compaction_inputs=false
   keep_log_file_num=10
   skip_stats_update_on_db_open=false
   max_manifest_file_size=18446744073709551615
   db_log_dir=
+  skip_log_error_on_recovery=false
   writable_file_max_buffer_size=1048576
   paranoid_checks=true
   is_fd_close_on_exec=true
@@ -220,7 +213,7 @@ const std::string options_file_content = R"OPTIONS_FILE(
   max_log_file_size=83886080
   random_access_max_buffer_size=1048576
   advise_random_on_open=true
-  dump_malloc_stats=true
+
 
 [CFOptions "default"]
   compaction_filter_factory=nullptr
@@ -243,13 +236,14 @@ const std::string options_file_content = R"OPTIONS_FILE(
   max_grandparent_overlap_factor=10
   max_bytes_for_level_multiplier=10
   memtable_factory=SkipListFactory
-  compression=kNoCompression
+  compression=kSnappyCompression
   min_partial_merge_operands=2
   level0_stop_writes_trigger=100
   num_levels=1
   level0_slowdown_writes_trigger=50
   level0_file_num_compaction_trigger=10
   expanded_compaction_factor=25
+  soft_rate_limit=0.000000
   max_write_buffer_number_to_maintain=0
   max_write_buffer_size_to_maintain=0
   verify_checksums_in_compaction=true
@@ -263,26 +257,18 @@ const std::string options_file_content = R"OPTIONS_FILE(
   inplace_update_support=false
   compaction_style=kCompactionStyleUniversal
   memtable_prefix_bloom_probes=6
+  purge_redundant_kvs_while_flush=true
   filter_deletes=false
   hard_pending_compaction_bytes_limit=0
   disable_auto_compactions=false
   compaction_measure_io_stats=false
-  enable_blob_files=true
-  min_blob_size=16
-  blob_file_size=10485760
-  blob_compression_type=kNoCompression
-  enable_blob_garbage_collection=true
-  blob_garbage_collection_age_cutoff=0.5
-  blob_garbage_collection_force_threshold=0.75
-  blob_compaction_readahead_size=262144
-  blob_file_starting_level=0
-  prepopulate_blob_cache=kDisable;
 
 [TableOptions/BlockBasedTable "default"]
   format_version=0
   skip_table_builder_flush=false
   cache_index_and_filter_blocks=false
   flush_block_policy_factory=FlushBlockBySizePolicyFactory
+  hash_index_allow_collision=true
   index_type=kBinarySearch
   whole_key_filtering=true
   checksum=kCRC32c
@@ -306,6 +292,7 @@ TEST_F(DBBenchTest, OptionsFileFromFile) {
   ASSERT_OK(LoadOptionsFromFile(kOptionsFileName, Env::Default(), &db_opt,
                                 &cf_descs));
   Options opt(db_opt, cf_descs[0].options);
+
   opt.create_if_missing = true;
 
   // override the following options as db_bench will not take these
@@ -314,14 +301,14 @@ TEST_F(DBBenchTest, OptionsFileFromFile) {
 
   RunDbBench(kOptionsFileName);
 
-  VerifyOptions(SanitizeOptions(db_path_, opt));
+  VerifyOptions(opt);
 }
 
 }  // namespace ROCKSDB_NAMESPACE
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  GFLAGS_NAMESPACE::ParseCommandLineFlags(&argc, &argv, true);
+  google::ParseCommandLineFlags(&argc, &argv, true);
   return RUN_ALL_TESTS();
 }
 

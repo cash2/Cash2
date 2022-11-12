@@ -9,7 +9,11 @@
 
 namespace ROCKSDB_NAMESPACE {
 
-thread_local PerfLevel perf_level = kEnableCount;
+#ifdef ROCKSDB_SUPPORT_THREAD_LOCAL
+__thread PerfLevel perf_level = kEnableCount;
+#else
+PerfLevel perf_level = kEnableCount;
+#endif
 
 void SetPerfLevel(PerfLevel level) {
   assert(level > kUninitialized);

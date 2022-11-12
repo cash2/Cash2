@@ -12,9 +12,8 @@
 #include <string>
 #include <vector>
 
-#include "db/column_family.h"
 #include "db/log_writer.h"
-#include "db/version_set.h"
+#include "db/column_family.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -24,7 +23,7 @@ struct SuperVersion;
 struct SuperVersionContext {
   struct WriteStallNotification {
     WriteStallInfo write_stall_info;
-    const ImmutableOptions* immutable_options;
+    const ImmutableCFOptions* immutable_cf_options;
   };
 
   autovector<SuperVersion*> superversions_to_free;
@@ -37,16 +36,13 @@ struct SuperVersionContext {
   explicit SuperVersionContext(bool create_superversion = false)
     : new_superversion(create_superversion ? new SuperVersion() : nullptr) {}
 
-  explicit SuperVersionContext(SuperVersionContext&& other) noexcept
+  explicit SuperVersionContext(SuperVersionContext&& other)
       : superversions_to_free(std::move(other.superversions_to_free)),
 #ifndef ROCKSDB_DISABLE_STALL_NOTIFICATION
         write_stall_notifications(std::move(other.write_stall_notifications)),
 #endif
         new_superversion(std::move(other.new_superversion)) {
   }
-  // No copies
-  SuperVersionContext(const SuperVersionContext& other) = delete;
-  void operator=(const SuperVersionContext& other) = delete;
 
   void NewSuperVersion() {
     new_superversion = std::unique_ptr<SuperVersion>(new SuperVersion());
@@ -61,16 +57,15 @@ struct SuperVersionContext {
 #endif
   }
 
-  void PushWriteStallNotification(WriteStallCondition old_cond,
-                                  WriteStallCondition new_cond,
-                                  const std::string& name,
-                                  const ImmutableOptions* ioptions) {
+  void PushWriteStallNotification(
+      WriteStallCondition old_cond, WriteStallCondition new_cond,
+      const std::string& name, const ImmutableCFOptions* ioptions) {
 #if !defined(ROCKSDB_LITE) && !defined(ROCKSDB_DISABLE_STALL_NOTIFICATION)
     WriteStallNotification notif;
     notif.write_stall_info.cf_name = name;
     notif.write_stall_info.condition.prev = old_cond;
     notif.write_stall_info.condition.cur = new_cond;
-    notif.immutable_options = ioptions;
+    notif.immutable_cf_options = ioptions;
     write_stall_notifications.push_back(notif);
 #else
     (void)old_cond;
@@ -84,7 +79,7 @@ struct SuperVersionContext {
 #if !defined(ROCKSDB_LITE) && !defined(ROCKSDB_DISABLE_STALL_NOTIFICATION)
     // notify listeners on changed write stall conditions
     for (auto& notif : write_stall_notifications) {
-      for (auto& listener : notif.immutable_options->listeners) {
+      for (auto& listener : notif.immutable_cf_options->listeners) {
         listener->OnStallConditionsChanged(notif.write_stall_info);
       }
     }
@@ -121,15 +116,7 @@ struct JobContext {
       }
     }
     return memtables_to_free.size() > 0 || logs_to_free.size() > 0 ||
-           job_snapshot != nullptr || sv_have_sth;
-  }
-
-  SequenceNumber GetJobSnapshotSequence() const {
-    if (job_snapshot) {
-      assert(job_snapshot->snapshot());
-      return job_snapshot->snapshot()->GetSequenceNumber();
-    }
-    return kMaxSequenceNumber;
+           sv_have_sth;
   }
 
   // Structure to store information for candidate files to delete.
@@ -154,13 +141,10 @@ struct JobContext {
   std::vector<CandidateFileInfo> full_scan_candidate_files;
 
   // the list of all live sst files that cannot be deleted
-  std::vector<uint64_t> sst_live;
+  std::vector<FileDescriptor> sst_live;
 
-  // the list of sst files that we need to delete
+  // a list of sst files that we need to delete
   std::vector<ObsoleteFileInfo> sst_delete_files;
-
-  // the list of all live blob files that cannot be deleted
-  std::vector<uint64_t> blob_live;
 
   // the list of blob files that we need to delete
   std::vector<ObsoleteBlobFileInfo> blob_delete_files;

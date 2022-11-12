@@ -9,11 +9,11 @@
 #include "table/block_based/partitioned_index_iterator.h"
 
 namespace ROCKSDB_NAMESPACE {
-void PartitionedIndexIterator::Seek(const Slice& target) { SeekImpl(&target); }
+void ParititionedIndexIterator::Seek(const Slice& target) { SeekImpl(&target); }
 
-void PartitionedIndexIterator::SeekToFirst() { SeekImpl(nullptr); }
+void ParititionedIndexIterator::SeekToFirst() { SeekImpl(nullptr); }
 
-void PartitionedIndexIterator::SeekImpl(const Slice* target) {
+void ParititionedIndexIterator::SeekImpl(const Slice* target) {
   SavePrevIndexValue();
 
   if (target) {
@@ -47,7 +47,7 @@ void PartitionedIndexIterator::SeekImpl(const Slice* target) {
   }
 }
 
-void PartitionedIndexIterator::SeekToLast() {
+void ParititionedIndexIterator::SeekToLast() {
   SavePrevIndexValue();
   index_iter_->SeekToLast();
   if (!index_iter_->Valid()) {
@@ -59,20 +59,20 @@ void PartitionedIndexIterator::SeekToLast() {
   FindKeyBackward();
 }
 
-void PartitionedIndexIterator::Next() {
+void ParititionedIndexIterator::Next() {
   assert(block_iter_points_to_real_block_);
   block_iter_.Next();
   FindKeyForward();
 }
 
-void PartitionedIndexIterator::Prev() {
+void ParititionedIndexIterator::Prev() {
   assert(block_iter_points_to_real_block_);
   block_iter_.Prev();
 
   FindKeyBackward();
 }
 
-void PartitionedIndexIterator::InitPartitionedIndexBlock() {
+void ParititionedIndexIterator::InitPartitionedIndexBlock() {
   BlockHandle partitioned_index_handle = index_iter_->value().handle;
   if (!block_iter_points_to_real_block_ ||
       partitioned_index_handle.offset() != prev_block_offset_ ||
@@ -89,17 +89,17 @@ void PartitionedIndexIterator::InitPartitionedIndexBlock() {
     //   Enabled after 2 sequential IOs when ReadOptions.readahead_size == 0.
     // Explicit user requested readahead:
     //   Enabled from the very first IO when ReadOptions.readahead_size is set.
-    block_prefetcher_.PrefetchIfNeeded(
-        rep, partitioned_index_handle, read_options_.readahead_size,
-        is_for_compaction, /*no_sequential_checking=*/false,
-        read_options_.rate_limiter_priority);
+    block_prefetcher_.PrefetchIfNeeded(rep, partitioned_index_handle,
+                                       read_options_.readahead_size,
+                                       is_for_compaction);
+
     Status s;
     table_->NewDataBlockIterator<IndexBlockIter>(
         read_options_, partitioned_index_handle, &block_iter_,
         BlockType::kIndex,
-        /*get_context=*/nullptr, &lookup_context_,
+        /*get_context=*/nullptr, &lookup_context_, s,
         block_prefetcher_.prefetch_buffer(),
-        /*for_compaction=*/is_for_compaction, /*async_read=*/false, s);
+        /*for_compaction=*/is_for_compaction);
     block_iter_points_to_real_block_ = true;
     // We could check upper bound here but it is complicated to reason about
     // upper bound in index iterator. On the other than, in large scans, index
@@ -108,7 +108,7 @@ void PartitionedIndexIterator::InitPartitionedIndexBlock() {
   }
 }
 
-void PartitionedIndexIterator::FindKeyForward() {
+void ParititionedIndexIterator::FindKeyForward() {
   // This method's code is kept short to make it likely to be inlined.
 
   assert(block_iter_points_to_real_block_);
@@ -124,7 +124,7 @@ void PartitionedIndexIterator::FindKeyForward() {
   }
 }
 
-void PartitionedIndexIterator::FindBlockForward() {
+void ParititionedIndexIterator::FindBlockForward() {
   // TODO the while loop inherits from two-level-iterator. We don't know
   // whether a block can be empty so it can be replaced by an "if".
   do {
@@ -143,7 +143,7 @@ void PartitionedIndexIterator::FindBlockForward() {
   } while (!block_iter_.Valid());
 }
 
-void PartitionedIndexIterator::FindKeyBackward() {
+void ParititionedIndexIterator::FindKeyBackward() {
   while (!block_iter_.Valid()) {
     if (!block_iter_.status().ok()) {
       return;

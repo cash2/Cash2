@@ -13,12 +13,6 @@ import java.util.Objects;
  * ColumnFamily Pointers.
  */
 public class ColumnFamilyHandle extends RocksObject {
-  /**
-   * Constructs column family Java object, which operates on underlying native object.
-   *
-   * @param rocksDB db instance associated with this column family
-   * @param nativeHandle native handle to underlying native ColumnFamily object
-   */
   ColumnFamilyHandle(final RocksDB rocksDB,
       final long nativeHandle) {
     super(nativeHandle);
@@ -28,28 +22,6 @@ public class ColumnFamilyHandle extends RocksObject {
     // to guarantee that while a GC cycle starts ColumnFamilyHandle instances
     // are freed prior to RocksDB instances.
     this.rocksDB_ = rocksDB;
-  }
-
-  /**
-   * Constructor called only from JNI.
-   *
-   * NOTE: we are producing an additional Java Object here to represent the underlying native C++
-   * ColumnFamilyHandle object. The underlying object is not owned by ourselves. The Java API user
-   * likely already had a ColumnFamilyHandle Java object which owns the underlying C++ object, as
-   * they will have been presented it when they opened the database or added a Column Family.
-   *
-   *
-   * TODO(AR) - Potentially a better design would be to cache the active Java Column Family Objects
-   * in RocksDB, and return the same Java Object instead of instantiating a new one here. This could
-   * also help us to improve the Java API semantics for Java users. See for example
-   * https://github.com/facebook/rocksdb/issues/2687.
-   *
-   * @param nativeHandle native handle to the column family.
-   */
-  ColumnFamilyHandle(final long nativeHandle) {
-    super(nativeHandle);
-    rocksDB_ = null;
-    disOwnNativeHandle();
   }
 
   /**
@@ -115,9 +87,7 @@ public class ColumnFamilyHandle extends RocksObject {
   @Override
   public int hashCode() {
     try {
-      int result = Objects.hash(getID(), rocksDB_.nativeHandle_);
-      result = 31 * result + Arrays.hashCode(getName());
-      return result;
+      return Objects.hash(getName(), getID(), rocksDB_.nativeHandle_);
     } catch (RocksDBException e) {
       throw new RuntimeException("Cannot calculate hash code of column family handle", e);
     }

@@ -9,6 +9,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,35 +37,20 @@ public class EnvironmentTest {
         isEqualTo(".jnilib");
     assertThat(Environment.getJniLibraryFileName("rocksdb")).
         isEqualTo("librocksdbjni-osx.jnilib");
-    assertThat(Environment.getFallbackJniLibraryFileName("rocksdb")).isNull();
     assertThat(Environment.getSharedLibraryFileName("rocksdb")).
         isEqualTo("librocksdbjni.dylib");
   }
 
   @Test
-  public void mac64_x86_64() {
-    setEnvironmentClassFields("mac", "x86_64");
+  public void mac64() {
+    setEnvironmentClassFields("mac", "64");
     assertThat(Environment.isWindows()).isFalse();
     assertThat(Environment.getJniLibraryExtension()).
         isEqualTo(".jnilib");
-    assertThat(Environment.getJniLibraryFileName("rocksdb"))
-        .isEqualTo("librocksdbjni-osx-x86_64.jnilib");
-    assertThat(Environment.getFallbackJniLibraryFileName("rocksdb"))
-        .isEqualTo("librocksdbjni-osx.jnilib");
+    assertThat(Environment.getJniLibraryFileName("rocksdb")).
+        isEqualTo("librocksdbjni-osx.jnilib");
     assertThat(Environment.getSharedLibraryFileName("rocksdb")).
         isEqualTo("librocksdbjni.dylib");
-  }
-
-  @Test
-  public void macAarch64() {
-    setEnvironmentClassFields("mac", "aarch64");
-    assertThat(Environment.isWindows()).isFalse();
-    assertThat(Environment.getJniLibraryExtension()).isEqualTo(".jnilib");
-    assertThat(Environment.getJniLibraryFileName("rocksdb"))
-        .isEqualTo("librocksdbjni-osx-arm64.jnilib");
-    assertThat(Environment.getFallbackJniLibraryFileName("rocksdb"))
-        .isEqualTo("librocksdbjni-osx.jnilib");
-    assertThat(Environment.getSharedLibraryFileName("rocksdb")).isEqualTo("librocksdbjni.dylib");
   }
 
   @Test
@@ -77,7 +63,6 @@ public class EnvironmentTest {
         isEqualTo(".so");
     assertThat(Environment.getJniLibraryFileName("rocksdb")).
         isEqualTo("librocksdbjni-linux32.so");
-    assertThat(Environment.getFallbackJniLibraryFileName("rocksdb")).isNull();
     assertThat(Environment.getSharedLibraryFileName("rocksdb")).
         isEqualTo("librocksdbjni.so");
     // Linux musl-libc (Alpine)
@@ -108,8 +93,7 @@ public class EnvironmentTest {
     assertThat(Environment.isWindows()).isFalse();
     assertThat(Environment.getJniLibraryExtension()).
         isEqualTo(".so");
-    assertThat(Environment.getJniLibraryFileName("rocksdb")).isEqualTo("blah");
-    assertThat(Environment.getFallbackJniLibraryFileName("rocksdb")).isNull();
+    Environment.getJniLibraryFileName("rocksdb");
   }
 
   @Test
@@ -121,7 +105,6 @@ public class EnvironmentTest {
         isEqualTo(".so");
     assertThat(Environment.getJniLibraryFileName("rocksdb")).
         isEqualTo("librocksdbjni-linux64.so");
-    assertThat(Environment.getFallbackJniLibraryFileName("rocksdb")).isNull();
     assertThat(Environment.getSharedLibraryFileName("rocksdb")).
         isEqualTo("librocksdbjni.so");
     // Linux musl-libc (Alpine)
@@ -131,7 +114,6 @@ public class EnvironmentTest {
         isEqualTo(".so");
     assertThat(Environment.getJniLibraryFileName("rocksdb")).
         isEqualTo("librocksdbjni-linux64-musl.so");
-    assertThat(Environment.getFallbackJniLibraryFileName("rocksdb")).isNull();
     assertThat(Environment.getSharedLibraryFileName("rocksdb")).
         isEqualTo("librocksdbjni.so");
     // UNIX
@@ -142,7 +124,6 @@ public class EnvironmentTest {
         isEqualTo(".so");
     assertThat(Environment.getJniLibraryFileName("rocksdb")).
         isEqualTo("librocksdbjni-linux64.so");
-    assertThat(Environment.getFallbackJniLibraryFileName("rocksdb")).isNull();
     assertThat(Environment.getSharedLibraryFileName("rocksdb")).
         isEqualTo("librocksdbjni.so");
     // AIX
@@ -152,7 +133,6 @@ public class EnvironmentTest {
         isEqualTo(".so");
     assertThat(Environment.getJniLibraryFileName("rocksdb")).
         isEqualTo("librocksdbjni-aix64.so");
-    assertThat(Environment.getFallbackJniLibraryFileName("rocksdb")).isNull();
     assertThat(Environment.getSharedLibraryFileName("rocksdb")).
         isEqualTo("librocksdbjni.so");
   }
@@ -171,7 +151,6 @@ public class EnvironmentTest {
       isEqualTo(".dll");
     assertThat(Environment.getJniLibraryFileName("rocksdb")).
       isEqualTo("librocksdbjni-win64.dll");
-    assertThat(Environment.getFallbackJniLibraryFileName("rocksdb")).isNull();
     assertThat(Environment.getSharedLibraryFileName("rocksdb")).
       isEqualTo("librocksdbjni.dll");
   }
@@ -188,7 +167,6 @@ public class EnvironmentTest {
     assertThat(Environment.getJniLibraryName("rocksdb")).isEqualTo("rocksdbjni-linux-ppc64le");
     assertThat(Environment.getJniLibraryFileName("rocksdb"))
         .isEqualTo("librocksdbjni-linux-ppc64le.so");
-    assertThat(Environment.getFallbackJniLibraryFileName("rocksdb")).isNull();
     assertThat(Environment.getSharedLibraryFileName("rocksdb")).isEqualTo("librocksdbjni.so");
     // Linux musl-libc (Alpine)
     setEnvironmentClassField(MUSL_LIBC_FIELD_NAME, true);
@@ -201,13 +179,12 @@ public class EnvironmentTest {
     assertThat(Environment.getJniLibraryName("rocksdb")).isEqualTo("rocksdbjni-linux-ppc64le-musl");
     assertThat(Environment.getJniLibraryFileName("rocksdb"))
         .isEqualTo("librocksdbjni-linux-ppc64le-musl.so");
-    assertThat(Environment.getFallbackJniLibraryFileName("rocksdb")).isNull();
     assertThat(Environment.getSharedLibraryFileName("rocksdb")).isEqualTo("librocksdbjni.so");
     setEnvironmentClassField(MUSL_LIBC_FIELD_NAME, false);
   }
 
   @Test
-  public void linuxArch64() {
+  public void aarch64() {
     setEnvironmentClassField(MUSL_LIBC_FIELD_NAME, false);
     setEnvironmentClassFields("Linux", "aarch64");
     assertThat(Environment.isUnix()).isTrue();
@@ -218,7 +195,6 @@ public class EnvironmentTest {
     assertThat(Environment.getJniLibraryName("rocksdb")).isEqualTo("rocksdbjni-linux-aarch64");
     assertThat(Environment.getJniLibraryFileName("rocksdb"))
         .isEqualTo("librocksdbjni-linux-aarch64.so");
-    assertThat(Environment.getFallbackJniLibraryFileName("rocksdb")).isNull();
     assertThat(Environment.getSharedLibraryFileName("rocksdb")).isEqualTo("librocksdbjni.so");
     // Linux musl-libc (Alpine)
     setEnvironmentClassField(MUSL_LIBC_FIELD_NAME, true);
@@ -231,7 +207,6 @@ public class EnvironmentTest {
     assertThat(Environment.getJniLibraryName("rocksdb")).isEqualTo("rocksdbjni-linux-aarch64-musl");
     assertThat(Environment.getJniLibraryFileName("rocksdb"))
         .isEqualTo("librocksdbjni-linux-aarch64-musl.so");
-    assertThat(Environment.getFallbackJniLibraryFileName("rocksdb")).isNull();
     assertThat(Environment.getSharedLibraryFileName("rocksdb")).isEqualTo("librocksdbjni.so");
     setEnvironmentClassField(MUSL_LIBC_FIELD_NAME, false);
   }

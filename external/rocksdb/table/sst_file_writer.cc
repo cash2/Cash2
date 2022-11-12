@@ -7,10 +7,9 @@
 
 #include <vector>
 
-#include "db/db_impl/db_impl.h"
 #include "db/dbformat.h"
+#include "env/composite_env_wrapper.h"
 #include "file/writable_file_writer.h"
-#include "rocksdb/file_system.h"
 #include "rocksdb/table.h"
 #include "table/block_based/block_based_table_builder.h"
 #include "table/sst_file_writer_collectors.h"
@@ -30,8 +29,7 @@ const size_t kFadviseTrigger = 1024 * 1024; // 1MB
 struct SstFileWriter::Rep {
   Rep(const EnvOptions& _env_options, const Options& options,
       Env::IOPriority _io_priority, const Comparator* _user_comparator,
-      ColumnFamilyHandle* _cfh, bool _invalidate_page_cache, bool _skip_filters,
-      std::string _db_session_id)
+      ColumnFamilyHandle* _cfh, bool _invalidate_page_cache, bool _skip_filters)
       : env_options(_env_options),
         ioptions(options),
         mutable_cf_options(options),
@@ -39,13 +37,13 @@ struct SstFileWriter::Rep {
         internal_comparator(_user_comparator),
         cfh(_cfh),
         invalidate_page_cache(_invalidate_page_cache),
-        skip_filters(_skip_filters),
-        db_session_id(_db_session_id) {}
+        last_fadvise_size(0),
+        skip_filters(_skip_filters) {}
 
   std::unique_ptr<WritableFileWriter> file_writer;
   std::unique_ptr<TableBuilder> builder;
   EnvOptions env_options;
-  ImmutableOptions ioptions;
+  ImmutableCFOptions ioptions;
   MutableCFOptions mutable_cf_options;
   Env::IOPriority io_priority;
   InternalKeyComparator internal_comparator;
@@ -58,13 +56,10 @@ struct SstFileWriter::Rep {
   bool invalidate_page_cache;
   // The size of the file during the last time we called Fadvise to remove
   // cached pages from page cache.
-  uint64_t last_fadvise_size = 0;
+  uint64_t last_fadvise_size;
   bool skip_filters;
-  std::string db_session_id;
-  uint64_t next_file_number = 1;
-
-  Status AddImpl(const Slice& user_key, const Slice& value,
-                 ValueType value_type) {
+  Status Add(const Slice& user_key, const Slice& value,
+             const ValueType value_type) {
     if (!builder) {
       return Status::InvalidArgument("File is not opened");
     }
@@ -80,14 +75,23 @@ struct SstFileWriter::Rep {
       }
     }
 
-    assert(value_type == kTypeValue || value_type == kTypeMerge ||
-           value_type == kTypeDeletion ||
-           value_type == kTypeDeletionWithTimestamp);
-
-    constexpr SequenceNumber sequence_number = 0;
-
-    ikey.Set(user_key, sequence_number, value_type);
-
+    // TODO(tec) : For external SST files we could omit the seqno and type.
+    switch (value_type) {
+      case ValueType::kTypeValue:
+        ikey.Set(user_key, 0 /* Sequence Number */,
+                 ValueType::kTypeValue /* Put */);
+        break;
+      case ValueType::kTypeMerge:
+        ikey.Set(user_key, 0 /* Sequence Number */,
+                 ValueType::kTypeMerge /* Merge */);
+        break;
+      case ValueType::kTypeDeletion:
+        ikey.Set(user_key, 0 /* Sequence Number */,
+                 ValueType::kTypeDeletion /* Delete */);
+        break;
+      default:
+        return Status::InvalidArgument("Value type is not supported");
+    }
     builder->Add(ikey.Encode(), value);
 
     // update file info
@@ -95,47 +99,12 @@ struct SstFileWriter::Rep {
     file_info.largest_key.assign(user_key.data(), user_key.size());
     file_info.file_size = builder->FileSize();
 
-    InvalidatePageCache(false /* closing */).PermitUncheckedError();
+    InvalidatePageCache(false /* closing */);
+
     return Status::OK();
   }
 
-  Status Add(const Slice& user_key, const Slice& value, ValueType value_type) {
-    if (internal_comparator.user_comparator()->timestamp_size() != 0) {
-      return Status::InvalidArgument("Timestamp size mismatch");
-    }
-
-    return AddImpl(user_key, value, value_type);
-  }
-
-  Status Add(const Slice& user_key, const Slice& timestamp, const Slice& value,
-             ValueType value_type) {
-    const size_t timestamp_size = timestamp.size();
-
-    if (internal_comparator.user_comparator()->timestamp_size() !=
-        timestamp_size) {
-      return Status::InvalidArgument("Timestamp size mismatch");
-    }
-
-    const size_t user_key_size = user_key.size();
-
-    if (user_key.data() + user_key_size == timestamp.data()) {
-      Slice user_key_with_ts(user_key.data(), user_key_size + timestamp_size);
-      return AddImpl(user_key_with_ts, value, value_type);
-    }
-
-    std::string user_key_with_ts;
-    user_key_with_ts.reserve(user_key_size + timestamp_size);
-    user_key_with_ts.append(user_key.data(), user_key_size);
-    user_key_with_ts.append(timestamp.data(), timestamp_size);
-
-    return AddImpl(user_key_with_ts, value, value_type);
-  }
-
   Status DeleteRange(const Slice& begin_key, const Slice& end_key) {
-    if (internal_comparator.user_comparator()->timestamp_size() != 0) {
-      return Status::InvalidArgument("Timestamp size mismatch");
-    }
-
     if (!builder) {
       return Status::InvalidArgument("File is not opened");
     }
@@ -166,15 +135,15 @@ struct SstFileWriter::Rep {
     file_info.num_range_del_entries++;
     file_info.file_size = builder->FileSize();
 
-    InvalidatePageCache(false /* closing */).PermitUncheckedError();
+    InvalidatePageCache(false /* closing */);
+
     return Status::OK();
   }
 
-  Status InvalidatePageCache(bool closing) {
-    Status s = Status::OK();
+  void InvalidatePageCache(bool closing) {
     if (invalidate_page_cache == false) {
       // Fadvise disabled
-      return s;
+      return;
     }
     uint64_t bytes_since_last_fadvise =
       builder->FileSize() - last_fadvise_size;
@@ -182,16 +151,11 @@ struct SstFileWriter::Rep {
       TEST_SYNC_POINT_CALLBACK("SstFileWriter::Rep::InvalidatePageCache",
                                &(bytes_since_last_fadvise));
       // Tell the OS that we don't need this file in page cache
-      s = file_writer->InvalidateCache(0, 0);
-      if (s.IsNotSupported()) {
-        // NotSupported is fine as it could be a file type that doesn't use page
-        // cache.
-        s = Status::OK();
-      }
+      file_writer->InvalidateCache(0, 0);
       last_fadvise_size = builder->FileSize();
     }
-    return s;
   }
+
 };
 
 SstFileWriter::SstFileWriter(const EnvOptions& env_options,
@@ -201,14 +165,7 @@ SstFileWriter::SstFileWriter(const EnvOptions& env_options,
                              bool invalidate_page_cache,
                              Env::IOPriority io_priority, bool skip_filters)
     : rep_(new Rep(env_options, options, io_priority, user_comparator,
-                   column_family, invalidate_page_cache, skip_filters,
-                   DBImpl::GenerateDbSessionId(options.env))) {
-  // SstFileWriter is used to create sst files that can be added to database
-  // later. Therefore, no real db_id and db_session_id are associated with it.
-  // Here we mimic the way db_session_id behaves by getting a db_session_id
-  // for each SstFileWriter, and (later below) assign unique file numbers
-  // in the table properties. The db_id is set to be "SST Writer" for clarity.
-
+                   column_family, invalidate_page_cache, skip_filters)) {
   rep_->file_info.file_size = 0;
 }
 
@@ -223,10 +180,8 @@ SstFileWriter::~SstFileWriter() {
 Status SstFileWriter::Open(const std::string& file_path) {
   Rep* r = rep_.get();
   Status s;
-  std::unique_ptr<FSWritableFile> sst_file;
-  FileOptions cur_file_opts(r->env_options);
-  s = r->ioptions.env->GetFileSystem()->NewWritableFile(
-      file_path, cur_file_opts, &sst_file, nullptr);
+  std::unique_ptr<WritableFile> sst_file;
+  s = r->ioptions.env->NewWritableFile(file_path, &sst_file, r->env_options);
   if (!s.ok()) {
     return s;
   }
@@ -243,16 +198,19 @@ Status SstFileWriter::Open(const std::string& file_path) {
     } else {
       compression_opts = r->mutable_cf_options.compression_opts;
     }
-  } else if (!r->mutable_cf_options.compression_per_level.empty()) {
+  } else if (!r->ioptions.compression_per_level.empty()) {
     // Use the compression of the last level if we have per level compression
-    compression_type = *(r->mutable_cf_options.compression_per_level.rbegin());
+    compression_type = *(r->ioptions.compression_per_level.rbegin());
     compression_opts = r->mutable_cf_options.compression_opts;
   } else {
     compression_type = r->mutable_cf_options.compression;
     compression_opts = r->mutable_cf_options.compression_opts;
   }
+  uint64_t sample_for_compression =
+      r->mutable_cf_options.sample_for_compression;
 
-  IntTblPropCollectorFactories int_tbl_prop_collector_factories;
+  std::vector<std::unique_ptr<IntTblPropCollectorFactory>>
+      int_tbl_prop_collector_factories;
 
   // SstFileWriter properties collector to add SstFileWriter version.
   int_tbl_prop_collector_factories.emplace_back(
@@ -280,34 +238,20 @@ Status SstFileWriter::Open(const std::string& file_path) {
     cf_id = TablePropertiesCollectorFactory::Context::kUnknownColumnFamily;
   }
 
-  // TODO: it would be better to set oldest_key_time to be used for getting the
-  //  approximate time of ingested keys.
   TableBuilderOptions table_builder_options(
       r->ioptions, r->mutable_cf_options, r->internal_comparator,
-      &int_tbl_prop_collector_factories, compression_type, compression_opts,
-      cf_id, r->column_family_name, unknown_level, false /* is_bottommost */,
-      TableFileCreationReason::kMisc, 0 /* oldest_key_time */,
-      0 /* file_creation_time */, "SST Writer" /* db_id */, r->db_session_id,
-      0 /* target_file_size */, r->next_file_number);
-  // External SST files used to each get a unique session id. Now for
-  // slightly better uniqueness probability in constructing cache keys, we
-  // assign fake file numbers to each file (into table properties) and keep
-  // the same session id for the life of the SstFileWriter.
-  r->next_file_number++;
-  // XXX: when we can remove skip_filters from the SstFileWriter public API
-  // we can remove it from TableBuilderOptions.
-  table_builder_options.skip_filters = r->skip_filters;
-  FileTypeSet tmp_set = r->ioptions.checksum_handoff_file_types;
-  r->file_writer.reset(new WritableFileWriter(
-      std::move(sst_file), file_path, r->env_options, r->ioptions.clock,
-      nullptr /* io_tracer */, nullptr /* stats */, r->ioptions.listeners,
-      r->ioptions.file_checksum_gen_factory.get(),
-      tmp_set.Contains(FileType::kTableFile), false));
+      &int_tbl_prop_collector_factories, compression_type,
+      sample_for_compression, compression_opts, r->skip_filters,
+      r->column_family_name, unknown_level);
+  r->file_writer.reset(
+      new WritableFileWriter(NewLegacyWritableFileWrapper(std::move(sst_file)),
+                             file_path, r->env_options, r->ioptions.env,
+                             nullptr /* stats */, r->ioptions.listeners));
 
   // TODO(tec) : If table_factory is using compressed block cache, we will
   // be adding the external sst file blocks into it, which is wasteful.
   r->builder.reset(r->ioptions.table_factory->NewTableBuilder(
-      table_builder_options, r->file_writer.get()));
+      table_builder_options, cf_id, r->file_writer.get()));
 
   r->file_info = ExternalSstFileInfo();
   r->file_info.file_path = file_path;
@@ -323,22 +267,12 @@ Status SstFileWriter::Put(const Slice& user_key, const Slice& value) {
   return rep_->Add(user_key, value, ValueType::kTypeValue);
 }
 
-Status SstFileWriter::Put(const Slice& user_key, const Slice& timestamp,
-                          const Slice& value) {
-  return rep_->Add(user_key, timestamp, value, ValueType::kTypeValue);
-}
-
 Status SstFileWriter::Merge(const Slice& user_key, const Slice& value) {
   return rep_->Add(user_key, value, ValueType::kTypeMerge);
 }
 
 Status SstFileWriter::Delete(const Slice& user_key) {
   return rep_->Add(user_key, Slice(), ValueType::kTypeDeletion);
-}
-
-Status SstFileWriter::Delete(const Slice& user_key, const Slice& timestamp) {
-  return rep_->Add(user_key, timestamp, Slice(),
-                   ValueType::kTypeDeletionWithTimestamp);
 }
 
 Status SstFileWriter::DeleteRange(const Slice& begin_key,
@@ -361,15 +295,10 @@ Status SstFileWriter::Finish(ExternalSstFileInfo* file_info) {
 
   if (s.ok()) {
     s = r->file_writer->Sync(r->ioptions.use_fsync);
-    r->InvalidatePageCache(true /* closing */).PermitUncheckedError();
+    r->InvalidatePageCache(true /* closing */);
     if (s.ok()) {
       s = r->file_writer->Close();
     }
-  }
-  if (s.ok()) {
-    r->file_info.file_checksum = r->file_writer->GetFileChecksum();
-    r->file_info.file_checksum_func_name =
-        r->file_writer->GetFileChecksumFuncName();
   }
   if (!s.ok()) {
     r->ioptions.env->DeleteFile(r->file_info.file_path);

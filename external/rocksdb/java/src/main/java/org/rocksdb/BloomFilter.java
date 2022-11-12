@@ -21,6 +21,7 @@ package org.rocksdb;
 public class BloomFilter extends Filter {
 
   private static final double DEFAULT_BITS_PER_KEY = 10.0;
+  private static final boolean DEFAULT_MODE = true;
 
   /**
    * BloomFilter constructor
@@ -30,7 +31,7 @@ public class BloomFilter extends Filter {
    * result has been closed.</p>
    */
   public BloomFilter() {
-    this(DEFAULT_BITS_PER_KEY);
+    this(DEFAULT_BITS_PER_KEY, DEFAULT_MODE);
   }
 
   /**
@@ -47,7 +48,7 @@ public class BloomFilter extends Filter {
    * @param bitsPerKey number of bits to use
    */
   public BloomFilter(final double bitsPerKey) {
-    super(createNewBloomFilter(bitsPerKey));
+    this(bitsPerKey, DEFAULT_MODE);
   }
 
   /**
@@ -58,16 +59,21 @@ public class BloomFilter extends Filter {
    * is 10, which yields a filter with ~ 1% false positive rate.
    * <p><strong>default bits_per_key</strong>: 10</p>
    *
+   * <p>use_block_based_builder: use block based filter rather than full filter.
+   * If you want to builder full filter, it needs to be set to false.
+   * </p>
+   * <p><strong>default mode: block based filter</strong></p>
    * <p>
    * Callers must delete the result after any database that is using the
    * result has been closed.</p>
    *
    * @param bitsPerKey number of bits to use
-   * @param IGNORED_useBlockBasedMode obsolete, ignored parameter
+   * @param useBlockBasedMode use block based mode or full filter mode
    */
-  public BloomFilter(final double bitsPerKey, final boolean IGNORED_useBlockBasedMode) {
-    this(bitsPerKey);
+  public BloomFilter(final double bitsPerKey, final boolean useBlockBasedMode) {
+    super(createNewBloomFilter(bitsPerKey, useBlockBasedMode));
   }
 
-  private native static long createNewBloomFilter(final double bitsKeyKey);
+  private native static long createNewBloomFilter(final double bitsKeyKey,
+      final boolean useBlockBasedMode);
 }

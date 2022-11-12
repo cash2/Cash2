@@ -6,7 +6,10 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
-#if !defined ROCKSDB_LITE
+
+// GetUniqueIdFromFile is not implemented on Windows. Persistent cache
+// breaks when that function is not implemented
+#if !defined(ROCKSDB_LITE) && !defined(OS_WIN)
 
 #include "utilities/persistent_cache/persistent_cache_test.h"
 
@@ -14,7 +17,6 @@
 #include <memory>
 #include <thread>
 
-#include "file/file_util.h"
 #include "utilities/persistent_cache/block_cache_tier.h"
 
 namespace ROCKSDB_NAMESPACE {
@@ -39,9 +41,30 @@ static void OnOpenForWrite(void* arg) {
 }
 #endif
 
+static void RemoveDirectory(const std::string& folder) {
+  std::vector<std::string> files;
+  Status status = Env::Default()->GetChildren(folder, &files);
+  if (!status.ok()) {
+    // we assume the directory does not exist
+    return;
+  }
+
+  // cleanup files with the patter :digi:.rc
+  for (auto file : files) {
+    if (file == "." || file == "..") {
+      continue;
+    }
+    status = Env::Default()->DeleteFile(folder + "/" + file);
+    assert(status.ok());
+  }
+
+  status = Env::Default()->DeleteDir(folder);
+  assert(status.ok());
+}
+
 static void OnDeleteDir(void* arg) {
   char* dir = static_cast<char*>(arg);
-  ASSERT_OK(DestroyDir(Env::Default(), std::string(dir)));
+  RemoveDirectory(std::string(dir));
 }
 
 //
@@ -140,7 +163,7 @@ TEST_F(PersistentCacheTierTest, DISABLED_BlockCacheInsertWithFileCreateError) {
 // Travis is unable to handle the normal version of the tests running out of
 // fds, out of space and timeouts. This is an easier version of the test
 // specifically written for Travis
-TEST_F(PersistentCacheTierTest, DISABLED_BasicTest) {
+TEST_F(PersistentCacheTierTest, BasicTest) {
   cache_ = std::make_shared<VolatileCacheTier>();
   RunInsertTest(/*nthreads=*/1, /*max_keys=*/1024);
 
@@ -233,19 +256,18 @@ TEST_F(PersistentCacheTierTest, DISABLED_TieredCacheInsertWithEviction) {
 }
 
 std::shared_ptr<PersistentCacheTier> MakeVolatileCache(
-    Env* /*env*/, const std::string& /*dbname*/) {
+    const std::string& /*dbname*/) {
   return std::make_shared<VolatileCacheTier>();
 }
 
-std::shared_ptr<PersistentCacheTier> MakeBlockCache(Env* env,
-                                                    const std::string& dbname) {
-  return NewBlockCache(env, dbname);
+std::shared_ptr<PersistentCacheTier> MakeBlockCache(const std::string& dbname) {
+  return NewBlockCache(Env::Default(), dbname);
 }
 
 std::shared_ptr<PersistentCacheTier> MakeTieredCache(
-    Env* env, const std::string& dbname) {
+    const std::string& dbname) {
   const auto memory_size = 1 * 1024 * 1024 * kStressFactor;
-  return NewTieredCache(env, dbname, static_cast<size_t>(memory_size));
+  return NewTieredCache(Env::Default(), dbname, static_cast<size_t>(memory_size));
 }
 
 #ifdef OS_LINUX
@@ -276,8 +298,7 @@ TEST_F(PersistentCacheTierTest, FactoryTest) {
   }
 }
 
-PersistentCacheDBTest::PersistentCacheDBTest()
-    : DBTestBase("cache_test", /*env_do_fsync=*/true) {
+PersistentCacheDBTest::PersistentCacheDBTest() : DBTestBase("/cache_test") {
 #ifdef OS_LINUX
   ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->EnableProcessing();
   ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
@@ -414,7 +435,7 @@ void PersistentCacheDBTest::RunTest(
     options.create_if_missing = true;
     DestroyAndReopen(options);
 
-    ASSERT_OK(pcache->Close());
+    pcache->Close();
   }
 }
 
@@ -423,26 +444,26 @@ void PersistentCacheDBTest::RunTest(
 // specifically written for Travis.
 // Now used generally because main tests are too expensive as unit tests.
 TEST_F(PersistentCacheDBTest, BasicTest) {
-  RunTest(std::bind(&MakeBlockCache, env_, dbname_), /*max_keys=*/1024,
+  RunTest(std::bind(&MakeBlockCache, dbname_), /*max_keys=*/1024,
           /*max_usecase=*/1);
 }
 
 // test table with block page cache
 // DISABLED for now (very expensive, especially memory)
 TEST_F(PersistentCacheDBTest, DISABLED_BlockCacheTest) {
-  RunTest(std::bind(&MakeBlockCache, env_, dbname_));
+  RunTest(std::bind(&MakeBlockCache, dbname_));
 }
 
 // test table with volatile page cache
 // DISABLED for now (very expensive, especially memory)
 TEST_F(PersistentCacheDBTest, DISABLED_VolatileCacheTest) {
-  RunTest(std::bind(&MakeVolatileCache, env_, dbname_));
+  RunTest(std::bind(&MakeVolatileCache, dbname_));
 }
 
 // test table with tiered page cache
 // DISABLED for now (very expensive, especially memory)
 TEST_F(PersistentCacheDBTest, DISABLED_TieredCacheTest) {
-  RunTest(std::bind(&MakeTieredCache, env_, dbname_));
+  RunTest(std::bind(&MakeTieredCache, dbname_));
 }
 
 }  // namespace ROCKSDB_NAMESPACE
@@ -451,6 +472,6 @@ int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-#else   // !defined ROCKSDB_LITE
+#else   // !defined(ROCKSDB_LITE) && !defined(OS_WIN)
 int main() { return 0; }
-#endif  // !defined ROCKSDB_LITE
+#endif  // !defined(ROCKSDB_LITE) && !defined(OS_WIN)

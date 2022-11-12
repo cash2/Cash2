@@ -43,7 +43,7 @@ class MutexLock {
 
 //
 // Acquire a ReadLock on the specified RWMutex.
-// The Lock will be automatically released when the
+// The Lock will be automatically released then the
 // object goes out of scope.
 //
 class ReadLock {

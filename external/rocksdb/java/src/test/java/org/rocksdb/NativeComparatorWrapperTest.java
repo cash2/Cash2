@@ -15,9 +15,6 @@ import java.util.Comparator;
 import static org.junit.Assert.assertEquals;
 
 public class NativeComparatorWrapperTest {
-  static {
-    RocksDB.loadLibrary();
-  }
 
   @Rule
   public TemporaryFolder dbFolder = new TemporaryFolder();

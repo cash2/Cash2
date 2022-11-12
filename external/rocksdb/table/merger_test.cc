@@ -3,14 +3,12 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include <string>
 #include <vector>
+#include <string>
 
 #include "table/merging_iterator.h"
 #include "test_util/testharness.h"
 #include "test_util/testutil.h"
-#include "util/random.h"
-#include "util/vector_iterator.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -26,7 +24,7 @@ class MergerTest : public testing::Test {
     std::vector<std::string> ret;
 
     for (size_t i = 0; i < len; ++i) {
-      InternalKey ik(rnd_.HumanReadableString(string_len), 0,
+      InternalKey ik(test::RandomHumanReadableString(&rnd_, string_len), 0,
                      ValueType::kTypeValue);
       ret.push_back(ik.Encode().ToString(false));
     }
@@ -46,7 +44,8 @@ class MergerTest : public testing::Test {
   }
 
   void SeekToRandom() {
-    InternalKey ik(rnd_.HumanReadableString(5), 0, ValueType::kTypeValue);
+    InternalKey ik(test::RandomHumanReadableString(&rnd_, 5), 0,
+                   ValueType::kTypeValue);
     Seek(ik.Encode().ToString(false));
   }
 
@@ -102,14 +101,14 @@ class MergerTest : public testing::Test {
     std::vector<InternalIterator*> small_iterators;
     for (size_t i = 0; i < num_iterators; ++i) {
       auto strings = GenerateStrings(strings_per_iterator, letters_per_string);
-      small_iterators.push_back(new VectorIterator(strings, strings, &icomp_));
+      small_iterators.push_back(new test::VectorIterator(strings));
       all_keys_.insert(all_keys_.end(), strings.begin(), strings.end());
     }
 
     merging_iterator_.reset(
         NewMergingIterator(&icomp_, &small_iterators[0],
                            static_cast<int>(small_iterators.size())));
-    single_iterator_.reset(new VectorIterator(all_keys_, all_keys_, &icomp_));
+    single_iterator_.reset(new test::VectorIterator(all_keys_));
   }
 
   InternalKeyComparator icomp_;

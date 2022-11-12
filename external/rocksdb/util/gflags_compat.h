@@ -3,7 +3,6 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#pragma once
 #include <gflags/gflags.h>
 
 #ifndef GFLAGS_NAMESPACE
@@ -15,11 +14,6 @@
 #ifndef DEFINE_uint32
 // DEFINE_uint32 does not appear in older versions of gflags. This should be
 // a sane definition for those versions.
-#include <cstdint>
 #define DEFINE_uint32(name, val, txt) \
-  namespace gflags_compat {           \
-  DEFINE_int32(name, val, txt);       \
-  }                                   \
-  uint32_t &FLAGS_##name =            \
-      *reinterpret_cast<uint32_t *>(&gflags_compat::FLAGS_##name);
+  DEFINE_VARIABLE(GFLAGS_NAMESPACE::uint32, U, name, val, txt)
 #endif

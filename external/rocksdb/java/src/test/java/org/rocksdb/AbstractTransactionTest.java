@@ -206,8 +206,12 @@ public abstract class AbstractTransactionTest {
 
   @Test
   public void multiGetPut_cf() throws RocksDBException {
-    final byte[][] keys = new byte[][] {"key1".getBytes(UTF_8), "key2".getBytes(UTF_8)};
-    final byte[][] values = new byte[][] {"value1".getBytes(UTF_8), "value2".getBytes(UTF_8)};
+    final byte keys[][] = new byte[][] {
+        "key1".getBytes(UTF_8),
+        "key2".getBytes(UTF_8)};
+    final byte values[][] = new byte[][] {
+        "value1".getBytes(UTF_8),
+        "value2".getBytes(UTF_8)};
 
     try(final DBContainer dbContainer = startDb();
         final ReadOptions readOptions = new ReadOptions();
@@ -224,30 +228,13 @@ public abstract class AbstractTransactionTest {
   }
 
   @Test
-  public void multiGetPutAsList_cf() throws RocksDBException {
-    final byte[][] keys = new byte[][] {"key1".getBytes(UTF_8), "key2".getBytes(UTF_8)};
-    final byte[][] values = new byte[][] {"value1".getBytes(UTF_8), "value2".getBytes(UTF_8)};
-
-    try (final DBContainer dbContainer = startDb();
-         final ReadOptions readOptions = new ReadOptions();
-         final Transaction txn = dbContainer.beginTransaction()) {
-      final ColumnFamilyHandle testCf = dbContainer.getTestColumnFamily();
-      final List<ColumnFamilyHandle> cfList = Arrays.asList(testCf, testCf);
-
-      assertThat(txn.multiGetAsList(readOptions, cfList, Arrays.asList(keys)))
-          .containsExactly(null, null);
-
-      txn.put(testCf, keys[0], values[0]);
-      txn.put(testCf, keys[1], values[1]);
-      assertThat(txn.multiGetAsList(readOptions, cfList, Arrays.asList(keys)))
-          .containsExactly(values);
-    }
-  }
-
-  @Test
   public void multiGetPut() throws RocksDBException {
-    final byte[][] keys = new byte[][] {"key1".getBytes(UTF_8), "key2".getBytes(UTF_8)};
-    final byte[][] values = new byte[][] {"value1".getBytes(UTF_8), "value2".getBytes(UTF_8)};
+    final byte keys[][] = new byte[][] {
+        "key1".getBytes(UTF_8),
+        "key2".getBytes(UTF_8)};
+    final byte values[][] = new byte[][] {
+        "value1".getBytes(UTF_8),
+        "value2".getBytes(UTF_8)};
 
     try(final DBContainer dbContainer = startDb();
         final ReadOptions readOptions = new ReadOptions();
@@ -258,22 +245,6 @@ public abstract class AbstractTransactionTest {
       txn.put(keys[0], values[0]);
       txn.put(keys[1], values[1]);
       assertThat(txn.multiGet(readOptions, keys)).isEqualTo(values);
-    }
-  }
-
-  @Test
-  public void multiGetPutAsList() throws RocksDBException {
-    final byte[][] keys = new byte[][] {"key1".getBytes(UTF_8), "key2".getBytes(UTF_8)};
-    final byte[][] values = new byte[][] {"value1".getBytes(UTF_8), "value2".getBytes(UTF_8)};
-
-    try (final DBContainer dbContainer = startDb();
-         final ReadOptions readOptions = new ReadOptions();
-         final Transaction txn = dbContainer.beginTransaction()) {
-      assertThat(txn.multiGetAsList(readOptions, Arrays.asList(keys))).containsExactly(null, null);
-
-      txn.put(keys[0], values[0]);
-      txn.put(keys[1], values[1]);
-      assertThat(txn.multiGetAsList(readOptions, Arrays.asList(keys))).containsExactly(values);
     }
   }
 
@@ -524,7 +495,6 @@ public abstract class AbstractTransactionTest {
     }
   }
 
-  @Deprecated
   @Test
   public void multiGetPutUntracked_cf() throws RocksDBException {
     final byte keys[][] = new byte[][] {
@@ -549,31 +519,13 @@ public abstract class AbstractTransactionTest {
   }
 
   @Test
-  public void multiGetPutUntrackedAsList_cf() throws RocksDBException {
-    final byte[][] keys = new byte[][] {"key1".getBytes(UTF_8), "key2".getBytes(UTF_8)};
-    final byte[][] values = new byte[][] {"value1".getBytes(UTF_8), "value2".getBytes(UTF_8)};
-
-    try (final DBContainer dbContainer = startDb();
-         final ReadOptions readOptions = new ReadOptions();
-         final Transaction txn = dbContainer.beginTransaction()) {
-      final ColumnFamilyHandle testCf = dbContainer.getTestColumnFamily();
-
-      final List<ColumnFamilyHandle> cfList = Arrays.asList(testCf, testCf);
-
-      assertThat(txn.multiGetAsList(readOptions, cfList, Arrays.asList(keys)))
-          .containsExactly(null, null);
-      txn.putUntracked(testCf, keys[0], values[0]);
-      txn.putUntracked(testCf, keys[1], values[1]);
-      assertThat(txn.multiGetAsList(readOptions, cfList, Arrays.asList(keys)))
-          .containsExactly(values);
-    }
-  }
-
-  @Deprecated
-  @Test
   public void multiGetPutUntracked() throws RocksDBException {
-    final byte[][] keys = new byte[][] {"key1".getBytes(UTF_8), "key2".getBytes(UTF_8)};
-    final byte[][] values = new byte[][] {"value1".getBytes(UTF_8), "value2".getBytes(UTF_8)};
+    final byte keys[][] = new byte[][] {
+        "key1".getBytes(UTF_8),
+        "key2".getBytes(UTF_8)};
+    final byte values[][] = new byte[][] {
+        "value1".getBytes(UTF_8),
+        "value2".getBytes(UTF_8)};
 
     try(final DBContainer dbContainer = startDb();
         final ReadOptions readOptions = new ReadOptions();
@@ -583,21 +535,6 @@ public abstract class AbstractTransactionTest {
       txn.putUntracked(keys[0], values[0]);
       txn.putUntracked(keys[1], values[1]);
       assertThat(txn.multiGet(readOptions, keys)).isEqualTo(values);
-    }
-  }
-
-  @Test
-  public void multiGetPutAsListUntracked() throws RocksDBException {
-    final byte[][] keys = new byte[][] {"key1".getBytes(UTF_8), "key2".getBytes(UTF_8)};
-    final byte[][] values = new byte[][] {"value1".getBytes(UTF_8), "value2".getBytes(UTF_8)};
-
-    try (final DBContainer dbContainer = startDb();
-         final ReadOptions readOptions = new ReadOptions();
-         final Transaction txn = dbContainer.beginTransaction()) {
-      assertThat(txn.multiGetAsList(readOptions, Arrays.asList(keys))).containsExactly(null, null);
-      txn.putUntracked(keys[0], values[0]);
-      txn.putUntracked(keys[1], values[1]);
-      assertThat(txn.multiGetAsList(readOptions, Arrays.asList(keys))).containsExactly(values);
     }
   }
 

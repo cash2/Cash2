@@ -10,7 +10,6 @@
 
 #include "include/org_rocksdb_CompactionOptionsUniversal.h"
 #include "rocksdb/advanced_options.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 #include "rocksjni/portal.h"
 
 /*
@@ -21,7 +20,7 @@
 jlong Java_org_rocksdb_CompactionOptionsUniversal_newCompactionOptionsUniversal(
     JNIEnv*, jclass) {
   const auto* opt = new ROCKSDB_NAMESPACE::CompactionOptionsUniversal();
-  return GET_CPLUSPLUS_POINTER(opt);
+  return reinterpret_cast<jlong>(opt);
 }
 
 /*

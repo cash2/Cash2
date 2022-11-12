@@ -13,20 +13,15 @@
 #include <memory>
 #include <string>
 
-#include "cache/cache_reservation_manager.h"
-#include "port/port.h"
+#include "db/dbformat.h"
 #include "rocksdb/flush_block_policy.h"
 #include "rocksdb/table.h"
 
 namespace ROCKSDB_NAMESPACE {
-struct ColumnFamilyOptions;
 struct ConfigOptions;
-struct DBOptions;
 struct EnvOptions;
 
 class BlockBasedTableBuilder;
-class RandomAccessFileReader;
-class WritableFileWriter;
 
 // A class used to track actual bytes written from the tail in the recent SST
 // file opens, and provide a suggestion for following open.
@@ -51,46 +46,37 @@ class BlockBasedTableFactory : public TableFactory {
 
   ~BlockBasedTableFactory() {}
 
-  // Method to allow CheckedCast to work for this class
-  static const char* kClassName() { return kBlockBasedTableName(); }
+  const char* Name() const override { return kName.c_str(); }
 
-  const char* Name() const override { return kBlockBasedTableName(); }
-
-  using TableFactory::NewTableReader;
   Status NewTableReader(
-      const ReadOptions& ro, const TableReaderOptions& table_reader_options,
+      const TableReaderOptions& table_reader_options,
       std::unique_ptr<RandomAccessFileReader>&& file, uint64_t file_size,
       std::unique_ptr<TableReader>* table_reader,
       bool prefetch_index_and_filter_in_cache = true) const override;
 
   TableBuilder* NewTableBuilder(
       const TableBuilderOptions& table_builder_options,
-      WritableFileWriter* file) const override;
+      uint32_t column_family_id, WritableFileWriter* file) const override;
 
-  // Valdates the specified DB Options.
-  Status ValidateOptions(const DBOptions& db_opts,
+  // Sanitizes the specified DB Options.
+  Status SanitizeOptions(const DBOptions& db_opts,
                          const ColumnFamilyOptions& cf_opts) const override;
-  Status PrepareOptions(const ConfigOptions& opts) override;
 
-  std::string GetPrintableOptions() const override;
+  std::string GetPrintableTableOptions() const override;
+
+  Status GetOptionString(const ConfigOptions& config_options,
+                         std::string* opt_string) const override;
+
+  const BlockBasedTableOptions& table_options() const;
+
+  void* GetOptions() override { return &table_options_; }
 
   bool IsDeleteRangeSupported() const override { return true; }
 
-  TailPrefetchStats* tail_prefetch_stats() { return &tail_prefetch_stats_; }
-
- protected:
-  const void* GetOptionsPtr(const std::string& name) const override;
-#ifndef ROCKSDB_LITE
-  Status ParseOption(const ConfigOptions& config_options,
-                     const OptionTypeInfo& opt_info,
-                     const std::string& opt_name, const std::string& opt_value,
-                     void* opt_ptr) override;
-#endif
-  void InitializeOptions();
+  static const std::string kName;
 
  private:
   BlockBasedTableOptions table_options_;
-  std::shared_ptr<CacheReservationManager> table_reader_cache_res_mgr_;
   mutable TailPrefetchStats tail_prefetch_stats_;
 };
 
@@ -98,4 +84,10 @@ extern const std::string kHashIndexPrefixesBlock;
 extern const std::string kHashIndexPrefixesMetadataBlock;
 extern const std::string kPropTrue;
 extern const std::string kPropFalse;
+
+#ifndef ROCKSDB_LITE
+extern Status VerifyBlockBasedTableFactory(
+    const ConfigOptions& config_options, const BlockBasedTableFactory* base_tf,
+    const BlockBasedTableFactory* file_tf);
+#endif  // !ROCKSDB_LITE
 }  // namespace ROCKSDB_NAMESPACE

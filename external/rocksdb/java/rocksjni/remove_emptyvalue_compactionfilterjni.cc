@@ -6,7 +6,6 @@
 #include <jni.h>
 
 #include "include/org_rocksdb_RemoveEmptyValueCompactionFilter.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 #include "utilities/compaction_filters/remove_emptyvalue_compactionfilter.h"
 
 /*
@@ -20,5 +19,5 @@ jlong Java_org_rocksdb_RemoveEmptyValueCompactionFilter_createNewRemoveEmptyValu
       new ROCKSDB_NAMESPACE::RemoveEmptyValueCompactionFilter();
 
   // set the native handle to our native compaction filter
-  return GET_CPLUSPLUS_POINTER(compaction_filter);
+  return reinterpret_cast<jlong>(compaction_filter);
 }

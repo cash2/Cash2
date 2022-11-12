@@ -60,6 +60,7 @@
 #include <vector>
 #include "rocksdb/merge_operator.h"
 #include "rocksdb/slice.h"
+#include "test_util/testharness.h"
 
 namespace ROCKSDB_NAMESPACE {
 namespace cassandra {
@@ -142,7 +143,7 @@ private:
   std::chrono::seconds Ttl() const;
 };
 
-using Columns = std::vector<std::shared_ptr<ColumnBase>>;
+typedef std::vector<std::shared_ptr<ColumnBase>> Columns;
 
 class RowValue {
 public:
@@ -156,7 +157,7 @@ public:
   RowValue& operator=(const RowValue& /*that*/) = delete;
   RowValue& operator=(RowValue&& /*that*/) = default;
 
-  std::size_t Size() const;
+  std::size_t Size() const;;
   bool IsTombstone() const;
   // For Tombstone this returns the marked_for_delete_at_,
   // otherwise it returns the max timestamp of containing columns.
@@ -171,13 +172,25 @@ public:
   // Merge multiple rows according to their timestamp.
   static RowValue Merge(std::vector<RowValue>&& values);
 
-  const Columns& get_columns() { return columns_; }
-
- private:
+private:
   int32_t local_deletion_time_;
   int64_t marked_for_delete_at_;
   Columns columns_;
   int64_t last_modified_time_;
+
+  FRIEND_TEST(RowValueTest, PurgeTtlShouldRemvoeAllColumnsExpired);
+  FRIEND_TEST(RowValueTest, ExpireTtlShouldConvertExpiredColumnsToTombstones);
+  FRIEND_TEST(RowValueMergeTest, Merge);
+  FRIEND_TEST(RowValueMergeTest, MergeWithRowTombstone);
+  FRIEND_TEST(CassandraFunctionalTest, SimpleMergeTest);
+  FRIEND_TEST(
+    CassandraFunctionalTest, CompactionShouldConvertExpiredColumnsToTombstone);
+  FRIEND_TEST(
+    CassandraFunctionalTest, CompactionShouldPurgeExpiredColumnsIfPurgeTtlIsOn);
+  FRIEND_TEST(
+    CassandraFunctionalTest, CompactionShouldRemoveRowWhenAllColumnExpiredIfPurgeTtlIsOn);
+  FRIEND_TEST(CassandraFunctionalTest,
+              CompactionShouldRemoveTombstoneExceedingGCGracePeriod);
 };
 
 } // namepsace cassandrda

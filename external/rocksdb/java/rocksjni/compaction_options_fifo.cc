@@ -10,7 +10,6 @@
 
 #include "include/org_rocksdb_CompactionOptionsFIFO.h"
 #include "rocksdb/advanced_options.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 
 /*
  * Class:     org_rocksdb_CompactionOptionsFIFO
@@ -20,7 +19,7 @@
 jlong Java_org_rocksdb_CompactionOptionsFIFO_newCompactionOptionsFIFO(
     JNIEnv*, jclass) {
   const auto* opt = new ROCKSDB_NAMESPACE::CompactionOptionsFIFO();
-  return GET_CPLUSPLUS_POINTER(opt);
+  return reinterpret_cast<jlong>(opt);
 }
 
 /*

@@ -13,95 +13,24 @@
 #include <string>
 #include <utility>
 #include <vector>
-
 #include "db/blob/blob_file_addition.h"
 #include "db/blob/blob_file_garbage.h"
 #include "db/dbformat.h"
-#include "db/wal_edit.h"
 #include "memory/arena.h"
-#include "port/malloc.h"
-#include "rocksdb/advanced_options.h"
 #include "rocksdb/cache.h"
 #include "table/table_reader.h"
-#include "table/unique_id_impl.h"
 #include "util/autovector.h"
 
 namespace ROCKSDB_NAMESPACE {
-
-// Tag numbers for serialized VersionEdit.  These numbers are written to
-// disk and should not be changed. The number should be forward compatible so
-// users can down-grade RocksDB safely. A future Tag is ignored by doing '&'
-// between Tag and kTagSafeIgnoreMask field.
-enum Tag : uint32_t {
-  kComparator = 1,
-  kLogNumber = 2,
-  kNextFileNumber = 3,
-  kLastSequence = 4,
-  kCompactCursor = 5,
-  kDeletedFile = 6,
-  kNewFile = 7,
-  // 8 was used for large value refs
-  kPrevLogNumber = 9,
-  kMinLogNumberToKeep = 10,
-
-  // these are new formats divergent from open source leveldb
-  kNewFile2 = 100,
-  kNewFile3 = 102,
-  kNewFile4 = 103,      // 4th (the latest) format version of adding files
-  kColumnFamily = 200,  // specify column family for version edit
-  kColumnFamilyAdd = 201,
-  kColumnFamilyDrop = 202,
-  kMaxColumnFamily = 203,
-
-  kInAtomicGroup = 300,
-
-  kBlobFileAddition = 400,
-  kBlobFileGarbage,
-
-  // Mask for an unidentified tag from the future which can be safely ignored.
-  kTagSafeIgnoreMask = 1 << 13,
-
-  // Forward compatible (aka ignorable) records
-  kDbId,
-  kBlobFileAddition_DEPRECATED,
-  kBlobFileGarbage_DEPRECATED,
-  kWalAddition,
-  kWalDeletion,
-  kFullHistoryTsLow,
-  kWalAddition2,
-  kWalDeletion2,
-};
-
-enum NewFileCustomTag : uint32_t {
-  kTerminate = 1,  // The end of customized fields
-  kNeedCompaction = 2,
-  // Since Manifest is not entirely forward-compatible, we currently encode
-  // kMinLogNumberToKeep as part of NewFile as a hack. This should be removed
-  // when manifest becomes forward-compatible.
-  kMinLogNumberToKeepHack = 3,
-  kOldestBlobFileNumber = 4,
-  kOldestAncesterTime = 5,
-  kFileCreationTime = 6,
-  kFileChecksum = 7,
-  kFileChecksumFuncName = 8,
-  kTemperature = 9,
-  kMinTimestamp = 10,
-  kMaxTimestamp = 11,
-  kUniqueId = 12,
-
-  // If this bit for the custom tag is set, opening DB should fail if
-  // we don't know this field.
-  kCustomTagNonSafeIgnoreMask = 1 << 6,
-
-  // Forward incompatible (aka unignorable) fields
-  kPathId,
-};
 
 class VersionSet;
 
 constexpr uint64_t kFileNumberMask = 0x3FFFFFFFFFFFFFFF;
 constexpr uint64_t kUnknownOldestAncesterTime = 0;
 constexpr uint64_t kUnknownFileCreationTime = 0;
+
+extern const std::string kUnknownFileChecksum;
+extern const std::string kUnknownFileChecksumFuncName;
 
 extern uint64_t PackFileNumberAndPathId(uint64_t number, uint64_t path_id);
 
@@ -195,7 +124,6 @@ struct FileMetaData {
 
   bool marked_for_compaction = false;  // True if client asked us nicely to
                                        // compact this file.
-  Temperature temperature = Temperature::kUnknown;
 
   // Used only in BlobDB. The file number of the oldest blob file this SST file
   // refers to. 0 is an invalid value; BlobDB numbers the files starting from 1.
@@ -203,7 +131,7 @@ struct FileMetaData {
 
   // The file could be the compaction output from other SST files, which could
   // in turn be outputs for compact older SST files. We track the memtable
-  // flush timestamp for the oldest SST file that eventually contribute data
+  // flush timestamp for the oldest SST file that eventaully contribute data
   // to this file. 0 means the information is not available.
   uint64_t oldest_ancester_time = kUnknownOldestAncesterTime;
 
@@ -216,38 +144,31 @@ struct FileMetaData {
   // File checksum function name
   std::string file_checksum_func_name = kUnknownFileChecksumFuncName;
 
-  // SST unique id
-  UniqueId64x2 unique_id{};
-
   FileMetaData() = default;
 
   FileMetaData(uint64_t file, uint32_t file_path_id, uint64_t file_size,
                const InternalKey& smallest_key, const InternalKey& largest_key,
                const SequenceNumber& smallest_seq,
                const SequenceNumber& largest_seq, bool marked_for_compact,
-               Temperature _temperature, uint64_t oldest_blob_file,
-               uint64_t _oldest_ancester_time, uint64_t _file_creation_time,
-               const std::string& _file_checksum,
-               const std::string& _file_checksum_func_name,
-               UniqueId64x2 _unique_id)
+               uint64_t oldest_blob_file, uint64_t _oldest_ancester_time,
+               uint64_t _file_creation_time, const std::string& _file_checksum,
+               const std::string& _file_checksum_func_name)
       : fd(file, file_path_id, file_size, smallest_seq, largest_seq),
         smallest(smallest_key),
         largest(largest_key),
         marked_for_compaction(marked_for_compact),
-        temperature(_temperature),
         oldest_blob_file_number(oldest_blob_file),
         oldest_ancester_time(_oldest_ancester_time),
         file_creation_time(_file_creation_time),
         file_checksum(_file_checksum),
-        file_checksum_func_name(_file_checksum_func_name),
-        unique_id(std::move(_unique_id)) {
+        file_checksum_func_name(_file_checksum_func_name) {
     TEST_SYNC_POINT_CALLBACK("FileMetaData::FileMetaData", this);
   }
 
   // REQUIRED: Keys must be given to the function in sorted order (it expects
   // the last key to be the largest).
-  Status UpdateBoundaries(const Slice& key, const Slice& value,
-                          SequenceNumber seqno, ValueType value_type);
+  void UpdateBoundaries(const Slice& key, const Slice& value,
+                        SequenceNumber seqno, ValueType value_type);
 
   // Unlike UpdateBoundaries, ranges do not need to be presented in any
   // particular order.
@@ -286,28 +207,10 @@ struct FileMetaData {
     }
     return kUnknownFileCreationTime;
   }
-
-  // WARNING: manual update to this function is needed
-  // whenever a new string property is added to FileMetaData
-  // to reduce approximation error.
-  //
-  // TODO: eliminate the need of manually updating this function
-  // for new string properties
-  size_t ApproximateMemoryUsage() const {
-    size_t usage = 0;
-#ifdef ROCKSDB_MALLOC_USABLE_SIZE
-    usage += malloc_usable_size(const_cast<FileMetaData*>(this));
-#else
-    usage += sizeof(*this);
-#endif  // ROCKSDB_MALLOC_USABLE_SIZE
-    usage += smallest.size() + largest.size() + file_checksum.size() +
-             file_checksum_func_name.size();
-    return usage;
-  }
 };
 
 // A compressed copy of file meta data that just contain minimum data needed
-// to serve read operations, while still keeping the pointer to full metadata
+// to server read operations, while still keeping the pointer to full metadata
 // of the file in case it is needed.
 struct FdWithKeyRange {
   FileDescriptor fd;
@@ -415,6 +318,7 @@ class VersionEdit {
   const DeletedFiles& GetDeletedFiles() const { return deleted_files_; }
 
   // Add the specified table file at the specified level.
+  // REQUIRES: This version has not been saved (see VersionSet::SaveTo)
   // REQUIRES: "smallest" and "largest" are smallest and largest keys in file
   // REQUIRES: "oldest_blob_file_number" is the number of the oldest blob file
   // referred to by this file if any, kInvalidBlobFileNumber otherwise.
@@ -422,53 +326,26 @@ class VersionEdit {
                uint64_t file_size, const InternalKey& smallest,
                const InternalKey& largest, const SequenceNumber& smallest_seqno,
                const SequenceNumber& largest_seqno, bool marked_for_compaction,
-               Temperature temperature, uint64_t oldest_blob_file_number,
-               uint64_t oldest_ancester_time, uint64_t file_creation_time,
-               const std::string& file_checksum,
-               const std::string& file_checksum_func_name,
-               const UniqueId64x2& unique_id) {
+               uint64_t oldest_blob_file_number, uint64_t oldest_ancester_time,
+               uint64_t file_creation_time, const std::string& file_checksum,
+               const std::string& file_checksum_func_name) {
     assert(smallest_seqno <= largest_seqno);
     new_files_.emplace_back(
-        level,
-        FileMetaData(file, file_path_id, file_size, smallest, largest,
-                     smallest_seqno, largest_seqno, marked_for_compaction,
-                     temperature, oldest_blob_file_number, oldest_ancester_time,
-                     file_creation_time, file_checksum, file_checksum_func_name,
-                     unique_id));
-    if (!HasLastSequence() || largest_seqno > GetLastSequence()) {
-      SetLastSequence(largest_seqno);
-    }
+        level, FileMetaData(file, file_path_id, file_size, smallest, largest,
+                            smallest_seqno, largest_seqno,
+                            marked_for_compaction, oldest_blob_file_number,
+                            oldest_ancester_time, file_creation_time,
+                            file_checksum, file_checksum_func_name));
   }
 
   void AddFile(int level, const FileMetaData& f) {
     assert(f.fd.smallest_seqno <= f.fd.largest_seqno);
     new_files_.emplace_back(level, f);
-    if (!HasLastSequence() || f.fd.largest_seqno > GetLastSequence()) {
-      SetLastSequence(f.fd.largest_seqno);
-    }
   }
 
   // Retrieve the table files added as well as their associated levels.
   using NewFiles = std::vector<std::pair<int, FileMetaData>>;
   const NewFiles& GetNewFiles() const { return new_files_; }
-
-  // Retrieve all the compact cursors
-  using CompactCursors = std::vector<std::pair<int, InternalKey>>;
-  const CompactCursors& GetCompactCursors() const { return compact_cursors_; }
-  void AddCompactCursor(int level, const InternalKey& cursor) {
-    compact_cursors_.push_back(std::make_pair(level, cursor));
-  }
-  void SetCompactCursors(
-      const std::vector<InternalKey>& compact_cursors_by_level) {
-    compact_cursors_.clear();
-    compact_cursors_.reserve(compact_cursors_by_level.size());
-    for (int i = 0; i < (int)compact_cursors_by_level.size(); i++) {
-      if (compact_cursors_by_level[i].Valid()) {
-        compact_cursors_.push_back(
-            std::make_pair(i, compact_cursors_by_level[i]));
-      }
-    }
-  }
 
   // Add a new blob file.
   void AddBlobFile(uint64_t blob_file_number, uint64_t total_blob_count,
@@ -479,19 +356,10 @@ class VersionEdit {
         std::move(checksum_method), std::move(checksum_value));
   }
 
-  void AddBlobFile(BlobFileAddition blob_file_addition) {
-    blob_file_additions_.emplace_back(std::move(blob_file_addition));
-  }
-
   // Retrieve all the blob files added.
   using BlobFileAdditions = std::vector<BlobFileAddition>;
   const BlobFileAdditions& GetBlobFileAdditions() const {
     return blob_file_additions_;
-  }
-
-  void SetBlobFileAdditions(BlobFileAdditions blob_file_additions) {
-    assert(blob_file_additions_.empty());
-    blob_file_additions_ = std::move(blob_file_additions);
   }
 
   // Add garbage for an existing blob file.  Note: intentionally broken English
@@ -503,55 +371,16 @@ class VersionEdit {
                                      garbage_blob_bytes);
   }
 
-  void AddBlobFileGarbage(BlobFileGarbage blob_file_garbage) {
-    blob_file_garbages_.emplace_back(std::move(blob_file_garbage));
-  }
-
   // Retrieve all the blob file garbage added.
   using BlobFileGarbages = std::vector<BlobFileGarbage>;
   const BlobFileGarbages& GetBlobFileGarbages() const {
     return blob_file_garbages_;
   }
 
-  void SetBlobFileGarbages(BlobFileGarbages blob_file_garbages) {
-    assert(blob_file_garbages_.empty());
-    blob_file_garbages_ = std::move(blob_file_garbages);
-  }
-
-  // Add a WAL (either just created or closed).
-  // AddWal and DeleteWalsBefore cannot be called on the same VersionEdit.
-  void AddWal(WalNumber number, WalMetadata metadata = WalMetadata()) {
-    assert(NumEntries() == wal_additions_.size());
-    wal_additions_.emplace_back(number, std::move(metadata));
-  }
-
-  // Retrieve all the added WALs.
-  const WalAdditions& GetWalAdditions() const { return wal_additions_; }
-
-  bool IsWalAddition() const { return !wal_additions_.empty(); }
-
-  // Delete a WAL (either directly deleted or archived).
-  // AddWal and DeleteWalsBefore cannot be called on the same VersionEdit.
-  void DeleteWalsBefore(WalNumber number) {
-    assert((NumEntries() == 1) == !wal_deletion_.IsEmpty());
-    wal_deletion_ = WalDeletion(number);
-  }
-
-  const WalDeletion& GetWalDeletion() const { return wal_deletion_; }
-
-  bool IsWalDeletion() const { return !wal_deletion_.IsEmpty(); }
-
-  bool IsWalManipulation() const {
-    size_t entries = NumEntries();
-    return (entries > 0) && ((entries == wal_additions_.size()) ||
-                             (entries == !wal_deletion_.IsEmpty()));
-  }
-
   // Number of edits
   size_t NumEntries() const {
     return new_files_.size() + deleted_files_.size() +
-           blob_file_additions_.size() + blob_file_garbages_.size() +
-           wal_additions_.size() + !wal_deletion_.IsEmpty();
+           blob_file_additions_.size() + blob_file_garbages_.size();
   }
 
   void SetColumnFamily(uint32_t column_family_id) {
@@ -580,26 +409,12 @@ class VersionEdit {
     return is_column_family_add_ || is_column_family_drop_;
   }
 
-  bool IsColumnFamilyAdd() const { return is_column_family_add_; }
-
-  bool IsColumnFamilyDrop() const { return is_column_family_drop_; }
-
   void MarkAtomicGroup(uint32_t remaining_entries) {
     is_in_atomic_group_ = true;
     remaining_entries_ = remaining_entries;
   }
   bool IsInAtomicGroup() const { return is_in_atomic_group_; }
   uint32_t GetRemainingEntries() const { return remaining_entries_; }
-
-  bool HasFullHistoryTsLow() const { return !full_history_ts_low_.empty(); }
-  const std::string& GetFullHistoryTsLow() const {
-    assert(HasFullHistoryTsLow());
-    return full_history_ts_low_;
-  }
-  void SetFullHistoryTsLow(std::string full_history_ts_low) {
-    assert(!full_history_ts_low.empty());
-    full_history_ts_low_ = std::move(full_history_ts_low);
-  }
 
   // return true on success.
   bool EncodeTo(std::string* dst) const;
@@ -610,11 +425,8 @@ class VersionEdit {
 
  private:
   friend class ReactiveVersionSet;
-  friend class VersionEditHandlerBase;
-  friend class ListColumnFamiliesHandler;
   friend class VersionEditHandler;
   friend class VersionEditHandlerPointInTime;
-  friend class DumpManifestHandler;
   friend class VersionSet;
   friend class Version;
   friend class AtomicGroupReadBuffer;
@@ -642,17 +454,11 @@ class VersionEdit {
   bool has_min_log_number_to_keep_ = false;
   bool has_last_sequence_ = false;
 
-  // Compaction cursors for round-robin compaction policy
-  CompactCursors compact_cursors_;
-
   DeletedFiles deleted_files_;
   NewFiles new_files_;
 
   BlobFileAdditions blob_file_additions_;
   BlobFileGarbages blob_file_garbages_;
-
-  WalAdditions wal_additions_;
-  WalDeletion wal_deletion_;
 
   // Each version edit record should have column_family_ set
   // If it's not set, it is default (0)
@@ -666,8 +472,6 @@ class VersionEdit {
 
   bool is_in_atomic_group_ = false;
   uint32_t remaining_entries_ = 0;
-
-  std::string full_history_ts_low_;
 };
 
 }  // namespace ROCKSDB_NAMESPACE

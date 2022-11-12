@@ -93,7 +93,7 @@ class PlainTableIterator : public InternalIterator {
 
 extern const uint64_t kPlainTableMagicNumber;
 PlainTableReader::PlainTableReader(
-    const ImmutableOptions& ioptions,
+    const ImmutableCFOptions& ioptions,
     std::unique_ptr<RandomAccessFileReader>&& file,
     const EnvOptions& storage_options, const InternalKeyComparator& icomparator,
     EncodingType encoding_type, uint64_t file_size,
@@ -113,12 +113,10 @@ PlainTableReader::PlainTableReader(
       table_properties_(nullptr) {}
 
 PlainTableReader::~PlainTableReader() {
-  // Should fix?
-  status_.PermitUncheckedError();
 }
 
 Status PlainTableReader::Open(
-    const ImmutableOptions& ioptions, const EnvOptions& env_options,
+    const ImmutableCFOptions& ioptions, const EnvOptions& env_options,
     const InternalKeyComparator& internal_comparator,
     std::unique_ptr<RandomAccessFileReader>&& file, uint64_t file_size,
     std::unique_ptr<TableReader>* table_reader, const int bloom_bits_per_key,
@@ -129,9 +127,11 @@ Status PlainTableReader::Open(
     return Status::NotSupported("File is too large for PlainTableReader!");
   }
 
-  std::unique_ptr<TableProperties> props;
+  TableProperties* props_ptr = nullptr;
   auto s = ReadTableProperties(file.get(), file_size, kPlainTableMagicNumber,
-                               ioptions, &props);
+                               ioptions, &props_ptr,
+                               true /* compression_type_missing */);
+  std::shared_ptr<TableProperties> props(props_ptr);
   if (!s.ok()) {
     return s;
   }
@@ -147,7 +147,8 @@ Status PlainTableReader::Open(
       return Status::InvalidArgument(
           "Prefix extractor is missing when opening a PlainTable built "
           "using a prefix extractor");
-    } else if (prefix_extractor_in_file != prefix_extractor->AsString()) {
+    } else if (prefix_extractor_in_file.compare(prefix_extractor->Name()) !=
+               0) {
       return Status::InvalidArgument(
           "Prefix extractor given doesn't match the one used to build "
           "PlainTable");
@@ -184,7 +185,7 @@ Status PlainTableReader::Open(
     new_reader->full_scan_mode_ = true;
   }
   // PopulateIndex can add to the props, so don't store them until now
-  new_reader->table_properties_ = std::move(props);
+  new_reader->table_properties_ = props;
 
   if (immortal_table && new_reader->file_info_.is_mmap_mode) {
     new_reader->dummy_cleanable_.reset(new Cleanable());
@@ -274,7 +275,7 @@ void PlainTableReader::AllocateBloom(int bloom_bits_per_key, int num_keys,
   if (bloom_total_bits > 0) {
     enable_bloom_ = true;
     bloom_.SetTotalBits(&arena_, bloom_total_bits, ioptions_.bloom_locality,
-                        huge_page_tlb_size, ioptions_.logger);
+                        huge_page_tlb_size, ioptions_.info_log);
   }
 }
 
@@ -288,9 +289,9 @@ void PlainTableReader::FillBloom(const std::vector<uint32_t>& prefix_hashes) {
 Status PlainTableReader::MmapDataIfNeeded() {
   if (file_info_.is_mmap_mode) {
     // Get mmapped memory.
-    return file_info_.file->Read(
-        IOOptions(), 0, static_cast<size_t>(file_size_), &file_info_.file_data,
-        nullptr, nullptr, Env::IO_TOTAL /* rate_limiter_priority */);
+    return file_info_.file->Read(IOOptions(), 0,
+                                 static_cast<size_t>(file_size_),
+                                 &file_info_.file_data, nullptr, nullptr);
   }
   return Status::OK();
 }
@@ -306,7 +307,8 @@ Status PlainTableReader::PopulateIndex(TableProperties* props,
   Status s = ReadMetaBlock(file_info_.file.get(), nullptr /* prefetch_buffer */,
                            file_size_, kPlainTableMagicNumber, ioptions_,
                            PlainTableIndexBuilder::kPlainTableIndexBlock,
-                           BlockType::kIndex, &index_block_contents);
+                           BlockType::kIndex, &index_block_contents,
+                           true /* compression_type_missing */);
 
   bool index_in_file = s.ok();
 
@@ -317,7 +319,8 @@ Status PlainTableReader::PopulateIndex(TableProperties* props,
     s = ReadMetaBlock(file_info_.file.get(), nullptr /* prefetch_buffer */,
                       file_size_, kPlainTableMagicNumber, ioptions_,
                       BloomBlockBuilder::kBloomBlock, BlockType::kFilter,
-                      &bloom_block_contents);
+                      &bloom_block_contents,
+                      true /* compression_type_missing */);
     bloom_in_file = s.ok() && bloom_block_contents.data.size() > 0;
   }
 
@@ -416,14 +419,14 @@ Status PlainTableReader::PopulateIndex(TableProperties* props,
   // Fill two table properties.
   if (!index_in_file) {
     props->user_collected_properties["plain_table_hash_table_size"] =
-        std::to_string(index_.GetIndexSize() * PlainTableIndex::kOffsetLen);
+        ToString(index_.GetIndexSize() * PlainTableIndex::kOffsetLen);
     props->user_collected_properties["plain_table_sub_index_size"] =
-        std::to_string(index_.GetSubIndexSize());
+        ToString(index_.GetSubIndexSize());
   } else {
     props->user_collected_properties["plain_table_hash_table_size"] =
-        std::to_string(0);
+        ToString(0);
     props->user_collected_properties["plain_table_sub_index_size"] =
-        std::to_string(0);
+        ToString(0);
   }
 
   return Status::OK();
@@ -445,23 +448,23 @@ Status PlainTableReader::GetOffset(PlainTableKeyDecoder* decoder,
   }
 
   // point to sub-index, need to do a binary search
-  uint32_t upper_bound = 0;
+  uint32_t upper_bound;
   const char* base_ptr =
       index_.GetSubIndexBasePtrAndUpperBound(prefix_index_offset, &upper_bound);
   uint32_t low = 0;
   uint32_t high = upper_bound;
   ParsedInternalKey mid_key;
   ParsedInternalKey parsed_target;
-  Status s = ParseInternalKey(target, &parsed_target,
-                              false /* log_err_key */);  // TODO
-  if (!s.ok()) return s;
+  if (!ParseInternalKey(target, &parsed_target)) {
+    return Status::Corruption(Slice());
+  }
 
   // The key is between [low, high). Do a binary search between it.
   while (high - low > 1) {
     uint32_t mid = (high + low) / 2;
     uint32_t file_offset = GetFixed32Element(base_ptr, mid);
     uint32_t tmp;
-    s = decoder->NextKeyNoValue(file_offset, &mid_key, nullptr, &tmp);
+    Status s = decoder->NextKeyNoValue(file_offset, &mid_key, nullptr, &tmp);
     if (!s.ok()) {
       return s;
     }
@@ -486,7 +489,7 @@ Status PlainTableReader::GetOffset(PlainTableKeyDecoder* decoder,
   ParsedInternalKey low_key;
   uint32_t tmp;
   uint32_t low_key_offset = GetFixed32Element(base_ptr, low);
-  s = decoder->NextKeyNoValue(low_key_offset, &low_key, nullptr, &tmp);
+  Status s = decoder->NextKeyNoValue(low_key_offset, &low_key, nullptr, &tmp);
   if (!s.ok()) {
     return s;
   }
@@ -563,7 +566,7 @@ Status PlainTableReader::Get(const ReadOptions& /*ro*/, const Slice& target,
           Status::InvalidArgument("Get() is not allowed in full scan mode.");
     }
     // Match whole user key for bloom filter check.
-    if (!MatchBloom(GetSliceHash(ExtractUserKey(target)))) {
+    if (!MatchBloom(GetSliceHash(GetUserKey(target)))) {
       return Status::OK();
     }
     // in total order mode, there is only one bucket 0, and we always use empty
@@ -589,10 +592,9 @@ Status PlainTableReader::Get(const ReadOptions& /*ro*/, const Slice& target,
   }
   ParsedInternalKey found_key;
   ParsedInternalKey parsed_target;
-  s = ParseInternalKey(target, &parsed_target,
-                       false /* log_err_key */);  // TODO
-  if (!s.ok()) return s;
-
+  if (!ParseInternalKey(target, &parsed_target)) {
+    return Status::Corruption(Slice());
+  }
   Slice found_value;
   while (offset < file_info_.data_end_offset) {
     s = Next(&decoder, &offset, &found_key, nullptr, &found_value);

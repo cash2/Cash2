@@ -1,9 +1,3 @@
-//  Copyright (c) Meta Platforms, Inc. and affiliates.
-//
-//  This source code is licensed under both the GPLv2 (found in the
-//  COPYING file in the root directory) and Apache 2.0 License
-//  (found in the LICENSE.Apache file in the root directory).
-
 package org.rocksdb;
 
 public enum SanityLevel {
@@ -22,7 +16,8 @@ public enum SanityLevel {
    *
    * @return the internal representation value.
    */
-  byte getValue() {
+  // TODO(AR) should be made package-private
+  public byte getValue() {
     return value;
   }
 

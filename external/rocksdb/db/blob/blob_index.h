@@ -3,13 +3,13 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 #pragma once
+#ifndef ROCKSDB_LITE
 
 #include <sstream>
 #include <string>
 
-#include "rocksdb/compression_type.h"
+#include "rocksdb/options.h"
 #include "util/coding.h"
-#include "util/compression.h"
 #include "util/string_util.h"
 
 namespace ROCKSDB_NAMESPACE {
@@ -52,9 +52,6 @@ class BlobIndex {
 
   BlobIndex() : type_(Type::kUnknown) {}
 
-  BlobIndex(const BlobIndex&) = default;
-  BlobIndex& operator=(const BlobIndex&) = default;
-
   bool IsInlined() const { return type_ == Type::kInlinedTTL; }
 
   bool HasTTL() const {
@@ -86,19 +83,14 @@ class BlobIndex {
     return size_;
   }
 
-  CompressionType compression() const {
-    assert(!IsInlined());
-    return compression_;
-  }
-
   Status DecodeFrom(Slice slice) {
-    const char* kErrorMessage = "Error while decoding blob index";
+    static const std::string kErrorMessage = "Error while decoding blob index";
     assert(slice.size() > 0);
     type_ = static_cast<Type>(*slice.data());
     if (type_ >= Type::kUnknown) {
-      return Status::Corruption(kErrorMessage,
-                                "Unknown blob index type: " +
-                                    std::to_string(static_cast<char>(type_)));
+      return Status::Corruption(
+          kErrorMessage,
+          "Unknown blob index type: " + ToString(static_cast<char>(type_)));
     }
     slice = Slice(slice.data() + 1, slice.size() - 1);
     if (HasTTL()) {
@@ -126,8 +118,7 @@ class BlobIndex {
       oss << "[inlined blob] value:" << value_.ToString(output_hex);
     } else {
       oss << "[blob ref] file:" << file_number_ << " offset:" << offset_
-          << " size:" << size_
-          << " compression: " << CompressionTypeToString(compression_);
+          << " size:" << size_;
     }
 
     if (HasTTL()) {
@@ -185,3 +176,4 @@ class BlobIndex {
 };
 
 }  // namespace ROCKSDB_NAMESPACE
+#endif  // ROCKSDB_LITE

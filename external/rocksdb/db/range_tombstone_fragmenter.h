@@ -17,15 +17,6 @@
 #include "table/internal_iterator.h"
 
 namespace ROCKSDB_NAMESPACE {
-struct FragmentedRangeTombstoneList;
-
-struct FragmentedRangeTombstoneListCache {
-  // ensure only the first reader needs to initialize l
-  std::mutex reader_mutex;
-  std::unique_ptr<FragmentedRangeTombstoneList> tombstones = nullptr;
-  // readers will first check this bool to avoid
-  std::atomic<bool> initialized = false;
-};
 
 struct FragmentedRangeTombstoneList {
  public:
@@ -77,14 +68,6 @@ struct FragmentedRangeTombstoneList {
   // number in [lower, upper].
   bool ContainsRange(SequenceNumber lower, SequenceNumber upper) const;
 
-  uint64_t num_unfragmented_tombstones() const {
-    return num_unfragmented_tombstones_;
-  }
-
-  uint64_t total_tombstone_payload_bytes() const {
-    return total_tombstone_payload_bytes_;
-  }
-
  private:
   // Given an ordered range tombstone iterator unfragmented_tombstones,
   // "fragment" the tombstones into non-overlapping pieces, and store them in
@@ -99,8 +82,6 @@ struct FragmentedRangeTombstoneList {
   std::set<SequenceNumber> seq_set_;
   std::list<std::string> pinned_slices_;
   PinnedIteratorsManager pinned_iters_mgr_;
-  uint64_t num_unfragmented_tombstones_;
-  uint64_t total_tombstone_payload_bytes_;
 };
 
 // FragmentedRangeTombstoneIterator converts an InternalIterator of a range-del
@@ -120,10 +101,6 @@ class FragmentedRangeTombstoneIterator : public InternalIterator {
       SequenceNumber lower_bound = 0);
   FragmentedRangeTombstoneIterator(
       const std::shared_ptr<const FragmentedRangeTombstoneList>& tombstones,
-      const InternalKeyComparator& icmp, SequenceNumber upper_bound,
-      SequenceNumber lower_bound = 0);
-  FragmentedRangeTombstoneIterator(
-      const std::shared_ptr<FragmentedRangeTombstoneListCache>& tombstones,
       const InternalKeyComparator& icmp, SequenceNumber upper_bound,
       SequenceNumber lower_bound = 0);
 
@@ -203,13 +180,6 @@ class FragmentedRangeTombstoneIterator : public InternalIterator {
   SequenceNumber upper_bound() const { return upper_bound_; }
   SequenceNumber lower_bound() const { return lower_bound_; }
 
-  uint64_t num_unfragmented_tombstones() const {
-    return tombstones_->num_unfragmented_tombstones();
-  }
-  uint64_t total_tombstone_payload_bytes() const {
-    return tombstones_->total_tombstone_payload_bytes();
-  }
-
  private:
   using RangeTombstoneStack = FragmentedRangeTombstoneList::RangeTombstoneStack;
 
@@ -273,7 +243,6 @@ class FragmentedRangeTombstoneIterator : public InternalIterator {
   const InternalKeyComparator* icmp_;
   const Comparator* ucmp_;
   std::shared_ptr<const FragmentedRangeTombstoneList> tombstones_ref_;
-  std::shared_ptr<FragmentedRangeTombstoneListCache> tombstones_cache_ref_;
   const FragmentedRangeTombstoneList* tombstones_;
   SequenceNumber upper_bound_;
   SequenceNumber lower_bound_;

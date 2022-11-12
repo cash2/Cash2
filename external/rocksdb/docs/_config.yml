@@ -81,5 +81,5 @@ sass:
 redcarpet:
   extensions: [with_toc_data]
 
-plugins:
+gems:
   - jekyll-redirect-from

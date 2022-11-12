@@ -21,7 +21,6 @@
 #include <stdlib.h>
 #endif
 
-#include <memory>
 #include <string>
 
 #ifdef ROCKSDB_ASSERT_STATUS_CHECKED
@@ -35,42 +34,33 @@ namespace ROCKSDB_NAMESPACE {
 class Status {
  public:
   // Create a success status.
-  Status()
-      : code_(kOk),
-        subcode_(kNone),
-        sev_(kNoError),
-        retryable_(false),
-        data_loss_(false),
-        scope_(0),
-        state_(nullptr) {}
+  Status() : code_(kOk), subcode_(kNone), sev_(kNoError), state_(nullptr) {}
   ~Status() {
 #ifdef ROCKSDB_ASSERT_STATUS_CHECKED
     if (!checked_) {
-      fprintf(stderr, "Failed to check Status %p\n", this);
+      fprintf(stderr, "Failed to check Status\n");
       port::PrintStack();
-      std::abort();
+      abort();
     }
 #endif  // ROCKSDB_ASSERT_STATUS_CHECKED
+    delete[] state_;
   }
 
   // Copy the specified status.
   Status(const Status& s);
   Status& operator=(const Status& s);
-  Status(Status&& s) noexcept;
-  Status& operator=(Status&& s) noexcept;
+  Status(Status&& s)
+#if !(defined _MSC_VER) || ((defined _MSC_VER) && (_MSC_VER >= 1900))
+      noexcept
+#endif
+      ;
+  Status& operator=(Status&& s)
+#if !(defined _MSC_VER) || ((defined _MSC_VER) && (_MSC_VER >= 1900))
+      noexcept
+#endif
+      ;
   bool operator==(const Status& rhs) const;
   bool operator!=(const Status& rhs) const;
-
-  // In case of intentionally swallowing an error, user must explicitly call
-  // this function. That way we are easily able to search the code to find where
-  // error swallowing occurs.
-  inline void PermitUncheckedError() const { MarkChecked(); }
-
-  inline void MustCheck() const {
-#ifdef ROCKSDB_ASSERT_STATUS_CHECKED
-    checked_ = false;
-#endif  // ROCKSDB_ASSERT_STATUS_CHECKED
-  }
 
   enum Code : unsigned char {
     kOk = 0,
@@ -92,10 +82,7 @@ class Status {
     kMaxCode
   };
 
-  Code code() const {
-    MarkChecked();
-    return code_;
-  }
+  Code code() const { return code_; }
 
   enum SubCode : unsigned char {
     kNone = 0,
@@ -112,14 +99,10 @@ class Status {
     kManualCompactionPaused = 11,
     kOverwritten = 12,
     kTxnNotPrepared = 13,
-    kIOFenced = 14,
     kMaxSubCode
   };
 
-  SubCode subcode() const {
-    MarkChecked();
-    return subcode_;
-  }
+  SubCode subcode() const { return subcode_; }
 
   enum Severity : unsigned char {
     kNoError = 0,
@@ -131,20 +114,10 @@ class Status {
   };
 
   Status(const Status& s, Severity sev);
-
-  Status(Code _code, SubCode _subcode, Severity _sev, const Slice& msg)
-      : Status(_code, _subcode, msg, "", _sev) {}
-
-  Severity severity() const {
-    MarkChecked();
-    return sev_;
-  }
+  Severity severity() const { return sev_; }
 
   // Returns a C style string indicating the message of the Status
-  const char* getState() const {
-    MarkChecked();
-    return state_.get();
-  }
+  const char* getState() const { return state_; }
 
   // Return a success status.
   static Status OK() { return Status(); }
@@ -159,14 +132,8 @@ class Status {
   static Status NotFound(const Slice& msg, const Slice& msg2 = Slice()) {
     return Status(kNotFound, msg, msg2);
   }
-
   // Fast path for not found without malloc;
   static Status NotFound(SubCode msg = kNone) { return Status(kNotFound, msg); }
-
-  static Status NotFound(SubCode sc, const Slice& msg,
-                         const Slice& msg2 = Slice()) {
-    return Status(kNotFound, sc, msg, msg2);
-  }
 
   static Status Corruption(const Slice& msg, const Slice& msg2 = Slice()) {
     return Status(kCorruption, msg, msg2);
@@ -285,118 +252,65 @@ class Status {
   }
 
   // Returns true iff the status indicates success.
-  bool ok() const {
-    MarkChecked();
-    return code() == kOk;
-  }
+  bool ok() const { return code() == kOk; }
 
   // Returns true iff the status indicates success *with* something
   // overwritten
   bool IsOkOverwritten() const {
-    MarkChecked();
     return code() == kOk && subcode() == kOverwritten;
   }
 
   // Returns true iff the status indicates a NotFound error.
-  bool IsNotFound() const {
-    MarkChecked();
-    return code() == kNotFound;
-  }
+  bool IsNotFound() const { return code() == kNotFound; }
 
   // Returns true iff the status indicates a Corruption error.
-  bool IsCorruption() const {
-    MarkChecked();
-    return code() == kCorruption;
-  }
+  bool IsCorruption() const { return code() == kCorruption; }
 
   // Returns true iff the status indicates a NotSupported error.
-  bool IsNotSupported() const {
-    MarkChecked();
-    return code() == kNotSupported;
-  }
+  bool IsNotSupported() const { return code() == kNotSupported; }
 
   // Returns true iff the status indicates an InvalidArgument error.
-  bool IsInvalidArgument() const {
-    MarkChecked();
-    return code() == kInvalidArgument;
-  }
+  bool IsInvalidArgument() const { return code() == kInvalidArgument; }
 
   // Returns true iff the status indicates an IOError.
-  bool IsIOError() const {
-    MarkChecked();
-    return code() == kIOError;
-  }
+  bool IsIOError() const { return code() == kIOError; }
 
   // Returns true iff the status indicates an MergeInProgress.
-  bool IsMergeInProgress() const {
-    MarkChecked();
-    return code() == kMergeInProgress;
-  }
+  bool IsMergeInProgress() const { return code() == kMergeInProgress; }
 
   // Returns true iff the status indicates Incomplete
-  bool IsIncomplete() const {
-    MarkChecked();
-    return code() == kIncomplete;
-  }
+  bool IsIncomplete() const { return code() == kIncomplete; }
 
   // Returns true iff the status indicates Shutdown In progress
-  bool IsShutdownInProgress() const {
-    MarkChecked();
-    return code() == kShutdownInProgress;
-  }
+  bool IsShutdownInProgress() const { return code() == kShutdownInProgress; }
 
-  bool IsTimedOut() const {
-    MarkChecked();
-    return code() == kTimedOut;
-  }
+  bool IsTimedOut() const { return code() == kTimedOut; }
 
-  bool IsAborted() const {
-    MarkChecked();
-    return code() == kAborted;
-  }
+  bool IsAborted() const { return code() == kAborted; }
 
   bool IsLockLimit() const {
-    MarkChecked();
     return code() == kAborted && subcode() == kLockLimit;
   }
 
   // Returns true iff the status indicates that a resource is Busy and
   // temporarily could not be acquired.
-  bool IsBusy() const {
-    MarkChecked();
-    return code() == kBusy;
-  }
+  bool IsBusy() const { return code() == kBusy; }
 
-  bool IsDeadlock() const {
-    MarkChecked();
-    return code() == kBusy && subcode() == kDeadlock;
-  }
+  bool IsDeadlock() const { return code() == kBusy && subcode() == kDeadlock; }
 
   // Returns true iff the status indicated that the operation has Expired.
-  bool IsExpired() const {
-    MarkChecked();
-    return code() == kExpired;
-  }
+  bool IsExpired() const { return code() == kExpired; }
 
   // Returns true iff the status indicates a TryAgain error.
   // This usually means that the operation failed, but may succeed if
   // re-attempted.
-  bool IsTryAgain() const {
-    MarkChecked();
-    return code() == kTryAgain;
-  }
+  bool IsTryAgain() const { return code() == kTryAgain; }
 
   // Returns true iff the status indicates the proposed compaction is too large
-  bool IsCompactionTooLarge() const {
-    MarkChecked();
-    return code() == kCompactionTooLarge;
-  }
+  bool IsCompactionTooLarge() const { return code() == kCompactionTooLarge; }
 
   // Returns true iff the status indicates Column Family Dropped
-  bool IsColumnFamilyDropped() const {
-    MarkChecked();
-    return code() == kColumnFamilyDropped;
-  }
+  bool IsColumnFamilyDropped() const { return code() == kColumnFamilyDropped; }
 
   // Returns true iff the status indicates a NoSpace error
   // This is caused by an I/O error returning the specific "out of space"
@@ -404,7 +318,6 @@ class Status {
   // with a specific subcode, enabling users to take the appropriate action
   // if needed
   bool IsNoSpace() const {
-    MarkChecked();
     return (code() == kIOError) && (subcode() == kNoSpace);
   }
 
@@ -412,7 +325,6 @@ class Status {
   // cases where we limit the memory used in certain operations (eg. the size
   // of a write batch) in order to avoid out of memory exceptions.
   bool IsMemoryLimit() const {
-    MarkChecked();
     return (code() == kAborted) && (subcode() == kMemoryLimit);
   }
 
@@ -421,28 +333,18 @@ class Status {
   // directory" error condition. A PathNotFound error is an I/O error with
   // a specific subcode, enabling users to take appropriate action if necessary
   bool IsPathNotFound() const {
-    MarkChecked();
-    return (code() == kIOError || code() == kNotFound) &&
-           (subcode() == kPathNotFound);
+    return (code() == kIOError) && (subcode() == kPathNotFound);
   }
 
   // Returns true iff the status indicates manual compaction paused. This
   // is caused by a call to PauseManualCompaction
   bool IsManualCompactionPaused() const {
-    MarkChecked();
     return (code() == kIncomplete) && (subcode() == kManualCompactionPaused);
   }
 
   // Returns true iff the status indicates a TxnNotPrepared error.
   bool IsTxnNotPrepared() const {
-    MarkChecked();
     return (code() == kInvalidArgument) && (subcode() == kTxnNotPrepared);
-  }
-
-  // Returns true iff the status indicates a IOFenced error.
-  bool IsIOFenced() const {
-    MarkChecked();
-    return (code() == kIOError) && (subcode() == kIOFenced);
   }
 
   // Return a string representation of this status suitable for printing.
@@ -450,120 +352,77 @@ class Status {
   std::string ToString() const;
 
  protected:
+  // A nullptr state_ (which is always the case for OK) means the message
+  // is empty.
+  // of the following form:
+  //    state_[0..3] == length of message
+  //    state_[4..]  == message
   Code code_;
   SubCode subcode_;
   Severity sev_;
-  bool retryable_;
-  bool data_loss_;
-  unsigned char scope_;
-  // A nullptr state_ (which is at least the case for OK) means the extra
-  // message is empty.
-  std::unique_ptr<const char[]> state_;
-#ifdef ROCKSDB_ASSERT_STATUS_CHECKED
-  mutable bool checked_ = false;
-#endif  // ROCKSDB_ASSERT_STATUS_CHECKED
+  const char* state_;
 
   explicit Status(Code _code, SubCode _subcode = kNone)
-      : code_(_code),
-        subcode_(_subcode),
-        sev_(kNoError),
-        retryable_(false),
-        data_loss_(false),
-        scope_(0) {}
+      : code_(_code), subcode_(_subcode), sev_(kNoError), state_(nullptr) {}
 
-  explicit Status(Code _code, SubCode _subcode, bool retryable, bool data_loss,
-                  unsigned char scope)
-      : code_(_code),
-        subcode_(_subcode),
-        sev_(kNoError),
-        retryable_(retryable),
-        data_loss_(data_loss),
-        scope_(scope) {}
-
-  Status(Code _code, SubCode _subcode, const Slice& msg, const Slice& msg2,
-         Severity sev = kNoError);
+  Status(Code _code, SubCode _subcode, const Slice& msg, const Slice& msg2);
   Status(Code _code, const Slice& msg, const Slice& msg2)
       : Status(_code, kNone, msg, msg2) {}
 
-  static std::unique_ptr<const char[]> CopyState(const char* s);
-
-  inline void MarkChecked() const {
-#ifdef ROCKSDB_ASSERT_STATUS_CHECKED
-    checked_ = true;
-#endif  // ROCKSDB_ASSERT_STATUS_CHECKED
-  }
+  static const char* CopyState(const char* s);
 };
 
 inline Status::Status(const Status& s)
-    : code_(s.code_),
-      subcode_(s.subcode_),
-      sev_(s.sev_),
-      retryable_(s.retryable_),
-      data_loss_(s.data_loss_),
-      scope_(s.scope_) {
-  s.MarkChecked();
-  state_ = (s.state_ == nullptr) ? nullptr : CopyState(s.state_.get());
+    : code_(s.code_), subcode_(s.subcode_), sev_(s.sev_) {
+  state_ = (s.state_ == nullptr) ? nullptr : CopyState(s.state_);
 }
 inline Status::Status(const Status& s, Severity sev)
-    : code_(s.code_),
-      subcode_(s.subcode_),
-      sev_(sev),
-      retryable_(s.retryable_),
-      data_loss_(s.data_loss_),
-      scope_(s.scope_) {
-  s.MarkChecked();
-  state_ = (s.state_ == nullptr) ? nullptr : CopyState(s.state_.get());
+    : code_(s.code_), subcode_(s.subcode_), sev_(sev) {
+  state_ = (s.state_ == nullptr) ? nullptr : CopyState(s.state_);
 }
 inline Status& Status::operator=(const Status& s) {
   if (this != &s) {
-    s.MarkChecked();
-    MustCheck();
     code_ = s.code_;
     subcode_ = s.subcode_;
     sev_ = s.sev_;
-    retryable_ = s.retryable_;
-    data_loss_ = s.data_loss_;
-    scope_ = s.scope_;
-    state_ = (s.state_ == nullptr) ? nullptr : CopyState(s.state_.get());
+    delete[] state_;
+    state_ = (s.state_ == nullptr) ? nullptr : CopyState(s.state_);
   }
   return *this;
 }
 
-inline Status::Status(Status&& s) noexcept : Status() {
-  s.MarkChecked();
+inline Status::Status(Status&& s)
+#if !(defined _MSC_VER) || ((defined _MSC_VER) && (_MSC_VER >= 1900))
+    noexcept
+#endif
+    : Status() {
   *this = std::move(s);
 }
 
-inline Status& Status::operator=(Status&& s) noexcept {
+inline Status& Status::operator=(Status&& s)
+#if !(defined _MSC_VER) || ((defined _MSC_VER) && (_MSC_VER >= 1900))
+    noexcept
+#endif
+{
   if (this != &s) {
-    s.MarkChecked();
-    MustCheck();
     code_ = std::move(s.code_);
     s.code_ = kOk;
     subcode_ = std::move(s.subcode_);
     s.subcode_ = kNone;
     sev_ = std::move(s.sev_);
     s.sev_ = kNoError;
-    retryable_ = std::move(s.retryable_);
-    s.retryable_ = false;
-    data_loss_ = std::move(s.data_loss_);
-    s.data_loss_ = false;
-    scope_ = std::move(s.scope_);
-    s.scope_ = 0;
-    state_ = std::move(s.state_);
+    delete[] state_;
+    state_ = nullptr;
+    std::swap(state_, s.state_);
   }
   return *this;
 }
 
 inline bool Status::operator==(const Status& rhs) const {
-  MarkChecked();
-  rhs.MarkChecked();
   return (code_ == rhs.code_);
 }
 
 inline bool Status::operator!=(const Status& rhs) const {
-  MarkChecked();
-  rhs.MarkChecked();
   return !(*this == rhs);
 }
 

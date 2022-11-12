@@ -19,20 +19,21 @@
 #include <string>
 #include <thread>
 
+#include "rocksdb/cache.h"
+#include "rocksdb/comparator.h"
+#include "rocksdb/persistent_cache.h"
+
+#include "utilities/persistent_cache/block_cache_tier_file.h"
+#include "utilities/persistent_cache/block_cache_tier_metadata.h"
+#include "utilities/persistent_cache/persistent_cache_util.h"
+
 #include "memory/arena.h"
 #include "memtable/skiplist.h"
 #include "monitoring/histogram.h"
 #include "port/port.h"
-#include "rocksdb/cache.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/persistent_cache.h"
-#include "rocksdb/system_clock.h"
 #include "util/coding.h"
 #include "util/crc32c.h"
 #include "util/mutexlock.h"
-#include "utilities/persistent_cache/block_cache_tier_file.h"
-#include "utilities/persistent_cache/block_cache_tier_metadata.h"
-#include "utilities/persistent_cache/persistent_cache_util.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -52,7 +53,7 @@ class BlockCacheTier : public PersistentCacheTier {
 
   virtual ~BlockCacheTier() {
     // Close is re-entrant so we can call close even if it is already closed
-    Close().PermitUncheckedError();
+    Close();
     assert(!insert_th_.joinable());
   }
 
@@ -73,7 +74,7 @@ class BlockCacheTier : public PersistentCacheTier {
   void TEST_Flush() override {
     while (insert_ops_.Size()) {
       /* sleep override */
-      SystemClock::Default()->SleepForMicroseconds(1000000);
+      Env::Default()->SleepForMicroseconds(1000000);
     }
   }
 

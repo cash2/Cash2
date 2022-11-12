@@ -46,9 +46,7 @@ TEST_F(BlobFileAdditionTest, NonEmpty) {
   constexpr uint64_t total_blob_count = 2;
   constexpr uint64_t total_blob_bytes = 123456;
   const std::string checksum_method("SHA1");
-  const std::string checksum_value(
-      "\xbd\xb7\xf3\x4a\x59\xdf\xa1\x59\x2c\xe7\xf5\x2e\x99\xf9\x8c\x57\x0c\x52"
-      "\x5c\xbd");
+  const std::string checksum_value("bdb7f34a59dfa1592ce7f52e99f98c570c525cbd");
 
   BlobFileAddition blob_file_addition(blob_file_number, total_blob_count,
                                       total_blob_bytes, checksum_method,
@@ -115,9 +113,7 @@ TEST_F(BlobFileAdditionTest, DecodeErrors) {
     ASSERT_TRUE(std::strstr(s.getState(), "checksum value"));
   }
 
-  constexpr char checksum_value[] =
-      "\xbd\xb7\xf3\x4a\x59\xdf\xa1\x59\x2c\xe7\xf5\x2e\x99\xf9\x8c\x57\x0c\x52"
-      "\x5c\xbd";
+  constexpr char checksum_value[] = "bdb7f34a59dfa1592ce7f52e99f98c570c525cbd";
   PutLengthPrefixedSlice(&str, checksum_value);
   slice = str;
 
@@ -154,7 +150,7 @@ TEST_F(BlobFileAdditionTest, ForwardCompatibleCustomField) {
   constexpr uint64_t total_blob_count = 9999;
   constexpr uint64_t total_blob_bytes = 100000000;
   const std::string checksum_method("CRC32");
-  const std::string checksum_value("\x3d\x87\xff\x57");
+  const std::string checksum_value("3d87ff57");
 
   BlobFileAddition blob_file_addition(blob_file_number, total_blob_count,
                                       total_blob_bytes, checksum_method,
@@ -182,7 +178,7 @@ TEST_F(BlobFileAdditionTest, ForwardIncompatibleCustomField) {
   constexpr uint64_t total_blob_count = 100;
   constexpr uint64_t total_blob_bytes = 2000000;
   const std::string checksum_method("CRC32B");
-  const std::string checksum_value("\x6d\xbd\xf2\x3a");
+  const std::string checksum_value("6dbdf23a");
 
   BlobFileAddition blob_file_addition(blob_file_number, total_blob_count,
                                       total_blob_bytes, checksum_method,

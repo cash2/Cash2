@@ -32,8 +32,6 @@ class ParsedFullFilterBlock {
 
   bool own_bytes() const { return block_contents_.own_bytes(); }
 
-  const Slice GetBlockContentsData() const { return block_contents_.data; }
-
  private:
   BlockContents block_contents_;
   std::unique_ptr<FilterBitsReader> filter_bits_reader_;

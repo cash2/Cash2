@@ -22,29 +22,26 @@
 #include "rocksdb/options.h"
 #include "rocksdb/slice.h"
 #include "rocksdb/table.h"
+#include "table/block_based/block_based_table_factory.h"
 #include "table/internal_iterator.h"
+#include "table/plain/plain_table_factory.h"
 #include "util/mutexlock.h"
-
-#ifdef ROCKSDB_UNITTESTS_WITH_CUSTOM_OBJECTS_FROM_STATIC_LIBS
-extern "C" {
-void RegisterCustomObjects(int argc, char** argv);
-}
-#else
-void RegisterCustomObjects(int argc, char** argv);
-#endif  // !ROCKSDB_UNITTESTS_WITH_CUSTOM_OBJECTS_FROM_STATIC_LIBS
+#include "util/random.h"
 
 namespace ROCKSDB_NAMESPACE {
-class FileSystem;
-class MemTableRepFactory;
-class ObjectLibrary;
-class Random;
 class SequentialFile;
 class SequentialFileReader;
 
 namespace test {
 
 extern const uint32_t kDefaultFormatVersion;
-extern const std::set<uint32_t> kFooterFormatVersionsToTest;
+extern const uint32_t kLatestFormatVersion;
+
+// Store in *dst a random string of length "len" and return a Slice that
+// references the generated data.
+extern Slice RandomString(Random* rnd, int len, std::string* dst);
+
+extern std::string RandomHumanReadableString(Random* rnd, int len);
 
 // Return a random key with the specified length that may contain interesting
 // characters (e.g. \x00, \xff, etc.).
@@ -57,6 +54,28 @@ extern std::string RandomKey(Random* rnd, int len,
 // the generated data.
 extern Slice CompressibleString(Random* rnd, double compressed_fraction,
                                 int len, std::string* dst);
+
+// A wrapper that allows injection of errors.
+class ErrorEnv : public EnvWrapper {
+ public:
+  bool writable_file_error_;
+  int num_writable_file_errors_;
+
+  ErrorEnv() : EnvWrapper(Env::Default()),
+               writable_file_error_(false),
+               num_writable_file_errors_(0) { }
+
+  virtual Status NewWritableFile(const std::string& fname,
+                                 std::unique_ptr<WritableFile>* result,
+                                 const EnvOptions& soptions) override {
+    result->reset();
+    if (writable_file_error_) {
+      ++num_writable_file_errors_;
+      return Status::IOError(fname, "fake error");
+    }
+    return target()->NewWritableFile(fname, result, soptions);
+  }
+};
 
 #ifndef NDEBUG
 // An internal comparator that just forward comparing results from the
@@ -85,8 +104,10 @@ class PlainInternalKeyComparator : public InternalKeyComparator {
 class SimpleSuffixReverseComparator : public Comparator {
  public:
   SimpleSuffixReverseComparator() {}
-  static const char* kClassName() { return "SimpleSuffixReverseComparator"; }
-  virtual const char* Name() const override { return kClassName(); }
+
+  virtual const char* Name() const override {
+    return "SimpleSuffixReverseComparator";
+  }
 
   virtual int Compare(const Slice& a, const Slice& b) const override {
     Slice prefix_a = Slice(a.data(), 8);
@@ -113,18 +134,74 @@ class SimpleSuffixReverseComparator : public Comparator {
 // endian machines.
 extern const Comparator* Uint64Comparator();
 
-// A wrapper api for getting the ComparatorWithU64Ts<BytewiseComparator>
-extern const Comparator* BytewiseComparatorWithU64TsWrapper();
+// Iterator over a vector of keys/values
+class VectorIterator : public InternalIterator {
+ public:
+  explicit VectorIterator(const std::vector<std::string>& keys)
+      : keys_(keys), current_(keys.size()) {
+    std::sort(keys_.begin(), keys_.end());
+    values_.resize(keys.size());
+  }
 
-class StringSink : public FSWritableFile {
+  VectorIterator(const std::vector<std::string>& keys,
+      const std::vector<std::string>& values)
+    : keys_(keys), values_(values), current_(keys.size()) {
+    assert(keys_.size() == values_.size());
+  }
+
+  virtual bool Valid() const override { return current_ < keys_.size(); }
+
+  virtual void SeekToFirst() override { current_ = 0; }
+  virtual void SeekToLast() override { current_ = keys_.size() - 1; }
+
+  virtual void Seek(const Slice& target) override {
+    current_ = std::lower_bound(keys_.begin(), keys_.end(), target.ToString()) -
+               keys_.begin();
+  }
+
+  virtual void SeekForPrev(const Slice& target) override {
+    current_ = std::upper_bound(keys_.begin(), keys_.end(), target.ToString()) -
+               keys_.begin();
+    if (!Valid()) {
+      SeekToLast();
+    } else {
+      Prev();
+    }
+  }
+
+  virtual void Next() override { current_++; }
+  virtual void Prev() override { current_--; }
+
+  virtual Slice key() const override { return Slice(keys_[current_]); }
+  virtual Slice value() const override { return Slice(values_[current_]); }
+
+  virtual Status status() const override { return Status::OK(); }
+
+  virtual bool IsKeyPinned() const override { return true; }
+  virtual bool IsValuePinned() const override { return true; }
+
+ private:
+  std::vector<std::string> keys_;
+  std::vector<std::string> values_;
+  size_t current_;
+};
+extern WritableFileWriter* GetWritableFileWriter(WritableFile* wf,
+                                                 const std::string& fname);
+
+extern RandomAccessFileReader* GetRandomAccessFileReader(RandomAccessFile* raf);
+
+extern SequentialFileReader* GetSequentialFileReader(SequentialFile* se,
+                                                     const std::string& fname);
+
+class StringSink: public WritableFile {
  public:
   std::string contents_;
 
-  explicit StringSink(Slice* reader_contents = nullptr)
-      : FSWritableFile(),
-        contents_(""),
-        reader_contents_(reader_contents),
-        last_flush_(0) {
+  explicit StringSink(Slice* reader_contents = nullptr) :
+      WritableFile(),
+      contents_(""),
+      reader_contents_(reader_contents),
+      last_flush_(0) {
     if (reader_contents_ != nullptr) {
       *reader_contents_ = Slice(contents_.data(), 0);
     }
@@ -132,15 +209,12 @@ class StringSink : public FSWritableFile {
 
   const std::string& contents() const { return contents_; }
 
-  IOStatus Truncate(uint64_t size, const IOOptions& /*opts*/,
-                    IODebugContext* /*dbg*/) override {
+  virtual Status Truncate(uint64_t size) override {
     contents_.resize(static_cast<size_t>(size));
-    return IOStatus::OK();
+    return Status::OK();
   }
-  IOStatus Close(const IOOptions& /*opts*/, IODebugContext* /*dbg*/) override {
-    return IOStatus::OK();
-  }
-  IOStatus Flush(const IOOptions& /*opts*/, IODebugContext* /*dbg*/) override {
+  virtual Status Close() override { return Status::OK(); }
+  virtual Status Flush() override {
     if (reader_contents_ != nullptr) {
       assert(reader_contents_->size() <= last_flush_);
       size_t offset = last_flush_ - reader_contents_->size();
@@ -150,17 +224,12 @@ class StringSink : public FSWritableFile {
       last_flush_ = contents_.size();
     }
 
-    return IOStatus::OK();
+    return Status::OK();
   }
-  IOStatus Sync(const IOOptions& /*opts*/, IODebugContext* /*dbg*/) override {
-    return IOStatus::OK();
-  }
-
-  using FSWritableFile::Append;
-  IOStatus Append(const Slice& slice, const IOOptions& /*opts*/,
-                  IODebugContext* /*dbg*/) override {
+  virtual Status Sync() override { return Status::OK(); }
+  virtual Status Append(const Slice& slice) override {
     contents_.append(slice.data(), slice.size());
-    return IOStatus::OK();
+    return Status::OK();
   }
   void Drop(size_t bytes) {
     if (reader_contents_ != nullptr) {
@@ -177,44 +246,36 @@ class StringSink : public FSWritableFile {
 };
 
 // A wrapper around a StringSink to give it a RandomRWFile interface
-class RandomRWStringSink : public FSRandomRWFile {
+class RandomRWStringSink : public RandomRWFile {
  public:
   explicit RandomRWStringSink(StringSink* ss) : ss_(ss) {}
 
-  IOStatus Write(uint64_t offset, const Slice& data, const IOOptions& /*opts*/,
-                 IODebugContext* /*dbg*/) override {
+  Status Write(uint64_t offset, const Slice& data) override {
     if (offset + data.size() > ss_->contents_.size()) {
       ss_->contents_.resize(static_cast<size_t>(offset) + data.size(), '\0');
     }
 
     char* pos = const_cast<char*>(ss_->contents_.data() + offset);
     memcpy(pos, data.data(), data.size());
-    return IOStatus::OK();
+    return Status::OK();
   }
 
-  IOStatus Read(uint64_t offset, size_t n, const IOOptions& /*opts*/,
-                Slice* result, char* /*scratch*/,
-                IODebugContext* /*dbg*/) const override {
+  Status Read(uint64_t offset, size_t n, Slice* result,
+              char* /*scratch*/) const override {
     *result = Slice(nullptr, 0);
     if (offset < ss_->contents_.size()) {
       size_t str_res_sz =
           std::min(static_cast<size_t>(ss_->contents_.size() - offset), n);
       *result = Slice(ss_->contents_.data() + offset, str_res_sz);
     }
-    return IOStatus::OK();
+    return Status::OK();
   }
 
-  IOStatus Flush(const IOOptions& /*opts*/, IODebugContext* /*dbg*/) override {
-    return IOStatus::OK();
-  }
+  Status Flush() override { return Status::OK(); }
 
-  IOStatus Sync(const IOOptions& /*opts*/, IODebugContext* /*dbg*/) override {
-    return IOStatus::OK();
-  }
+  Status Sync() override { return Status::OK(); }
 
-  IOStatus Close(const IOOptions& /*opts*/, IODebugContext* /*dbg*/) override {
-    return IOStatus::OK();
-  }
+  Status Close() override { return Status::OK(); }
 
   const std::string& contents() const { return ss_->contents(); }
 
@@ -225,42 +286,34 @@ class RandomRWStringSink : public FSRandomRWFile {
 // Like StringSink, this writes into a string.  Unlink StringSink, it
 // has some initial content and overwrites it, just like a recycled
 // log file.
-class OverwritingStringSink : public FSWritableFile {
+class OverwritingStringSink : public WritableFile {
  public:
   explicit OverwritingStringSink(Slice* reader_contents)
-      : FSWritableFile(),
+      : WritableFile(),
         contents_(""),
         reader_contents_(reader_contents),
         last_flush_(0) {}
 
   const std::string& contents() const { return contents_; }
 
-  IOStatus Truncate(uint64_t size, const IOOptions& /*opts*/,
-                    IODebugContext* /*dbg*/) override {
+  virtual Status Truncate(uint64_t size) override {
     contents_.resize(static_cast<size_t>(size));
-    return IOStatus::OK();
+    return Status::OK();
   }
-  IOStatus Close(const IOOptions& /*opts*/, IODebugContext* /*dbg*/) override {
-    return IOStatus::OK();
-  }
-  IOStatus Flush(const IOOptions& /*opts*/, IODebugContext* /*dbg*/) override {
+  virtual Status Close() override { return Status::OK(); }
+  virtual Status Flush() override {
     if (last_flush_ < contents_.size()) {
       assert(reader_contents_->size() >= contents_.size());
       memcpy((char*)reader_contents_->data() + last_flush_,
              contents_.data() + last_flush_, contents_.size() - last_flush_);
       last_flush_ = contents_.size();
     }
-    return IOStatus::OK();
+    return Status::OK();
   }
-  IOStatus Sync(const IOOptions& /*opts*/, IODebugContext* /*dbg*/) override {
-    return IOStatus::OK();
-  }
-
-  using FSWritableFile::Append;
-  IOStatus Append(const Slice& slice, const IOOptions& /*opts*/,
-                  IODebugContext* /*dbg*/) override {
+  virtual Status Sync() override { return Status::OK(); }
+  virtual Status Append(const Slice& slice) override {
     contents_.append(slice.data(), slice.size());
-    return IOStatus::OK();
+    return Status::OK();
   }
   void Drop(size_t bytes) {
     contents_.resize(contents_.size() - bytes);
@@ -273,7 +326,7 @@ class OverwritingStringSink : public FSWritableFile {
   size_t last_flush_;
 };
 
-class StringSource : public FSRandomAccessFile {
+class StringSource: public RandomAccessFile {
  public:
   explicit StringSource(const Slice& contents, uint64_t uniq_id = 0,
                         bool mmap = false)
@@ -286,23 +339,11 @@ class StringSource : public FSRandomAccessFile {
 
   uint64_t Size() const { return contents_.size(); }
 
-  IOStatus Prefetch(uint64_t /*offset*/, size_t /*n*/,
-                    const IOOptions& /*options*/,
-                    IODebugContext* /*dbg*/) override {
-    // If we are using mmap_, it is equivalent to performing a prefetch
-    if (mmap_) {
-      return IOStatus::OK();
-    } else {
-      return IOStatus::NotSupported("Prefetch not supported");
-    }
-  }
-
-  IOStatus Read(uint64_t offset, size_t n, const IOOptions& /*opts*/,
-                Slice* result, char* scratch,
-                IODebugContext* /*dbg*/) const override {
+  virtual Status Read(uint64_t offset, size_t n, Slice* result,
+      char* scratch) const override {
     total_reads_++;
     if (offset > contents_.size()) {
-      return IOStatus::InvalidArgument("invalid Read offset");
+      return Status::InvalidArgument("invalid Read offset");
     }
     if (offset + n > contents_.size()) {
       n = contents_.size() - static_cast<size_t>(offset);
@@ -313,10 +354,10 @@ class StringSource : public FSRandomAccessFile {
     } else {
       *result = Slice(&contents_[static_cast<size_t>(offset)], n);
     }
-    return IOStatus::OK();
+    return Status::OK();
   }
 
-  size_t GetUniqueId(char* id, size_t max_size) const override {
+  virtual size_t GetUniqueId(char* id, size_t max_size) const override {
     if (max_size < 20) {
       return 0;
     }
@@ -338,6 +379,13 @@ class StringSource : public FSRandomAccessFile {
   mutable int total_reads_;
 };
 
+inline StringSink* GetStringSinkFromLegacyWriter(
+    const WritableFileWriter* writer) {
+  LegacyWritableFileWrapper* file =
+      static_cast<LegacyWritableFileWrapper*>(writer->writable_file());
+  return static_cast<StringSink*>(file->target());
+}
+
 class NullLogger : public Logger {
  public:
   using Logger::Logv;
@@ -349,10 +397,6 @@ class NullLogger : public Logger {
 extern void CorruptKeyType(InternalKey* ikey);
 
 extern std::string KeyStr(const std::string& user_key,
-                          const SequenceNumber& seq, const ValueType& t,
-                          bool corrupt = false);
-
-extern std::string KeyStr(uint64_t ts, const std::string& user_key,
                           const SequenceNumber& seq, const ValueType& t,
                           bool corrupt = false);
 
@@ -389,8 +433,16 @@ class SleepingBackgroundTask {
   // otherwise times out.
   // wait_time is in microseconds.
   // Returns true when times out, false otherwise.
-  bool TimedWaitUntilSleeping(uint64_t wait_time);
-
+  bool TimedWaitUntilSleeping(uint64_t wait_time) {
+    auto abs_time = Env::Default()->NowMicros() + wait_time;
+    MutexLock l(&mutex_);
+    while (!sleeping_ || !should_sleep_) {
+      if (bg_cv_.TimedWait(abs_time)) {
+        return true;
+      }
+    }
+    return false;
+  }
   void WakeUp() {
     MutexLock l(&mutex_);
     should_sleep_ = false;
@@ -404,8 +456,16 @@ class SleepingBackgroundTask {
   }
   // Similar to TimedWaitUntilSleeping.
   // Waits until the task is done.
-  bool TimedWaitUntilDone(uint64_t wait_time);
-
+  bool TimedWaitUntilDone(uint64_t wait_time) {
+    auto abs_time = Env::Default()->NowMicros() + wait_time;
+    MutexLock l(&mutex_);
+    while (!done_with_sleep_) {
+      if (bg_cv_.TimedWait(abs_time)) {
+        return true;
+      }
+    }
+    return false;
+  }
   bool WokenUp() {
     MutexLock l(&mutex_);
     return should_sleep_ == false;
@@ -468,223 +528,173 @@ inline std::string EncodeInt(uint64_t x) {
   return result;
 }
 
-class SeqStringSource : public FSSequentialFile {
- public:
-  SeqStringSource(const std::string& data, std::atomic<int>* read_count)
-      : data_(data), offset_(0), read_count_(read_count) {}
-  ~SeqStringSource() override {}
-  IOStatus Read(size_t n, const IOOptions& /*opts*/, Slice* result,
-                char* scratch, IODebugContext* /*dbg*/) override {
-    std::string output;
-    if (offset_ < data_.size()) {
-      n = std::min(data_.size() - offset_, n);
-      memcpy(scratch, data_.data() + offset_, n);
-      offset_ += n;
-      *result = Slice(scratch, n);
-    } else {
-      return IOStatus::InvalidArgument(
-          "Attempt to read when it already reached eof.");
-    }
-    (*read_count_)++;
-    return IOStatus::OK();
-  }
-
-  IOStatus Skip(uint64_t n) override {
-    if (offset_ >= data_.size()) {
-      return IOStatus::InvalidArgument(
-          "Attempt to read when it already reached eof.");
-    }
-    // TODO(yhchiang): Currently doesn't handle the overflow case.
-    offset_ += static_cast<size_t>(n);
-    return IOStatus::OK();
-  }
-
- private:
-  std::string data_;
-  size_t offset_;
-  std::atomic<int>* read_count_;
-};
-
-class StringFS : public FileSystemWrapper {
- public:
-  class StringSink : public FSWritableFile {
+  class SeqStringSource : public SequentialFile {
    public:
-    explicit StringSink(std::string* contents)
-        : FSWritableFile(), contents_(contents) {}
-    IOStatus Truncate(uint64_t size, const IOOptions& /*opts*/,
-                      IODebugContext* /*dbg*/) override {
-      contents_->resize(static_cast<size_t>(size));
-      return IOStatus::OK();
+    SeqStringSource(const std::string& data, std::atomic<int>* read_count)
+        : data_(data), offset_(0), read_count_(read_count) {}
+    ~SeqStringSource() override {}
+    Status Read(size_t n, Slice* result, char* scratch) override {
+      std::string output;
+      if (offset_ < data_.size()) {
+        n = std::min(data_.size() - offset_, n);
+        memcpy(scratch, data_.data() + offset_, n);
+        offset_ += n;
+        *result = Slice(scratch, n);
+      } else {
+        return Status::InvalidArgument(
+            "Attemp to read when it already reached eof.");
+      }
+      (*read_count_)++;
+      return Status::OK();
     }
-    IOStatus Close(const IOOptions& /*opts*/,
-                   IODebugContext* /*dbg*/) override {
-      return IOStatus::OK();
-    }
-    IOStatus Flush(const IOOptions& /*opts*/,
-                   IODebugContext* /*dbg*/) override {
-      return IOStatus::OK();
-    }
-    IOStatus Sync(const IOOptions& /*opts*/, IODebugContext* /*dbg*/) override {
-      return IOStatus::OK();
-    }
-
-    using FSWritableFile::Append;
-    IOStatus Append(const Slice& slice, const IOOptions& /*opts*/,
-                    IODebugContext* /*dbg*/) override {
-      contents_->append(slice.data(), slice.size());
-      return IOStatus::OK();
+    Status Skip(uint64_t n) override {
+      if (offset_ >= data_.size()) {
+        return Status::InvalidArgument(
+            "Attemp to read when it already reached eof.");
+      }
+      // TODO(yhchiang): Currently doesn't handle the overflow case.
+      offset_ += static_cast<size_t>(n);
+      return Status::OK();
     }
 
    private:
-    std::string* contents_;
+    std::string data_;
+    size_t offset_;
+    std::atomic<int>* read_count_;
   };
 
-  explicit StringFS(const std::shared_ptr<FileSystem>& t)
-      : FileSystemWrapper(t) {}
-  ~StringFS() override {}
+  class StringEnv : public EnvWrapper {
+   public:
+    class StringSink : public WritableFile {
+     public:
+      explicit StringSink(std::string* contents)
+          : WritableFile(), contents_(contents) {}
+      virtual Status Truncate(uint64_t size) override {
+        contents_->resize(static_cast<size_t>(size));
+        return Status::OK();
+      }
+      virtual Status Close() override { return Status::OK(); }
+      virtual Status Flush() override { return Status::OK(); }
+      virtual Status Sync() override { return Status::OK(); }
+      virtual Status Append(const Slice& slice) override {
+        contents_->append(slice.data(), slice.size());
+        return Status::OK();
+      }
 
-  static const char* kClassName() { return "StringFS"; }
-  const char* Name() const override { return kClassName(); }
+     private:
+      std::string* contents_;
+    };
 
-  const std::string& GetContent(const std::string& f) { return files_[f]; }
+    explicit StringEnv(Env* t) : EnvWrapper(t) {}
+    ~StringEnv() override {}
 
-  const IOStatus WriteToNewFile(const std::string& file_name,
+    const std::string& GetContent(const std::string& f) { return files_[f]; }
+
+    const Status WriteToNewFile(const std::string& file_name,
                                 const std::string& content) {
-    std::unique_ptr<FSWritableFile> r;
-    FileOptions file_opts;
-    IOOptions io_opts;
-
-    auto s = NewWritableFile(file_name, file_opts, &r, nullptr);
-    if (s.ok()) {
-      s = r->Append(content, io_opts, nullptr);
+      std::unique_ptr<WritableFile> r;
+      auto s = NewWritableFile(file_name, &r, EnvOptions());
+      if (!s.ok()) {
+        return s;
+      }
+      r->Append(content);
+      r->Flush();
+      r->Close();
+      assert(files_[file_name] == content);
+      return Status::OK();
     }
-    if (s.ok()) {
-      s = r->Flush(io_opts, nullptr);
+
+    // The following text is boilerplate that forwards all methods to target()
+    Status NewSequentialFile(const std::string& f,
+                             std::unique_ptr<SequentialFile>* r,
+                             const EnvOptions& /*options*/) override {
+      auto iter = files_.find(f);
+      if (iter == files_.end()) {
+        return Status::NotFound("The specified file does not exist", f);
+      }
+      r->reset(new SeqStringSource(iter->second, &num_seq_file_read_));
+      return Status::OK();
     }
-    if (s.ok()) {
-      s = r->Close(io_opts, nullptr);
+    Status NewRandomAccessFile(const std::string& /*f*/,
+                               std::unique_ptr<RandomAccessFile>* /*r*/,
+                               const EnvOptions& /*options*/) override {
+      return Status::NotSupported();
     }
-    assert(!s.ok() || files_[file_name] == content);
-    return s;
-  }
-
-  // The following text is boilerplate that forwards all methods to target()
-  IOStatus NewSequentialFile(const std::string& f,
-                             const FileOptions& /*options*/,
-                             std::unique_ptr<FSSequentialFile>* r,
-                             IODebugContext* /*dbg*/) override {
-    auto iter = files_.find(f);
-    if (iter == files_.end()) {
-      return IOStatus::NotFound("The specified file does not exist", f);
+    Status NewWritableFile(const std::string& f,
+                           std::unique_ptr<WritableFile>* r,
+                           const EnvOptions& /*options*/) override {
+      auto iter = files_.find(f);
+      if (iter != files_.end()) {
+        return Status::IOError("The specified file already exists", f);
+      }
+      r->reset(new StringSink(&files_[f]));
+      return Status::OK();
     }
-    r->reset(new SeqStringSource(iter->second, &num_seq_file_read_));
-    return IOStatus::OK();
-  }
-
-  IOStatus NewRandomAccessFile(const std::string& /*f*/,
-                               const FileOptions& /*options*/,
-                               std::unique_ptr<FSRandomAccessFile>* /*r*/,
-                               IODebugContext* /*dbg*/) override {
-    return IOStatus::NotSupported();
-  }
-
-  IOStatus NewWritableFile(const std::string& f, const FileOptions& /*options*/,
-                           std::unique_ptr<FSWritableFile>* r,
-                           IODebugContext* /*dbg*/) override {
-    auto iter = files_.find(f);
-    if (iter != files_.end()) {
-      return IOStatus::IOError("The specified file already exists", f);
+    virtual Status NewDirectory(
+        const std::string& /*name*/,
+        std::unique_ptr<Directory>* /*result*/) override {
+      return Status::NotSupported();
     }
-    r->reset(new StringSink(&files_[f]));
-    return IOStatus::OK();
-  }
-  IOStatus NewDirectory(const std::string& /*name*/,
-                        const IOOptions& /*options*/,
-                        std::unique_ptr<FSDirectory>* /*result*/,
-                        IODebugContext* /*dbg*/) override {
-    return IOStatus::NotSupported();
-  }
-
-  IOStatus FileExists(const std::string& f, const IOOptions& /*options*/,
-                      IODebugContext* /*dbg*/) override {
-    if (files_.find(f) == files_.end()) {
-      return IOStatus::NotFound();
+    Status FileExists(const std::string& f) override {
+      if (files_.find(f) == files_.end()) {
+        return Status::NotFound();
+      }
+      return Status::OK();
     }
-    return IOStatus::OK();
-  }
-
-  IOStatus GetChildren(const std::string& /*dir*/, const IOOptions& /*options*/,
-                       std::vector<std::string>* /*r*/,
-                       IODebugContext* /*dbg*/) override {
-    return IOStatus::NotSupported();
-  }
-
-  IOStatus DeleteFile(const std::string& f, const IOOptions& /*options*/,
-                      IODebugContext* /*dbg*/) override {
-    files_.erase(f);
-    return IOStatus::OK();
-  }
-
-  IOStatus CreateDir(const std::string& /*d*/, const IOOptions& /*options*/,
-                     IODebugContext* /*dbg*/) override {
-    return IOStatus::NotSupported();
-  }
-
-  IOStatus CreateDirIfMissing(const std::string& /*d*/,
-                              const IOOptions& /*options*/,
-                              IODebugContext* /*dbg*/) override {
-    return IOStatus::NotSupported();
-  }
-
-  IOStatus DeleteDir(const std::string& /*d*/, const IOOptions& /*options*/,
-                     IODebugContext* /*dbg*/) override {
-    return IOStatus::NotSupported();
-  }
-
-  IOStatus GetFileSize(const std::string& f, const IOOptions& /*options*/,
-                       uint64_t* s, IODebugContext* /*dbg*/) override {
-    auto iter = files_.find(f);
-    if (iter == files_.end()) {
-      return IOStatus::NotFound("The specified file does not exist:", f);
+    Status GetChildren(const std::string& /*dir*/,
+                       std::vector<std::string>* /*r*/) override {
+      return Status::NotSupported();
     }
-    *s = iter->second.size();
-    return IOStatus::OK();
-  }
+    Status DeleteFile(const std::string& f) override {
+      files_.erase(f);
+      return Status::OK();
+    }
+    Status CreateDir(const std::string& /*d*/) override {
+      return Status::NotSupported();
+    }
+    Status CreateDirIfMissing(const std::string& /*d*/) override {
+      return Status::NotSupported();
+    }
+    Status DeleteDir(const std::string& /*d*/) override {
+      return Status::NotSupported();
+    }
+    Status GetFileSize(const std::string& f, uint64_t* s) override {
+      auto iter = files_.find(f);
+      if (iter == files_.end()) {
+        return Status::NotFound("The specified file does not exist:", f);
+      }
+      *s = iter->second.size();
+      return Status::OK();
+    }
 
-  IOStatus GetFileModificationTime(const std::string& /*fname*/,
-                                   const IOOptions& /*options*/,
-                                   uint64_t* /*file_mtime*/,
-                                   IODebugContext* /*dbg*/) override {
-    return IOStatus::NotSupported();
-  }
+    Status GetFileModificationTime(const std::string& /*fname*/,
+                                   uint64_t* /*file_mtime*/) override {
+      return Status::NotSupported();
+    }
 
-  IOStatus RenameFile(const std::string& /*s*/, const std::string& /*t*/,
-                      const IOOptions& /*options*/,
-                      IODebugContext* /*dbg*/) override {
-    return IOStatus::NotSupported();
-  }
+    Status RenameFile(const std::string& /*s*/,
+                      const std::string& /*t*/) override {
+      return Status::NotSupported();
+    }
 
-  IOStatus LinkFile(const std::string& /*s*/, const std::string& /*t*/,
-                    const IOOptions& /*options*/,
-                    IODebugContext* /*dbg*/) override {
-    return IOStatus::NotSupported();
-  }
+    Status LinkFile(const std::string& /*s*/,
+                    const std::string& /*t*/) override {
+      return Status::NotSupported();
+    }
 
-  IOStatus LockFile(const std::string& /*f*/, const IOOptions& /*options*/,
-                    FileLock** /*l*/, IODebugContext* /*dbg*/) override {
-    return IOStatus::NotSupported();
-  }
+    Status LockFile(const std::string& /*f*/, FileLock** /*l*/) override {
+      return Status::NotSupported();
+    }
 
-  IOStatus UnlockFile(FileLock* /*l*/, const IOOptions& /*options*/,
-                      IODebugContext* /*dbg*/) override {
-    return IOStatus::NotSupported();
-  }
+    Status UnlockFile(FileLock* /*l*/) override {
+      return Status::NotSupported();
+    }
 
-  std::atomic<int> num_seq_file_read_;
+    std::atomic<int> num_seq_file_read_;
 
- protected:
-  std::unordered_map<std::string, std::string> files_;
-};
+   protected:
+    std::unordered_map<std::string, std::string> files_;
+  };
 
 // Randomly initialize the given DBOptions
 void RandomInitDBOptions(DBOptions* db_opt, Random* rnd);
@@ -713,17 +723,6 @@ class ChanglingMergeOperator : public MergeOperator {
                                  Logger* /*logger*/) const override {
     return false;
   }
-  static const char* kClassName() { return "ChanglingMergeOperator"; }
-  const char* NickName() const override { return kNickName(); }
-  static const char* kNickName() { return "Changling"; }
-  bool IsInstanceOf(const std::string& id) const override {
-    if (id == kClassName()) {
-      return true;
-    } else {
-      return MergeOperator::IsInstanceOf(id);
-    }
-  }
-
   virtual const char* Name() const override { return name_.c_str(); }
 
  protected:
@@ -746,18 +745,6 @@ class ChanglingCompactionFilter : public CompactionFilter {
               const Slice& /*existing_value*/, std::string* /*new_value*/,
               bool* /*value_changed*/) const override {
     return false;
-  }
-
-  static const char* kClassName() { return "ChanglingCompactionFilter"; }
-  const char* NickName() const override { return kNickName(); }
-  static const char* kNickName() { return "Changling"; }
-
-  bool IsInstanceOf(const std::string& id) const override {
-    if (id == kClassName()) {
-      return true;
-    } else {
-      return CompactionFilter::IsInstanceOf(id);
-    }
   }
 
   const char* Name() const override { return name_.c_str(); }
@@ -785,25 +772,12 @@ class ChanglingCompactionFilterFactory : public CompactionFilterFactory {
 
   // Returns a name that identifies this compaction filter factory.
   const char* Name() const override { return name_.c_str(); }
-  static const char* kClassName() { return "ChanglingCompactionFilterFactory"; }
-  const char* NickName() const override { return kNickName(); }
-  static const char* kNickName() { return "Changling"; }
-
-  bool IsInstanceOf(const std::string& id) const override {
-    if (id == kClassName()) {
-      return true;
-    } else {
-      return CompactionFilterFactory::IsInstanceOf(id);
-    }
-  }
 
  protected:
   std::string name_;
 };
 
-// The factory for the hacky skip list mem table that triggers flush after
-// number of entries exceeds a threshold.
-extern MemTableRepFactory* NewSpecialSkipListFactory(int num_entries_per_flush);
+extern const Comparator* ComparatorWithU64Ts();
 
 CompressionType RandomCompressionType(Random* rnd);
 
@@ -819,35 +793,23 @@ TableFactory* RandomTableFactory(Random* rnd, int pre_defined = -1);
 
 std::string RandomName(Random* rnd, const size_t len);
 
-bool IsDirectIOSupported(Env* env, const std::string& dir);
+Status DestroyDir(Env* env, const std::string& dir);
 
-bool IsPrefetchSupported(const std::shared_ptr<FileSystem>& fs,
-                         const std::string& dir);
+bool IsDirectIOSupported(Env* env, const std::string& dir);
 
 // Return the number of lines where a given pattern was found in a file.
 size_t GetLinesCount(const std::string& fname, const std::string& pattern);
 
-Status CorruptFile(Env* env, const std::string& fname, int offset,
-                   int bytes_to_corrupt, bool verify_checksum = true);
-Status TruncateFile(Env* env, const std::string& fname, uint64_t length);
+// TEST_TMPDIR may be set to /dev/shm in Makefile,
+// but /dev/shm does not support direct IO.
+// Tries to set TEST_TMPDIR to a directory supporting direct IO.
+void ResetTmpDirForDirectIO();
 
-// Try and delete a directory if it exists
-Status TryDeleteDir(Env* env, const std::string& dirname);
+// Sets up sync points to mock direct IO instead of actually issuing direct IO
+// to the file system.
+void SetupSyncPointsToMockDirectIO();
 
-// Delete a directory if it exists
-void DeleteDir(Env* env, const std::string& dirname);
+void CorruptFile(const std::string& fname, int offset, int bytes_to_corrupt);
 
-// Creates an Env from the system environment by looking at the system
-// environment variables.
-Status CreateEnvFromSystem(const ConfigOptions& options, Env** result,
-                           std::shared_ptr<Env>* guard);
-
-#ifndef ROCKSDB_LITE
-// Registers the testutil classes with the ObjectLibrary
-int RegisterTestObjects(ObjectLibrary& library, const std::string& /*arg*/);
-#endif  // ROCKSDB_LITE
-
-// Register the testutil classes with the default ObjectRegistry/Library
-void RegisterTestLibrary(const std::string& arg = "");
 }  // namespace test
 }  // namespace ROCKSDB_NAMESPACE

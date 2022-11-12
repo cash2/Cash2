@@ -6,18 +6,17 @@
 // This file implements the "bridge" between Java and C++
 // for ROCKSDB_NAMESPACE::TransactionDB.
 
-#include "rocksdb/utilities/transaction_db.h"
-
 #include <jni.h>
-
 #include <functional>
 #include <memory>
 #include <utility>
 
 #include "include/org_rocksdb_TransactionDB.h"
+
 #include "rocksdb/options.h"
 #include "rocksdb/utilities/transaction.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
+#include "rocksdb/utilities/transaction_db.h"
+
 #include "rocksjni/portal.h"
 
 /*
@@ -44,7 +43,7 @@ jlong Java_org_rocksdb_TransactionDB_open__JJLjava_lang_String_2(
   env->ReleaseStringUTFChars(jdb_path, db_path);
 
   if (s.ok()) {
-    return GET_CPLUSPLUS_POINTER(tdb);
+    return reinterpret_cast<jlong>(tdb);
   } else {
     ROCKSDB_NAMESPACE::RocksDBExceptionJni::ThrowNew(env, s);
     return 0;
@@ -133,9 +132,9 @@ jlongArray Java_org_rocksdb_TransactionDB_open__JJLjava_lang_String_2_3_3B_3J(
     const jsize resultsLen = 1 + len_cols;  // db handle + column family handles
     std::unique_ptr<jlong[]> results =
         std::unique_ptr<jlong[]>(new jlong[resultsLen]);
-    results[0] = GET_CPLUSPLUS_POINTER(tdb);
+    results[0] = reinterpret_cast<jlong>(tdb);
     for (int i = 1; i <= len_cols; i++) {
-      results[i] = GET_CPLUSPLUS_POINTER(handles[i - 1]);
+      results[i] = reinterpret_cast<jlong>(handles[i - 1]);
     }
 
     jlongArray jresults = env->NewLongArray(resultsLen);
@@ -193,7 +192,7 @@ jlong Java_org_rocksdb_TransactionDB_beginTransaction__JJ(
       reinterpret_cast<ROCKSDB_NAMESPACE::WriteOptions*>(jwrite_options_handle);
   ROCKSDB_NAMESPACE::Transaction* txn =
       txn_db->BeginTransaction(*write_options);
-  return GET_CPLUSPLUS_POINTER(txn);
+  return reinterpret_cast<jlong>(txn);
 }
 
 /*
@@ -211,7 +210,7 @@ jlong Java_org_rocksdb_TransactionDB_beginTransaction__JJJ(
       jtxn_options_handle);
   ROCKSDB_NAMESPACE::Transaction* txn =
       txn_db->BeginTransaction(*write_options, *txn_options);
-  return GET_CPLUSPLUS_POINTER(txn);
+  return reinterpret_cast<jlong>(txn);
 }
 
 /*
@@ -236,7 +235,7 @@ jlong Java_org_rocksdb_TransactionDB_beginTransaction_1withOld__JJJ(
   // when providing an old_txn
   assert(txn == old_txn);
 
-  return GET_CPLUSPLUS_POINTER(txn);
+  return reinterpret_cast<jlong>(txn);
 }
 
 /*
@@ -262,7 +261,7 @@ jlong Java_org_rocksdb_TransactionDB_beginTransaction_1withOld__JJJJ(
   // when providing an old_txn
   assert(txn == old_txn);
 
-  return GET_CPLUSPLUS_POINTER(txn);
+  return reinterpret_cast<jlong>(txn);
 }
 
 /*
@@ -280,7 +279,7 @@ jlong Java_org_rocksdb_TransactionDB_getTransactionByName(
   }
   ROCKSDB_NAMESPACE::Transaction* txn = txn_db->GetTransactionByName(name);
   env->ReleaseStringUTFChars(jname, name);
-  return GET_CPLUSPLUS_POINTER(txn);
+  return reinterpret_cast<jlong>(txn);
 }
 
 /*
@@ -300,7 +299,7 @@ jlongArray Java_org_rocksdb_TransactionDB_getAllPreparedTransactions(
   const jsize len = static_cast<jsize>(size);
   std::vector<jlong> tmp(len);
   for (jsize i = 0; i < len; ++i) {
-    tmp[i] = GET_CPLUSPLUS_POINTER(txns[i]);
+    tmp[i] = reinterpret_cast<jlong>(txns[i]);
   }
 
   jlongArray jtxns = env->NewLongArray(len);

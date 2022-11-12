@@ -11,67 +11,22 @@
 
 #include "db/column_family.h"
 #include "db/db_impl/db_impl.h"
-#include "logging/logging.h"
 #include "rocksdb/comparator.h"
 #include "rocksdb/db.h"
 #include "rocksdb/status.h"
 #include "util/cast_util.h"
 #include "util/string_util.h"
-#include "utilities/transactions/lock/lock_tracker.h"
 
 namespace ROCKSDB_NAMESPACE {
 
-Status Transaction::CommitAndTryCreateSnapshot(
-    std::shared_ptr<TransactionNotifier> notifier, TxnTimestamp ts,
-    std::shared_ptr<const Snapshot>* snapshot) {
-  if (snapshot) {
-    snapshot->reset();
-  }
-  TxnTimestamp commit_ts = GetCommitTimestamp();
-  if (commit_ts == kMaxTxnTimestamp) {
-    if (ts == kMaxTxnTimestamp) {
-      return Status::InvalidArgument("Commit timestamp unset");
-    } else {
-      const Status s = SetCommitTimestamp(ts);
-      if (!s.ok()) {
-        return s;
-      }
-    }
-  } else if (ts != kMaxTxnTimestamp) {
-    if (ts != commit_ts) {
-      // For now we treat this as error.
-      return Status::InvalidArgument("Different commit ts specified");
-    }
-  }
-  SetSnapshotOnNextOperation(notifier);
-  Status s = Commit();
-  if (!s.ok()) {
-    return s;
-  }
-  assert(s.ok());
-  // If we reach here, we must return ok status for this function.
-  std::shared_ptr<const Snapshot> new_snapshot = GetTimestampedSnapshot();
-
-  if (snapshot) {
-    *snapshot = new_snapshot;
-  }
-  return Status::OK();
-}
-
-TransactionBaseImpl::TransactionBaseImpl(
-    DB* db, const WriteOptions& write_options,
-    const LockTrackerFactory& lock_tracker_factory)
+TransactionBaseImpl::TransactionBaseImpl(DB* db,
+                                         const WriteOptions& write_options)
     : db_(db),
       dbimpl_(static_cast_with_check<DBImpl>(db)),
       write_options_(write_options),
       cmp_(GetColumnFamilyUserComparator(db->DefaultColumnFamily())),
-      lock_tracker_factory_(lock_tracker_factory),
-      start_time_(dbimpl_->GetSystemClock()->NowMicros()),
-      write_batch_(cmp_, 0, true, 0, write_options.protection_bytes_per_key),
-      tracked_locks_(lock_tracker_factory_.Create()),
-      commit_time_batch_(0 /* reserved_bytes */, 0 /* max_bytes */,
-                         write_options.protection_bytes_per_key,
-                         0 /* default_cf_ts_sz */),
+      start_time_(db_->GetEnv()->NowMicros()),
+      write_batch_(cmp_, 0, true, 0),
       indexing_enabled_(true) {
   assert(dynamic_cast<DBImpl*>(db_) != nullptr);
   log_number_ = 0;
@@ -89,7 +44,7 @@ void TransactionBaseImpl::Clear() {
   save_points_.reset(nullptr);
   write_batch_.Clear();
   commit_time_batch_.Clear();
-  tracked_locks_->Clear();
+  tracked_keys_.clear();
   num_puts_ = 0;
   num_deletes_ = 0;
   num_merges_ = 0;
@@ -108,15 +63,9 @@ void TransactionBaseImpl::Reinitialize(DB* db,
   name_.clear();
   log_number_ = 0;
   write_options_ = write_options;
-  start_time_ = dbimpl_->GetSystemClock()->NowMicros();
+  start_time_ = db_->GetEnv()->NowMicros();
   indexing_enabled_ = true;
   cmp_ = GetColumnFamilyUserComparator(db_->DefaultColumnFamily());
-  WriteBatchInternal::UpdateProtectionInfo(
-      write_batch_.GetWriteBatch(), write_options_.protection_bytes_per_key)
-      .PermitUncheckedError();
-  WriteBatchInternal::UpdateProtectionInfo(
-      &commit_time_batch_, write_options_.protection_bytes_per_key)
-      .PermitUncheckedError();
 }
 
 void TransactionBaseImpl::SetSnapshot() {
@@ -171,13 +120,10 @@ Status TransactionBaseImpl::TryLock(ColumnFamilyHandle* column_family,
 
 void TransactionBaseImpl::SetSavePoint() {
   if (save_points_ == nullptr) {
-    save_points_.reset(
-        new std::stack<TransactionBaseImpl::SavePoint,
-                       autovector<TransactionBaseImpl::SavePoint>>());
+    save_points_.reset(new std::stack<TransactionBaseImpl::SavePoint, autovector<TransactionBaseImpl::SavePoint>>());
   }
   save_points_->emplace(snapshot_, snapshot_needed_, snapshot_notifier_,
-                        num_puts_, num_deletes_, num_merges_,
-                        lock_tracker_factory_);
+                        num_puts_, num_deletes_, num_merges_);
   write_batch_.SetSavePoint();
 }
 
@@ -197,7 +143,37 @@ Status TransactionBaseImpl::RollbackToSavePoint() {
     assert(s.ok());
 
     // Rollback any keys that were tracked since the last savepoint
-    tracked_locks_->Subtract(*save_point.new_locks_);
+    const TransactionKeyMap& key_map = save_point.new_keys_;
+    for (const auto& key_map_iter : key_map) {
+      uint32_t column_family_id = key_map_iter.first;
+      auto& keys = key_map_iter.second;
+
+      auto& cf_tracked_keys = tracked_keys_[column_family_id];
+
+      for (const auto& key_iter : keys) {
+        const std::string& key = key_iter.first;
+        uint32_t num_reads = key_iter.second.num_reads;
+        uint32_t num_writes = key_iter.second.num_writes;
+
+        auto tracked_keys_iter = cf_tracked_keys.find(key);
+        assert(tracked_keys_iter != cf_tracked_keys.end());
+
+        // Decrement the total reads/writes of this key by the number of
+        // reads/writes done since the last SavePoint.
+        if (num_reads > 0) {
+          assert(tracked_keys_iter->second.num_reads >= num_reads);
+          tracked_keys_iter->second.num_reads -= num_reads;
+        }
+        if (num_writes > 0) {
+          assert(tracked_keys_iter->second.num_writes >= num_writes);
+          tracked_keys_iter->second.num_writes -= num_writes;
+        }
+        if (tracked_keys_iter->second.num_reads == 0 &&
+            tracked_keys_iter->second.num_writes == 0) {
+          cf_tracked_keys.erase(tracked_keys_iter);
+        }
+      }
+    }
 
     save_points_->pop();
 
@@ -224,11 +200,39 @@ Status TransactionBaseImpl::PopSavePoint() {
   if (save_points_->size() == 1) {
     save_points_->pop();
   } else {
-    TransactionBaseImpl::SavePoint top(lock_tracker_factory_);
+    TransactionBaseImpl::SavePoint top;
     std::swap(top, save_points_->top());
     save_points_->pop();
 
-    save_points_->top().new_locks_->Merge(*top.new_locks_);
+    const TransactionKeyMap& curr_cf_key_map = top.new_keys_;
+    TransactionKeyMap& prev_cf_key_map = save_points_->top().new_keys_;
+
+    for (const auto& curr_cf_key_iter : curr_cf_key_map) {
+      uint32_t column_family_id = curr_cf_key_iter.first;
+      const std::unordered_map<std::string, TransactionKeyMapInfo>& curr_keys =
+          curr_cf_key_iter.second;
+
+      // If cfid was not previously tracked, just copy everything over.
+      auto prev_keys_iter = prev_cf_key_map.find(column_family_id);
+      if (prev_keys_iter == prev_cf_key_map.end()) {
+        prev_cf_key_map.emplace(curr_cf_key_iter);
+      } else {
+        std::unordered_map<std::string, TransactionKeyMapInfo>& prev_keys =
+            prev_keys_iter->second;
+        for (const auto& key_iter : curr_keys) {
+          const std::string& key = key_iter.first;
+          const TransactionKeyMapInfo& info = key_iter.second;
+          // If key was not previously tracked, just copy the whole struct over.
+          // Otherwise, some merging needs to occur.
+          auto prev_info = prev_keys.find(key);
+          if (prev_info == prev_keys.end()) {
+            prev_keys.emplace(key_iter);
+          } else {
+            prev_info->second.Merge(info);
+          }
+        }
+      }
+    }
   }
 
   return write_batch_.PopSavePoint();
@@ -308,7 +312,8 @@ std::vector<Status> TransactionBaseImpl::MultiGet(
 
   std::vector<Status> stat_list(num_keys);
   for (size_t i = 0; i < num_keys; ++i) {
-    stat_list[i] = Get(read_options, column_family[i], keys[i], &(*values)[i]);
+    std::string* value = values ? &(*values)[i] : nullptr;
+    stat_list[i] = Get(read_options, column_family[i], keys[i], value);
   }
 
   return stat_list;
@@ -345,7 +350,8 @@ std::vector<Status> TransactionBaseImpl::MultiGetForUpdate(
   // TODO(agiardullo): optimize multiget?
   std::vector<Status> stat_list(num_keys);
   for (size_t i = 0; i < num_keys; ++i) {
-    stat_list[i] = Get(read_options, column_family[i], keys[i], &(*values)[i]);
+    std::string* value = values ? &(*values)[i] : nullptr;
+    stat_list[i] = Get(read_options, column_family[i], keys[i], value);
   }
 
   return stat_list;
@@ -355,8 +361,7 @@ Iterator* TransactionBaseImpl::GetIterator(const ReadOptions& read_options) {
   Iterator* db_iter = db_->NewIterator(read_options);
   assert(db_iter);
 
-  return write_batch_.NewIteratorWithBase(db_->DefaultColumnFamily(), db_iter,
-                                          &read_options);
+  return write_batch_.NewIteratorWithBase(db_iter);
 }
 
 Iterator* TransactionBaseImpl::GetIterator(const ReadOptions& read_options,
@@ -580,9 +585,7 @@ Status TransactionBaseImpl::SingleDeleteUntracked(
 }
 
 void TransactionBaseImpl::PutLogData(const Slice& blob) {
-  auto s = write_batch_.PutLogData(blob);
-  (void)s;
-  assert(s.ok());
+  write_batch_.PutLogData(blob);
 }
 
 WriteBatchWithIndex* TransactionBaseImpl::GetWriteBatch() {
@@ -590,7 +593,7 @@ WriteBatchWithIndex* TransactionBaseImpl::GetWriteBatch() {
 }
 
 uint64_t TransactionBaseImpl::GetElapsedTime() const {
-  return (dbimpl_->GetSystemClock()->NowMicros() - start_time_) / 1000;
+  return (db_->GetEnv()->NowMicros() - start_time_) / 1000;
 }
 
 uint64_t TransactionBaseImpl::GetNumPuts() const { return num_puts_; }
@@ -600,26 +603,106 @@ uint64_t TransactionBaseImpl::GetNumDeletes() const { return num_deletes_; }
 uint64_t TransactionBaseImpl::GetNumMerges() const { return num_merges_; }
 
 uint64_t TransactionBaseImpl::GetNumKeys() const {
-  return tracked_locks_->GetNumPointLocks();
+  uint64_t count = 0;
+
+  // sum up locked keys in all column families
+  for (const auto& key_map_iter : tracked_keys_) {
+    const auto& keys = key_map_iter.second;
+    count += keys.size();
+  }
+
+  return count;
 }
 
 void TransactionBaseImpl::TrackKey(uint32_t cfh_id, const std::string& key,
                                    SequenceNumber seq, bool read_only,
                                    bool exclusive) {
-  PointLockRequest r;
-  r.column_family_id = cfh_id;
-  r.key = key;
-  r.seq = seq;
-  r.read_only = read_only;
-  r.exclusive = exclusive;
-
   // Update map of all tracked keys for this transaction
-  tracked_locks_->Track(r);
+  TrackKey(&tracked_keys_, cfh_id, key, seq, read_only, exclusive);
 
   if (save_points_ != nullptr && !save_points_->empty()) {
     // Update map of tracked keys in this SavePoint
-    save_points_->top().new_locks_->Track(r);
+    TrackKey(&save_points_->top().new_keys_, cfh_id, key, seq, read_only,
+             exclusive);
   }
+}
+
+// Add a key to the given TransactionKeyMap
+// seq for pessimistic transactions is the sequence number from which we know
+// there has not been a concurrent update to the key.
+void TransactionBaseImpl::TrackKey(TransactionKeyMap* key_map, uint32_t cfh_id,
+                                   const std::string& key, SequenceNumber seq,
+                                   bool read_only, bool exclusive) {
+  auto& cf_key_map = (*key_map)[cfh_id];
+#ifdef __cpp_lib_unordered_map_try_emplace
+  // use c++17's try_emplace if available, to avoid rehashing the key
+  // in case it is not already in the map
+  auto result = cf_key_map.try_emplace(key, seq);
+  auto iter = result.first;
+  if (!result.second && seq < iter->second.seq) {
+    // Now tracking this key with an earlier sequence number
+    iter->second.seq = seq;
+  }
+#else
+  auto iter = cf_key_map.find(key);
+  if (iter == cf_key_map.end()) {
+    auto result = cf_key_map.emplace(key, TransactionKeyMapInfo(seq));
+    iter = result.first;
+  } else if (seq < iter->second.seq) {
+    // Now tracking this key with an earlier sequence number
+    iter->second.seq = seq;
+  }
+#endif
+  // else we do not update the seq. The smaller the tracked seq, the stronger it
+  // the guarantee since it implies from the seq onward there has not been a
+  // concurrent update to the key. So we update the seq if it implies stronger
+  // guarantees, i.e., if it is smaller than the existing tracked seq.
+
+  if (read_only) {
+    iter->second.num_reads++;
+  } else {
+    iter->second.num_writes++;
+  }
+  iter->second.exclusive |= exclusive;
+}
+
+std::unique_ptr<TransactionKeyMap>
+TransactionBaseImpl::GetTrackedKeysSinceSavePoint() {
+  if (save_points_ != nullptr && !save_points_->empty()) {
+    // Examine the number of reads/writes performed on all keys written
+    // since the last SavePoint and compare to the total number of reads/writes
+    // for each key.
+    TransactionKeyMap* result = new TransactionKeyMap();
+    for (const auto& key_map_iter : save_points_->top().new_keys_) {
+      uint32_t column_family_id = key_map_iter.first;
+      auto& keys = key_map_iter.second;
+
+      auto& cf_tracked_keys = tracked_keys_[column_family_id];
+
+      for (const auto& key_iter : keys) {
+        const std::string& key = key_iter.first;
+        uint32_t num_reads = key_iter.second.num_reads;
+        uint32_t num_writes = key_iter.second.num_writes;
+
+        auto total_key_info = cf_tracked_keys.find(key);
+        assert(total_key_info != cf_tracked_keys.end());
+        assert(total_key_info->second.num_reads >= num_reads);
+        assert(total_key_info->second.num_writes >= num_writes);
+
+        if (total_key_info->second.num_reads == num_reads &&
+            total_key_info->second.num_writes == num_writes) {
+          // All the reads/writes to this key were done in the last savepoint.
+          bool read_only = (num_writes == 0);
+          TrackKey(result, column_family_id, key, key_iter.second.seq,
+                   read_only, key_iter.second.exclusive);
+        }
+      }
+    }
+    return std::unique_ptr<TransactionKeyMap>(result);
+  }
+
+  // No SavePoint
+  return nullptr;
 }
 
 // Gets the write batch that should be used for Put/Merge/Deletes.
@@ -647,28 +730,54 @@ void TransactionBaseImpl::ReleaseSnapshot(const Snapshot* snapshot, DB* db) {
 
 void TransactionBaseImpl::UndoGetForUpdate(ColumnFamilyHandle* column_family,
                                            const Slice& key) {
-  PointLockRequest r;
-  r.column_family_id = GetColumnFamilyID(column_family);
-  r.key = key.ToString();
-  r.read_only = true;
+  uint32_t column_family_id = GetColumnFamilyID(column_family);
+  auto& cf_tracked_keys = tracked_keys_[column_family_id];
+  std::string key_str = key.ToString();
+  bool can_decrement = false;
+  bool can_unlock __attribute__((__unused__)) = false;
 
-  bool can_untrack = false;
   if (save_points_ != nullptr && !save_points_->empty()) {
-    // If there is no GetForUpdate of the key in this save point,
-    // then cannot untrack from the global lock tracker.
-    UntrackStatus s = save_points_->top().new_locks_->Untrack(r);
-    can_untrack = (s != UntrackStatus::NOT_TRACKED);
+    // Check if this key was fetched ForUpdate in this SavePoint
+    auto& cf_savepoint_keys = save_points_->top().new_keys_[column_family_id];
+
+    auto savepoint_iter = cf_savepoint_keys.find(key_str);
+    if (savepoint_iter != cf_savepoint_keys.end()) {
+      if (savepoint_iter->second.num_reads > 0) {
+        savepoint_iter->second.num_reads--;
+        can_decrement = true;
+
+        if (savepoint_iter->second.num_reads == 0 &&
+            savepoint_iter->second.num_writes == 0) {
+          // No other GetForUpdates or write on this key in this SavePoint
+          cf_savepoint_keys.erase(savepoint_iter);
+          can_unlock = true;
+        }
+      }
+    }
   } else {
-    // No save point, so can untrack from the global lock tracker.
-    can_untrack = true;
+    // No SavePoint set
+    can_decrement = true;
+    can_unlock = true;
   }
 
-  if (can_untrack) {
-    // If erased from the global tracker, then can unlock the key.
-    UntrackStatus s = tracked_locks_->Untrack(r);
-    bool can_unlock = (s == UntrackStatus::REMOVED);
-    if (can_unlock) {
-      UnlockGetForUpdate(column_family, key);
+  // We can only decrement the read count for this key if we were able to
+  // decrement the read count in the current SavePoint, OR if there is no
+  // SavePoint set.
+  if (can_decrement) {
+    auto key_iter = cf_tracked_keys.find(key_str);
+
+    if (key_iter != cf_tracked_keys.end()) {
+      if (key_iter->second.num_reads > 0) {
+        key_iter->second.num_reads--;
+
+        if (key_iter->second.num_reads == 0 &&
+            key_iter->second.num_writes == 0) {
+          // No other GetForUpdates or writes on this key
+          assert(can_unlock);
+          cf_tracked_keys.erase(key_iter);
+          UnlockGetForUpdate(column_family, key);
+        }
+      }
     }
   }
 }
@@ -708,10 +817,6 @@ Status TransactionBaseImpl::RebuildFromWriteBatch(WriteBatch* src_batch) {
     }
 
     Status MarkCommit(const Slice&) override {
-      return Status::InvalidArgument();
-    }
-
-    Status MarkCommitWithTimestamp(const Slice&, const Slice&) override {
       return Status::InvalidArgument();
     }
 

@@ -3,15 +3,16 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "table/block_based/partitioned_filter_block.h"
-
 #include <map>
 
-#include "index_builder.h"
 #include "rocksdb/filter_policy.h"
+
 #include "table/block_based/block_based_table_reader.h"
+#include "table/block_based/partitioned_filter_block.h"
 #include "table/block_based/filter_policy_internal.h"
-#include "table/format.h"
+
+#include "index_builder.h"
+#include "logging/logging.h"
 #include "test_util/testharness.h"
 #include "test_util/testutil.h"
 #include "util/coding.h"
@@ -58,7 +59,7 @@ class PartitionedFilterBlockTest
       virtual public ::testing::WithParamInterface<uint32_t> {
  public:
   Options options_;
-  ImmutableOptions ioptions_;
+  ImmutableCFOptions ioptions_;
   EnvOptions env_options_;
   BlockBasedTableOptions table_options_;
   InternalKeyComparator icomp_;
@@ -136,20 +137,17 @@ class PartitionedFilterBlockTest
     BlockHandle bh;
     Status status;
     Slice slice;
-    std::unique_ptr<const char[]> filter_data;
     do {
-      slice = builder->Finish(bh, &status, &filter_data);
+      slice = builder->Finish(bh, &status);
       bh = Write(slice);
     } while (status.IsIncomplete());
 
     constexpr bool skip_filters = false;
-    constexpr uint64_t file_size = 12345;
     constexpr int level = 0;
     constexpr bool immortal_table = false;
     table_.reset(new MockedBlockBasedTable(
         new BlockBasedTable::Rep(ioptions_, env_options_, table_options_,
-                                 icomp_, skip_filters, file_size, level,
-                                 immortal_table),
+                                 icomp_, skip_filters, level, immortal_table),
         pib));
     BlockContents contents(slice);
     CachableEntry<Block> block(
@@ -161,44 +159,40 @@ class PartitionedFilterBlockTest
   }
 
   void VerifyReader(PartitionedFilterBlockBuilder* builder,
-                    PartitionedIndexBuilder* pib, bool empty = false) {
+                    PartitionedIndexBuilder* pib, bool empty = false,
+                    const SliceTransform* prefix_extractor = nullptr) {
     std::unique_ptr<PartitionedFilterBlockReader> reader(
         NewReader(builder, pib));
-    Env::IOPriority rate_limiter_priority = Env::IO_TOTAL;
     // Querying added keys
     const bool no_io = true;
     for (auto key : keys) {
       auto ikey = InternalKey(key, 0, ValueType::kTypeValue);
       const Slice ikey_slice = Slice(*ikey.rep());
-      ASSERT_TRUE(reader->KeyMayMatch(key, !no_io, &ikey_slice,
-                                      /*get_context=*/nullptr,
-                                      /*lookup_context=*/nullptr,
-                                      rate_limiter_priority));
+      ASSERT_TRUE(reader->KeyMayMatch(key, prefix_extractor, kNotValid, !no_io,
+                                      &ikey_slice, /*get_context=*/nullptr,
+                                      /*lookup_context=*/nullptr));
     }
     {
       // querying a key twice
       auto ikey = InternalKey(keys[0], 0, ValueType::kTypeValue);
       const Slice ikey_slice = Slice(*ikey.rep());
-      ASSERT_TRUE(reader->KeyMayMatch(keys[0], !no_io, &ikey_slice,
-                                      /*get_context=*/nullptr,
-                                      /*lookup_context=*/nullptr,
-                                      rate_limiter_priority));
+      ASSERT_TRUE(reader->KeyMayMatch(
+          keys[0], prefix_extractor, kNotValid, !no_io, &ikey_slice,
+          /*get_context=*/nullptr, /*lookup_context=*/nullptr));
     }
     // querying missing keys
     for (auto key : missing_keys) {
       auto ikey = InternalKey(key, 0, ValueType::kTypeValue);
       const Slice ikey_slice = Slice(*ikey.rep());
       if (empty) {
-        ASSERT_TRUE(reader->KeyMayMatch(key, !no_io, &ikey_slice,
-                                        /*get_context=*/nullptr,
-                                        /*lookup_context=*/nullptr,
-                                        rate_limiter_priority));
+        ASSERT_TRUE(reader->KeyMayMatch(
+            key, prefix_extractor, kNotValid, !no_io, &ikey_slice,
+            /*get_context=*/nullptr, /*lookup_context=*/nullptr));
       } else {
         // assuming a good hash function
-        ASSERT_FALSE(reader->KeyMayMatch(key, !no_io, &ikey_slice,
-                                         /*get_context=*/nullptr,
-                                         /*lookup_context=*/nullptr,
-                                         rate_limiter_priority));
+        ASSERT_FALSE(reader->KeyMayMatch(
+            key, prefix_extractor, kNotValid, !no_io, &ikey_slice,
+            /*get_context=*/nullptr, /*lookup_context=*/nullptr));
       }
     }
   }
@@ -296,11 +290,10 @@ class PartitionedFilterBlockTest
   }
 };
 
-// Format versions potentially intersting to partitioning
-INSTANTIATE_TEST_CASE_P(FormatVersions, PartitionedFilterBlockTest,
-                        testing::ValuesIn(std::set<uint32_t>{
-                            2, 3, 4, test::kDefaultFormatVersion,
-                            kLatestFormatVersion}));
+INSTANTIATE_TEST_CASE_P(FormatDef, PartitionedFilterBlockTest,
+                        testing::Values(test::kDefaultFormatVersion));
+INSTANTIATE_TEST_CASE_P(FormatLatest, PartitionedFilterBlockTest,
+                        testing::Values(test::kLatestFormatVersion));
 
 TEST_P(PartitionedFilterBlockTest, EmptyBuilder) {
   std::unique_ptr<PartitionedIndexBuilder> pib(NewIndexBuilder());
@@ -347,22 +340,20 @@ TEST_P(PartitionedFilterBlockTest, SamePrefixInMultipleBlocks) {
   for (auto key : pkeys) {
     auto ikey = InternalKey(key, 0, ValueType::kTypeValue);
     const Slice ikey_slice = Slice(*ikey.rep());
-    ASSERT_TRUE(reader->PrefixMayMatch(prefix_extractor->Transform(key),
-                                       /*no_io=*/false, &ikey_slice,
-                                       /*get_context=*/nullptr,
-                                       /*lookup_context=*/nullptr,
-                                       Env::IO_TOTAL));
+    ASSERT_TRUE(reader->PrefixMayMatch(
+        prefix_extractor->Transform(key), prefix_extractor.get(), kNotValid,
+        /*no_io=*/false, &ikey_slice, /*get_context=*/nullptr,
+        /*lookup_context=*/nullptr));
   }
   // Non-existent keys but with the same prefix
   const std::string pnonkeys[4] = {"p-key9", "p-key11", "p-key21", "p-key31"};
   for (auto key : pnonkeys) {
     auto ikey = InternalKey(key, 0, ValueType::kTypeValue);
     const Slice ikey_slice = Slice(*ikey.rep());
-    ASSERT_TRUE(reader->PrefixMayMatch(prefix_extractor->Transform(key),
-                                       /*no_io=*/false, &ikey_slice,
-                                       /*get_context=*/nullptr,
-                                       /*lookup_context=*/nullptr,
-                                       Env::IO_TOTAL));
+    ASSERT_TRUE(reader->PrefixMayMatch(
+        prefix_extractor->Transform(key), prefix_extractor.get(), kNotValid,
+        /*no_io=*/false, &ikey_slice, /*get_context=*/nullptr,
+        /*lookup_context=*/nullptr));
   }
 }
 
@@ -393,16 +384,14 @@ TEST_P(PartitionedFilterBlockTest, PrefixInWrongPartitionBug) {
   CutABlock(pib.get(), pkeys[4]);
   std::unique_ptr<PartitionedFilterBlockReader> reader(
       NewReader(builder.get(), pib.get()));
-  Env::IOPriority rate_limiter_priority = Env::IO_TOTAL;
   for (auto key : pkeys) {
     auto prefix = prefix_extractor->Transform(key);
     auto ikey = InternalKey(prefix, 0, ValueType::kTypeValue);
     const Slice ikey_slice = Slice(*ikey.rep());
-    ASSERT_TRUE(reader->PrefixMayMatch(prefix,
-                                       /*no_io=*/false, &ikey_slice,
-                                       /*get_context=*/nullptr,
-                                       /*lookup_context=*/nullptr,
-                                       rate_limiter_priority));
+    ASSERT_TRUE(reader->PrefixMayMatch(
+        prefix, prefix_extractor.get(), kNotValid,
+        /*no_io=*/false, &ikey_slice, /*get_context=*/nullptr,
+        /*lookup_context=*/nullptr));
   }
 }
 

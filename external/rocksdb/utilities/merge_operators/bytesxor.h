@@ -28,11 +28,9 @@ class BytesXOROperator : public AssociativeMergeOperator {
                      std::string* new_value,
                      Logger* logger) const override;
 
-  static const char* kClassName() { return "BytesXOR"; }
-  static const char* kNickName() { return "bytesxor"; }
-
-  const char* NickName() const override { return kNickName(); }
-  const char* Name() const override { return kClassName(); }
+  virtual const char* Name() const override {
+    return "BytesXOR";
+  }
 
   void XOR(const Slice* existing_value, const Slice& value,
           std::string* new_value) const;

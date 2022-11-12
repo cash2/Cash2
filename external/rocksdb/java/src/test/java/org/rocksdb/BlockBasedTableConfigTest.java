@@ -5,15 +5,15 @@
 
 package org.rocksdb;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.fail;
-
-import java.nio.charset.StandardCharsets;
 import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
+import java.nio.charset.StandardCharsets;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class BlockBasedTableConfigTest {
 
@@ -35,10 +35,9 @@ public class BlockBasedTableConfigTest {
   @Test
   public void cacheIndexAndFilterBlocksWithHighPriority() {
     final BlockBasedTableConfig blockBasedTableConfig = new BlockBasedTableConfig();
+    blockBasedTableConfig.setCacheIndexAndFilterBlocksWithHighPriority(true);
     assertThat(blockBasedTableConfig.cacheIndexAndFilterBlocksWithHighPriority()).
         isTrue();
-    blockBasedTableConfig.setCacheIndexAndFilterBlocksWithHighPriority(false);
-    assertThat(blockBasedTableConfig.cacheIndexAndFilterBlocksWithHighPriority()).isFalse();
   }
 
   @Test
@@ -60,39 +59,37 @@ public class BlockBasedTableConfigTest {
   @Test
   public void indexType() {
     final BlockBasedTableConfig blockBasedTableConfig = new BlockBasedTableConfig();
-    assertThat(IndexType.values().length).isEqualTo(4);
+    assertThat(IndexType.values().length).isEqualTo(3);
     blockBasedTableConfig.setIndexType(IndexType.kHashSearch);
-    assertThat(blockBasedTableConfig.indexType()).isEqualTo(IndexType.kHashSearch);
+    assertThat(blockBasedTableConfig.indexType().equals(
+        IndexType.kHashSearch));
     assertThat(IndexType.valueOf("kBinarySearch")).isNotNull();
     blockBasedTableConfig.setIndexType(IndexType.valueOf("kBinarySearch"));
-    assertThat(blockBasedTableConfig.indexType()).isEqualTo(IndexType.kBinarySearch);
+    assertThat(blockBasedTableConfig.indexType().equals(
+        IndexType.kBinarySearch));
   }
 
   @Test
   public void dataBlockIndexType() {
     final BlockBasedTableConfig blockBasedTableConfig = new BlockBasedTableConfig();
     blockBasedTableConfig.setDataBlockIndexType(DataBlockIndexType.kDataBlockBinaryAndHash);
-    assertThat(blockBasedTableConfig.dataBlockIndexType())
-        .isEqualTo(DataBlockIndexType.kDataBlockBinaryAndHash);
+    assertThat(blockBasedTableConfig.dataBlockIndexType().equals(
+        DataBlockIndexType.kDataBlockBinaryAndHash));
     blockBasedTableConfig.setDataBlockIndexType(DataBlockIndexType.kDataBlockBinarySearch);
-    assertThat(blockBasedTableConfig.dataBlockIndexType())
-        .isEqualTo(DataBlockIndexType.kDataBlockBinarySearch);
+    assertThat(blockBasedTableConfig.dataBlockIndexType().equals(
+        DataBlockIndexType.kDataBlockBinarySearch));
   }
 
   @Test
   public void checksumType() {
     final BlockBasedTableConfig blockBasedTableConfig = new BlockBasedTableConfig();
-    assertThat(ChecksumType.values().length).isEqualTo(5);
+    assertThat(ChecksumType.values().length).isEqualTo(3);
     assertThat(ChecksumType.valueOf("kxxHash")).
         isEqualTo(ChecksumType.kxxHash);
     blockBasedTableConfig.setChecksumType(ChecksumType.kNoChecksum);
-    assertThat(blockBasedTableConfig.checksumType()).isEqualTo(ChecksumType.kNoChecksum);
     blockBasedTableConfig.setChecksumType(ChecksumType.kxxHash);
-    assertThat(blockBasedTableConfig.checksumType()).isEqualTo(ChecksumType.kxxHash);
-    blockBasedTableConfig.setChecksumType(ChecksumType.kxxHash64);
-    assertThat(blockBasedTableConfig.checksumType()).isEqualTo(ChecksumType.kxxHash64);
-    blockBasedTableConfig.setChecksumType(ChecksumType.kXXH3);
-    assertThat(blockBasedTableConfig.checksumType()).isEqualTo(ChecksumType.kXXH3);
+    assertThat(blockBasedTableConfig.checksumType().equals(
+        ChecksumType.kxxHash));
   }
 
   @Test
@@ -262,13 +259,6 @@ public class BlockBasedTableConfigTest {
   }
 
   @Test
-  public void optimizeFiltersForMemory() {
-    final BlockBasedTableConfig blockBasedTableConfig = new BlockBasedTableConfig();
-    blockBasedTableConfig.setOptimizeFiltersForMemory(true);
-    assertThat(blockBasedTableConfig.optimizeFiltersForMemory()).isTrue();
-  }
-
-  @Test
   public void useDeltaEncoding() {
     final BlockBasedTableConfig blockBasedTableConfig = new BlockBasedTableConfig();
     blockBasedTableConfig.setUseDeltaEncoding(false);
@@ -306,7 +296,6 @@ public class BlockBasedTableConfigTest {
   @Test
   public void verifyCompression() {
     final BlockBasedTableConfig blockBasedTableConfig = new BlockBasedTableConfig();
-    assertThat(blockBasedTableConfig.verifyCompression()).isFalse();
     blockBasedTableConfig.setVerifyCompression(true);
     assertThat(blockBasedTableConfig.verifyCompression()).
         isTrue();
@@ -323,7 +312,7 @@ public class BlockBasedTableConfigTest {
   @Test
   public void formatVersion() {
     final BlockBasedTableConfig blockBasedTableConfig = new BlockBasedTableConfig();
-    for (int version = 0; version <= 5; version++) {
+    for (int version = 0; version < 5; version++) {
       blockBasedTableConfig.setFormatVersion(version);
       assertThat(blockBasedTableConfig.formatVersion()).isEqualTo(version);
     }
@@ -335,15 +324,10 @@ public class BlockBasedTableConfigTest {
     blockBasedTableConfig.setFormatVersion(-1);
   }
 
-  @Test(expected = RocksDBException.class)
-  public void invalidFormatVersion() throws RocksDBException {
-    final BlockBasedTableConfig blockBasedTableConfig =
-        new BlockBasedTableConfig().setFormatVersion(99999);
-
-    try (final Options options = new Options().setTableFormatConfig(blockBasedTableConfig);
-         final RocksDB db = RocksDB.open(options, dbFolder.getRoot().getAbsolutePath())) {
-      fail("Opening the database with an invalid format_version should have raised an exception");
-    }
+  @Test(expected = AssertionError.class)
+  public void formatVersionFailIllegalVersion() {
+    final BlockBasedTableConfig blockBasedTableConfig = new BlockBasedTableConfig();
+    blockBasedTableConfig.setFormatVersion(99);
   }
 
   @Test
@@ -360,14 +344,6 @@ public class BlockBasedTableConfigTest {
     blockBasedTableConfig.setBlockAlign(true);
     assertThat(blockBasedTableConfig.blockAlign()).
         isTrue();
-  }
-
-  @Test
-  public void indexShortening() {
-    final BlockBasedTableConfig blockBasedTableConfig = new BlockBasedTableConfig();
-    blockBasedTableConfig.setIndexShortening(IndexShorteningMode.kShortenSeparatorsAndSuccessor);
-    assertThat(blockBasedTableConfig.indexShortening())
-        .isEqualTo(IndexShorteningMode.kShortenSeparatorsAndSuccessor);
   }
 
   @Deprecated

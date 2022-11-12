@@ -8,7 +8,6 @@
 // from Java side.
 
 #include <jni.h>
-
 #include <string>
 
 #include "include/org_rocksdb_SstFileReader.h"
@@ -16,7 +15,6 @@
 #include "rocksdb/env.h"
 #include "rocksdb/options.h"
 #include "rocksdb/sst_file_reader.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 #include "rocksjni/portal.h"
 
 /*
@@ -31,7 +29,7 @@ jlong Java_org_rocksdb_SstFileReader_newSstFileReader(JNIEnv * /*env*/,
       reinterpret_cast<const ROCKSDB_NAMESPACE::Options *>(joptions);
   ROCKSDB_NAMESPACE::SstFileReader *sst_file_reader =
       new ROCKSDB_NAMESPACE::SstFileReader(*options);
-  return GET_CPLUSPLUS_POINTER(sst_file_reader);
+  return reinterpret_cast<jlong>(sst_file_reader);
 }
 
 /*
@@ -69,7 +67,7 @@ jlong Java_org_rocksdb_SstFileReader_newIterator(JNIEnv * /*env*/,
       reinterpret_cast<ROCKSDB_NAMESPACE::SstFileReader *>(jhandle);
   auto *read_options =
       reinterpret_cast<ROCKSDB_NAMESPACE::ReadOptions *>(jread_options_handle);
-  return GET_CPLUSPLUS_POINTER(sst_file_reader->NewIterator(*read_options));
+  return reinterpret_cast<jlong>(sst_file_reader->NewIterator(*read_options));
 }
 
 /*

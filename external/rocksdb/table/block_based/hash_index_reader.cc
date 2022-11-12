@@ -13,7 +13,6 @@
 
 namespace ROCKSDB_NAMESPACE {
 Status HashIndexReader::Create(const BlockBasedTable* table,
-                               const ReadOptions& ro,
                                FilePrefetchBuffer* prefetch_buffer,
                                InternalIterator* meta_index_iter,
                                bool use_cache, bool prefetch, bool pin,
@@ -29,7 +28,7 @@ Status HashIndexReader::Create(const BlockBasedTable* table,
   CachableEntry<Block> index_block;
   if (prefetch || !use_cache) {
     const Status s =
-        ReadIndexBlock(table, prefetch_buffer, ro, use_cache,
+        ReadIndexBlock(table, prefetch_buffer, ReadOptions(), use_cache,
                        /*get_context=*/nullptr, lookup_context, &index_block);
     if (!s.ok()) {
       return s;
@@ -66,7 +65,7 @@ Status HashIndexReader::Create(const BlockBasedTable* table,
 
   RandomAccessFileReader* const file = rep->file.get();
   const Footer& footer = rep->footer;
-  const ImmutableOptions& ioptions = rep->ioptions;
+  const ImmutableCFOptions& ioptions = rep->ioptions;
   const PersistentCacheOptions& cache_options = rep->persistent_cache_options;
   MemoryAllocator* const memory_allocator =
       GetMemoryAllocator(rep->table_options);
@@ -95,8 +94,8 @@ Status HashIndexReader::Create(const BlockBasedTable* table,
   }
 
   BlockPrefixIndex* prefix_index = nullptr;
-  assert(rep->table_prefix_extractor);
-  s = BlockPrefixIndex::Create(rep->table_prefix_extractor.get(),
+  assert(rep->internal_prefix_transform.get() != nullptr);
+  s = BlockPrefixIndex::Create(rep->internal_prefix_transform.get(),
                                prefixes_contents.data,
                                prefixes_meta_contents.data, &prefix_index);
   // TODO: log error
@@ -117,8 +116,7 @@ InternalIteratorBase<IndexValue>* HashIndexReader::NewIterator(
   const bool no_io = (read_options.read_tier == kBlockCacheTier);
   CachableEntry<Block> index_block;
   const Status s =
-      GetOrReadIndexBlock(no_io, read_options.rate_limiter_priority,
-                          get_context, lookup_context, &index_block);
+      GetOrReadIndexBlock(no_io, get_context, lookup_context, &index_block);
   if (!s.ok()) {
     if (iter != nullptr) {
       iter->Invalidate(s);
@@ -134,7 +132,7 @@ InternalIteratorBase<IndexValue>* HashIndexReader::NewIterator(
   // We don't return pinned data from index blocks, so no need
   // to set `block_contents_pinned`.
   auto it = index_block.GetValue()->NewIndexIterator(
-      internal_comparator()->user_comparator(),
+      internal_comparator(), internal_comparator()->user_comparator(),
       rep->get_global_seqno(BlockType::kIndex), iter, kNullStats,
       total_order_seek, index_has_first_key(), index_key_includes_seq(),
       index_value_is_full(), false /* block_contents_pinned */,

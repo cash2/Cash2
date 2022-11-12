@@ -22,29 +22,12 @@ public class WriteBufferManager extends RocksObject {
    *
    * @param bufferSizeBytes buffer size(in bytes) to use for native write_buffer_manager
    * @param cache cache whose memory should be bounded by this write buffer manager
-   * @param allowStall if set true, it will enable stalling of writes when memory_usage() exceeds
-   *     buffer_size.
-   *        It will wait for flush to complete and memory usage to drop down.
    */
-  public WriteBufferManager(
-      final long bufferSizeBytes, final Cache cache, final boolean allowStall) {
-    super(newWriteBufferManager(bufferSizeBytes, cache.nativeHandle_, allowStall));
-    this.allowStall_ = allowStall;
-  }
-
   public WriteBufferManager(final long bufferSizeBytes, final Cache cache){
-    this(bufferSizeBytes, cache, false);
+    super(newWriteBufferManager(bufferSizeBytes, cache.nativeHandle_));
   }
 
-  public boolean allowStall() {
-    return allowStall_;
-  }
-
-  private native static long newWriteBufferManager(
-      final long bufferSizeBytes, final long cacheHandle, final boolean allowStall);
-
+  private native static long newWriteBufferManager(final long bufferSizeBytes, final long cacheHandle);
   @Override
   protected native void disposeInternal(final long handle);
-
-  private boolean allowStall_;
 }

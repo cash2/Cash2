@@ -23,15 +23,14 @@
 #ifdef GFLAGS
 #include "db_stress_tool/db_stress_common.h"
 #include "db_stress_tool/db_stress_driver.h"
-#include "rocksdb/convenience.h"
-#include "utilities/fault_injection_fs.h"
+#ifndef NDEBUG
+#include "test_util/fault_injection_test_fs.h"
+#endif
 
 namespace ROCKSDB_NAMESPACE {
 namespace {
 static std::shared_ptr<ROCKSDB_NAMESPACE::Env> env_guard;
 static std::shared_ptr<ROCKSDB_NAMESPACE::DbStressEnvWrapper> env_wrapper_guard;
-static std::shared_ptr<ROCKSDB_NAMESPACE::DbStressEnvWrapper>
-    dbsl_env_wrapper_guard;
 static std::shared_ptr<CompositeEnvWrapper> fault_env_guard;
 }  // namespace
 
@@ -46,11 +45,10 @@ int db_stress_tool(int argc, char** argv) {
   SanitizeDoubleParam(&FLAGS_memtable_prefix_bloom_size_ratio);
   SanitizeDoubleParam(&FLAGS_max_bytes_for_level_multiplier);
 
-#ifndef NDEBUG
   if (FLAGS_mock_direct_io) {
-    SetupSyncPointsToMockDirectIO();
+    test::SetupSyncPointsToMockDirectIO();
   }
-#endif
+
   if (FLAGS_statistics) {
     dbstats = ROCKSDB_NAMESPACE::CreateDBStatistics();
     if (FLAGS_test_secondary) {
@@ -64,49 +62,36 @@ int db_stress_tool(int argc, char** argv) {
 
   Env* raw_env;
 
-  int env_opts = !FLAGS_env_uri.empty() + !FLAGS_fs_uri.empty();
-  if (env_opts > 1) {
-    fprintf(stderr, "Error: --env_uri and --fs_uri are mutually exclusive\n");
-    exit(1);
+  if (!FLAGS_hdfs.empty()) {
+    if (!FLAGS_env_uri.empty()) {
+      fprintf(stderr, "Cannot specify both --hdfs and --env_uri.\n");
+      exit(1);
+    }
+    raw_env = new ROCKSDB_NAMESPACE::HdfsEnv(FLAGS_hdfs);
+  } else if (!FLAGS_env_uri.empty()) {
+    Status s = Env::LoadEnv(FLAGS_env_uri, &raw_env, &env_guard);
+    if (raw_env == nullptr) {
+      fprintf(stderr, "No Env registered for URI: %s\n", FLAGS_env_uri.c_str());
+      exit(1);
+    }
+  } else {
+    raw_env = Env::Default();
   }
 
-  Status s = Env::CreateFromUri(ConfigOptions(), FLAGS_env_uri, FLAGS_fs_uri,
-                                &raw_env, &env_guard);
-  if (!s.ok()) {
-    fprintf(stderr, "Error Creating Env URI: %s: %s\n", FLAGS_env_uri.c_str(),
-            s.ToString().c_str());
-    exit(1);
-  }
-  dbsl_env_wrapper_guard = std::make_shared<DbStressEnvWrapper>(raw_env);
-  db_stress_listener_env = dbsl_env_wrapper_guard.get();
-
-  if (FLAGS_read_fault_one_in || FLAGS_sync_fault_injection ||
-      FLAGS_write_fault_one_in || FLAGS_open_metadata_write_fault_one_in ||
-      FLAGS_open_write_fault_one_in || FLAGS_open_read_fault_one_in) {
+#ifndef NDEBUG
+  if (FLAGS_read_fault_one_in || FLAGS_sync_fault_injection) {
     FaultInjectionTestFS* fs =
         new FaultInjectionTestFS(raw_env->GetFileSystem());
     fault_fs_guard.reset(fs);
-    if (FLAGS_write_fault_one_in) {
-      fault_fs_guard->SetFilesystemDirectWritable(false);
-    } else {
-      fault_fs_guard->SetFilesystemDirectWritable(true);
-    }
+    fault_fs_guard->SetFilesystemDirectWritable(true);
     fault_env_guard =
         std::make_shared<CompositeEnvWrapper>(raw_env, fault_fs_guard);
     raw_env = fault_env_guard.get();
   }
+#endif
 
   env_wrapper_guard = std::make_shared<DbStressEnvWrapper>(raw_env);
   db_stress_env = env_wrapper_guard.get();
-
-  if (FLAGS_write_fault_one_in) {
-    // In the write injection case, we need to use the FS interface and returns
-    // the IOStatus with different error and flags. Therefore,
-    // DbStressEnvWrapper cannot be used which will swallow the FS
-    // implementations. We should directly use the raw_env which is the
-    // CompositeEnvWrapper of env and fault_fs.
-    db_stress_env = raw_env;
-  }
 
   FLAGS_rep_factory = StringToRepFactory(FLAGS_memtablerep.c_str());
 
@@ -128,26 +113,17 @@ int db_stress_tool(int argc, char** argv) {
             "test_batches_snapshots test!\n");
     exit(1);
   }
-  if (FLAGS_memtable_prefix_bloom_size_ratio > 0.0 && FLAGS_prefix_size < 0 &&
-      !FLAGS_memtable_whole_key_filtering) {
+  if (FLAGS_memtable_prefix_bloom_size_ratio > 0.0 && FLAGS_prefix_size < 0) {
     fprintf(stderr,
-            "Error: please specify positive prefix_size or enable whole key "
-            "filtering in order to use memtable_prefix_bloom_size_ratio\n");
+            "Error: please specify positive prefix_size in order to use "
+            "memtable_prefix_bloom_size_ratio\n");
     exit(1);
   }
   if ((FLAGS_readpercent + FLAGS_prefixpercent + FLAGS_writepercent +
-       FLAGS_delpercent + FLAGS_delrangepercent + FLAGS_iterpercent +
-       FLAGS_customopspercent) != 100) {
-    fprintf(
-        stderr,
-        "Error: "
-        "Read(-readpercent=%d)+Prefix(-prefixpercent=%d)+Write(-writepercent=%"
-        "d)+Delete(-delpercent=%d)+DeleteRange(-delrangepercent=%d)"
-        "+Iterate(-iterpercent=%d)+CustomOps(-customopspercent=%d) percents != "
-        "100!\n",
-        FLAGS_readpercent, FLAGS_prefixpercent, FLAGS_writepercent,
-        FLAGS_delpercent, FLAGS_delrangepercent, FLAGS_iterpercent,
-        FLAGS_customopspercent);
+       FLAGS_delpercent + FLAGS_delrangepercent + FLAGS_iterpercent) != 100) {
+    fprintf(stderr,
+            "Error: Read+Prefix+Write+Delete+DeleteRange+Iterate percents != "
+            "100!\n");
     exit(1);
   }
   if (FLAGS_disable_wal == 1 && FLAGS_reopen > 0) {
@@ -184,11 +160,9 @@ int db_stress_tool(int argc, char** argv) {
         "Error: nooverwritepercent must not be 100 when using merge operands");
     exit(1);
   }
-  if (FLAGS_ingest_external_file_one_in > 0 &&
-      FLAGS_nooverwritepercent == 100) {
-    fprintf(
-        stderr,
-        "Error: nooverwritepercent must not be 100 when using file ingestion");
+  if (FLAGS_ingest_external_file_one_in > 0 && FLAGS_nooverwritepercent > 0) {
+    fprintf(stderr,
+            "Error: nooverwritepercent must be 0 when using file ingestion\n");
     exit(1);
   }
   if (FLAGS_clear_column_family_one_in > 0 && FLAGS_backup_one_in > 0) {
@@ -226,7 +200,8 @@ int db_stress_tool(int argc, char** argv) {
     std::string default_secondaries_path;
     db_stress_env->GetTestDirectory(&default_secondaries_path);
     default_secondaries_path += "/dbstress_secondaries";
-    s = db_stress_env->CreateDirIfMissing(default_secondaries_path);
+    ROCKSDB_NAMESPACE::Status s =
+        db_stress_env->CreateDirIfMissing(default_secondaries_path);
     if (!s.ok()) {
       fprintf(stderr, "Failed to create directory %s: %s\n",
               default_secondaries_path.c_str(), s.ToString().c_str());
@@ -235,62 +210,15 @@ int db_stress_tool(int argc, char** argv) {
     FLAGS_secondaries_base = default_secondaries_path;
   }
 
-  if (FLAGS_best_efforts_recovery && !FLAGS_skip_verifydb &&
-      !FLAGS_disable_wal) {
-    fprintf(stderr,
-            "With best-efforts recovery, either skip_verifydb or disable_wal "
-            "should be set to true.\n");
-    exit(1);
-  }
-  if (FLAGS_skip_verifydb) {
-    if (FLAGS_verify_db_one_in > 0) {
-      fprintf(stderr,
-              "Must set -verify_db_one_in=0 if skip_verifydb is true.\n");
-      exit(1);
-    }
-    if (FLAGS_continuous_verification_interval > 0) {
-      fprintf(stderr,
-              "Must set -continuous_verification_interval=0 if skip_verifydb "
-              "is true.\n");
-      exit(1);
-    }
-  }
-  if (FLAGS_enable_compaction_filter &&
-      (FLAGS_acquire_snapshot_one_in > 0 || FLAGS_compact_range_one_in > 0 ||
-       FLAGS_iterpercent > 0 || FLAGS_test_batches_snapshots ||
-       FLAGS_test_cf_consistency)) {
+  if (!FLAGS_test_secondary && FLAGS_secondary_catch_up_one_in > 0) {
     fprintf(
         stderr,
-        "Error: acquire_snapshot_one_in, compact_range_one_in, iterpercent, "
-        "test_batches_snapshots  must all be 0 when using compaction filter\n");
-    exit(1);
-  }
-  if (FLAGS_test_multi_ops_txns) {
-    CheckAndSetOptionsForMultiOpsTxnStressTest();
-  }
-
-  if (FLAGS_create_timestamped_snapshot_one_in > 0) {
-    if (!FLAGS_use_txn) {
-      fprintf(stderr, "timestamped snapshot supported only in TransactionDB\n");
-      exit(1);
-    } else if (FLAGS_txn_write_policy != 0) {
-      fprintf(stderr,
-              "timestamped snapshot supported only in write-committed\n");
-      exit(1);
-    }
-  }
-
-  if (FLAGS_preserve_unverified_changes && FLAGS_reopen != 0) {
-    fprintf(stderr,
-            "Reopen DB is incompatible with preserving unverified changes\n");
+        "Must set -test_secondary=true if secondary_catch_up_one_in > 0.\n");
     exit(1);
   }
 
-#ifndef NDEBUG
-  KillPoint* kp = KillPoint::GetInstance();
-  kp->rocksdb_kill_odds = FLAGS_kill_random_test;
-  kp->rocksdb_kill_exclude_prefixes = SplitString(FLAGS_kill_exclude_prefixes);
-#endif
+  rocksdb_kill_odds = FLAGS_kill_random_test;
+  rocksdb_kill_prefix_blacklist = SplitString(FLAGS_kill_prefix_blacklist);
 
   unsigned int levels = FLAGS_max_key_len;
   std::vector<std::string> weights;
@@ -317,7 +245,7 @@ int db_stress_tool(int argc, char** argv) {
     }
   } else {
     uint64_t keys_per_level = key_gen_ctx.window / levels;
-    for (unsigned int level = 0; level + 1 < levels; ++level) {
+    for (unsigned int level = 0; level < levels - 1; ++level) {
       key_gen_ctx.weights.emplace_back(keys_per_level);
     }
     key_gen_ctx.weights.emplace_back(key_gen_ctx.window -
@@ -329,8 +257,6 @@ int db_stress_tool(int argc, char** argv) {
     stress.reset(CreateCfConsistencyStressTest());
   } else if (FLAGS_test_batches_snapshots) {
     stress.reset(CreateBatchedOpsStressTest());
-  } else if (FLAGS_test_multi_ops_txns) {
-    stress.reset(CreateMultiOpsTxnsStressTest());
   } else {
     stress.reset(CreateNonBatchedOpsStressTest());
   }

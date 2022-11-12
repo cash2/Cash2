@@ -5,6 +5,7 @@
 
 package org.rocksdb;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class OptionsUtil {

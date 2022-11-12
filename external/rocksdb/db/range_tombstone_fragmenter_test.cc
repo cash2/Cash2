@@ -6,10 +6,8 @@
 #include "db/range_tombstone_fragmenter.h"
 
 #include "db/db_test_util.h"
-#include "db/dbformat.h"
 #include "rocksdb/comparator.h"
 #include "test_util/testutil.h"
-#include "util/vector_iterator.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -27,8 +25,8 @@ std::unique_ptr<InternalIterator> MakeRangeDelIter(
     keys.push_back(key_and_value.first.Encode().ToString());
     values.push_back(key_and_value.second.ToString());
   }
-  return std::unique_ptr<VectorIterator>(
-      new VectorIterator(keys, values, &bytewise_icmp));
+  return std::unique_ptr<test::VectorIterator>(
+      new test::VectorIterator(keys, values));
 }
 
 void CheckIterPosition(const RangeTombstone& tombstone,

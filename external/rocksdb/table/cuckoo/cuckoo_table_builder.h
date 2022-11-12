@@ -22,15 +22,15 @@ namespace ROCKSDB_NAMESPACE {
 
 class CuckooTableBuilder: public TableBuilder {
  public:
-  CuckooTableBuilder(
-      WritableFileWriter* file, double max_hash_table_ratio,
-      uint32_t max_num_hash_func, uint32_t max_search_depth,
-      const Comparator* user_comparator, uint32_t cuckoo_block_size,
-      bool use_module_hash, bool identity_as_first_hash,
-      uint64_t (*get_slice_hash)(const Slice&, uint32_t, uint64_t),
-      uint32_t column_family_id, const std::string& column_family_name,
-      const std::string& db_id = "", const std::string& db_session_id = "",
-      uint64_t file_number = 0);
+  CuckooTableBuilder(WritableFileWriter* file, double max_hash_table_ratio,
+                     uint32_t max_num_hash_func, uint32_t max_search_depth,
+                     const Comparator* user_comparator,
+                     uint32_t cuckoo_block_size, bool use_module_hash,
+                     bool identity_as_first_hash,
+                     uint64_t (*get_slice_hash)(const Slice&, uint32_t,
+                                                uint64_t),
+                     uint32_t column_family_id,
+                     const std::string& column_family_name);
   // No copying allowed
   CuckooTableBuilder(const CuckooTableBuilder&) = delete;
   void operator=(const CuckooTableBuilder&) = delete;
@@ -85,7 +85,7 @@ class CuckooTableBuilder: public TableBuilder {
     // We assume number of items is <= 2^32.
     uint32_t make_space_for_key_call_id;
   };
-  static const uint32_t kMaxVectorIdx = std::numeric_limits<int32_t>::max();
+  static const uint32_t kMaxVectorIdx = port::kMaxInt32;
 
   bool MakeSpaceForKey(const autovector<uint64_t>& hash_vals,
                        const uint32_t call_id,

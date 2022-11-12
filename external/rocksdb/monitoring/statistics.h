@@ -44,8 +44,6 @@ class StatisticsImpl : public Statistics {
  public:
   StatisticsImpl(std::shared_ptr<Statistics> stats);
   virtual ~StatisticsImpl();
-  const char* Name() const override { return kClassName(); }
-  static const char* kClassName() { return "BasicStatistics"; }
 
   virtual uint64_t getTickerCount(uint32_t ticker_type) const override;
   virtual void histogramData(uint32_t histogram_type,
@@ -69,8 +67,6 @@ class StatisticsImpl : public Statistics {
   virtual std::string ToString() const override;
   virtual bool getTickerMap(std::map<std::string, uint64_t>*) const override;
   virtual bool HistEnabledForType(uint32_t type) const override;
-
-  const Customizable* Inner() const override { return stats_.get(); }
 
  private:
   // If non-nullptr, forwards updates to the object pointed to by `stats_`.
@@ -100,9 +96,7 @@ class StatisticsImpl : public Statistics {
     void operator delete[](void *p) { port::cacheline_aligned_free(p); }
   };
 
-#ifndef TEST_CACHE_LINE_SIZE
   static_assert(sizeof(StatisticsData) % CACHE_LINE_SIZE == 0, "Expected " TOSTRING(CACHE_LINE_SIZE) "-byte aligned");
-#endif
 
   CoreLocalArray<StatisticsData> per_core_stats_;
 

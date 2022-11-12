@@ -8,7 +8,6 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 #pragma once
 
-#include "rocksdb/cache.h"
 #include "rocksdb/table.h"
 
 namespace ROCKSDB_NAMESPACE {
@@ -29,10 +28,6 @@ inline MemoryAllocator* GetMemoryAllocatorForCompressedBlock(
              : nullptr;
 }
 
-// Assumes block has a trailer as in format.h. file_name and offset provided
-// for generating a diagnostic message in returned status.
-extern Status VerifyBlockChecksum(ChecksumType type, const char* data,
-                                  size_t block_size,
-                                  const std::string& file_name,
-                                  uint64_t offset);
+extern Status VerifyChecksum(const ChecksumType type, const char* buf,
+                             size_t len, uint32_t expected);
 }  // namespace ROCKSDB_NAMESPACE

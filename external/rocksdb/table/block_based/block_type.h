@@ -7,19 +7,15 @@
 
 #include <cstdint>
 
-#include "rocksdb/rocksdb_namespace.h"
-
 namespace ROCKSDB_NAMESPACE {
 
 // Represents the types of blocks used in the block based table format.
 // See https://github.com/facebook/rocksdb/wiki/Rocksdb-BlockBasedTable-Format
 // for details.
-// For code sanity, BlockType should imply a specific TBlocklike for
-// BlocklikeTraits.
+
 enum class BlockType : uint8_t {
   kData,
-  kFilter,  // for second level partitioned filters and full filters
-  kFilterPartitionIndex,  // for top-level index of filter partitions
+  kFilter,
   kProperties,
   kCompressionDictionary,
   kRangeDeletion,

@@ -6,15 +6,12 @@
 // This file implements the "bridge" between Java and C++ and enables
 // calling c++ ROCKSDB_NAMESPACE::Statistics methods from Java side.
 
-#include "rocksdb/statistics.h"
-
 #include <jni.h>
-
 #include <memory>
 #include <set>
 
 #include "include/org_rocksdb_Statistics.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
+#include "rocksdb/statistics.h"
 #include "rocksjni/portal.h"
 #include "rocksjni/statisticsjni.h"
 
@@ -97,7 +94,7 @@ jlong Java_org_rocksdb_Statistics_newStatistics___3BJ(
           new ROCKSDB_NAMESPACE::StatisticsJni(sptr_other_statistics,
                                                histograms));
 
-  return GET_CPLUSPLUS_POINTER(pSptr_statistics);
+  return reinterpret_cast<jlong>(pSptr_statistics);
 }
 
 /*

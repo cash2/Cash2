@@ -6,16 +6,13 @@
 // This file implements the "bridge" between Java and C++ for
 // ROCKSDB_NAMESPACE::PersistentCache.
 
-#include "rocksdb/persistent_cache.h"
-
 #include <jni.h>
-
 #include <string>
 
 #include "include/org_rocksdb_PersistentCache.h"
+#include "rocksdb/persistent_cache.h"
 #include "loggerjnicallback.h"
 #include "portal.h"
-#include "rocksjni/cplusplus_to_java_convert.h"
 
 /*
  * Class:     org_rocksdb_PersistentCache
@@ -43,7 +40,7 @@ jlong Java_org_rocksdb_PersistentCache_newPersistentCache(
   if (!s.ok()) {
     ROCKSDB_NAMESPACE::RocksDBExceptionJni::ThrowNew(env, s);
   }
-  return GET_CPLUSPLUS_POINTER(cache);
+  return reinterpret_cast<jlong>(cache);
 }
 
 /*

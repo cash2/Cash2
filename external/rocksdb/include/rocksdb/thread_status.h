@@ -13,16 +13,15 @@
 
 #pragma once
 
+#include <stdint.h>
 #include <cstddef>
-#include <cstdint>
 #include <map>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "rocksdb/rocksdb_namespace.h"
-
-#if !defined(ROCKSDB_LITE) && !defined(NROCKSDB_THREAD_STATUS)
+#if !defined(ROCKSDB_LITE) && !defined(NROCKSDB_THREAD_STATUS) && \
+    defined(ROCKSDB_SUPPORT_THREAD_LOCAL)
 #define ROCKSDB_USING_THREAD_STATUS
 #endif
 

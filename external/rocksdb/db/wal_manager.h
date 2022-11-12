@@ -36,18 +36,14 @@ namespace ROCKSDB_NAMESPACE {
 class WalManager {
  public:
   WalManager(const ImmutableDBOptions& db_options,
-             const FileOptions& file_options,
-             const std::shared_ptr<IOTracer>& io_tracer,
-             const bool seq_per_batch = false)
+             const FileOptions& file_options, const bool seq_per_batch = false)
       : db_options_(db_options),
         file_options_(file_options),
         env_(db_options.env),
-        fs_(db_options.fs, io_tracer),
+        fs_(db_options.fs.get()),
         purge_wal_files_last_run_(0),
         seq_per_batch_(seq_per_batch),
-        wal_dir_(db_options_.GetWalDir()),
-        wal_in_db_path_(db_options_.IsWalDirSameAsDBPath()),
-        io_tracer_(io_tracer) {}
+        wal_in_db_path_(IsWalDirSameAsDBPath(&db_options)) {}
 
   Status GetSortedWalFiles(VectorLogPtr& files);
 
@@ -85,25 +81,9 @@ class WalManager {
   Status RetainProbableWalFiles(VectorLogPtr& all_logs,
                                 const SequenceNumber target);
 
-  // ReadFirstRecord checks the read_first_record_cache_ to see if the entry
-  // exists or not. If not, it will read the WAL file.
-  // In case of wal_compression, WAL contains a `kSetCompressionType` record
-  // which is not associated with any sequence number. So the sequence_number is
-  // set to 1 if that WAL doesn't include any other record (basically empty) in
-  // order to include that WAL and is inserted in read_first_record_cache_.
-  // Therefore, sequence_number is used as boolean if WAL should be included or
-  // not and that sequence_number shouldn't be use for any other purpose.
   Status ReadFirstRecord(const WalFileType type, const uint64_t number,
                          SequenceNumber* sequence);
 
-  // In case of no wal_compression, ReadFirstLine returns status.ok() and
-  // sequence == 0 if the file exists, but is empty.
-  // In case of wal_compression, WAL contains
-  // `kSetCompressionType` record which is not associated with any sequence
-  // number if that WAL doesn't include any other record (basically empty). As
-  // result for an empty file, GetSortedWalsOfType() will skip these WALs
-  // causing the operations to fail. To avoid that, it sets sequence_number to
-  // 1 inorder to include that WAL.
   Status ReadFirstLine(const std::string& fname, const uint64_t number,
                        SequenceNumber* sequence);
 
@@ -111,7 +91,7 @@ class WalManager {
   const ImmutableDBOptions& db_options_;
   const FileOptions file_options_;
   Env* env_;
-  const FileSystemPtr fs_;
+  FileSystem* fs_;
 
   // ------- WalManager state -------
   // cache for ReadFirstRecord() calls
@@ -123,15 +103,11 @@ class WalManager {
 
   bool seq_per_batch_;
 
-  const std::string& wal_dir_;
-
   bool wal_in_db_path_;
 
   // obsolete files will be deleted every this seconds if ttl deletion is
   // enabled and archive size_limit is disabled.
-  static constexpr uint64_t kDefaultIntervalToDeleteObsoleteWAL = 600;
-
-  std::shared_ptr<IOTracer> io_tracer_;
+  static const uint64_t kDefaultIntervalToDeleteObsoleteWAL = 600;
 };
 
 #endif  // ROCKSDB_LITE

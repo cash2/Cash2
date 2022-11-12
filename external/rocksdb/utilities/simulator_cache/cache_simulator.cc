@@ -4,11 +4,8 @@
 //  (found in the LICENSE.Apache file in the root directory).
 
 #include "utilities/simulator_cache/cache_simulator.h"
-
 #include <algorithm>
-
 #include "db/dbformat.h"
-#include "rocksdb/trace_record.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -25,10 +22,8 @@ bool GhostCache::Admit(const Slice& lookup_key) {
     sim_cache_->Release(handle);
     return true;
   }
-  // TODO: Should we check for errors here?
-  auto s = sim_cache_->Insert(lookup_key, /*value=*/nullptr, lookup_key.size(),
-                              /*deleter=*/nullptr);
-  s.PermitUncheckedError();
+  sim_cache_->Insert(lookup_key, /*value=*/nullptr, lookup_key.size(),
+                     /*deleter=*/nullptr);
   return false;
 }
 
@@ -50,11 +45,8 @@ void CacheSimulator::Access(const BlockCacheTraceRecord& access) {
     is_cache_miss = false;
   } else {
     if (access.no_insert == Boolean::kFalse && admit && access.block_size > 0) {
-      // Ignore errors on insert
-      auto s = sim_cache_->Insert(access.block_key, /*value=*/nullptr,
-                                  access.block_size,
-                                  /*deleter=*/nullptr);
-      s.PermitUncheckedError();
+      sim_cache_->Insert(access.block_key, /*value=*/nullptr, access.block_size,
+                         /*deleter=*/nullptr);
     }
   }
   miss_ratio_stats_.UpdateMetrics(access.access_timestamp, is_user_access,
@@ -108,11 +100,8 @@ void PrioritizedCacheSimulator::AccessKVPair(
     sim_cache_->Release(handle);
     *is_cache_miss = false;
   } else if (!no_insert && *admitted && value_size > 0) {
-    // TODO: Should we check for an error here?
-    auto s = sim_cache_->Insert(key, /*value=*/nullptr, value_size,
-                                /*deleter=*/nullptr,
-                                /*handle=*/nullptr, priority);
-    s.PermitUncheckedError();
+    sim_cache_->Insert(key, /*value=*/nullptr, value_size, /*deleter=*/nullptr,
+                       /*handle=*/nullptr, priority);
   }
   if (update_metrics) {
     miss_ratio_stats_.UpdateMetrics(access.access_timestamp, is_user_access,
@@ -187,12 +176,9 @@ void HybridRowBlockCacheSimulator::Access(const BlockCacheTraceRecord& access) {
         /*is_user_access=*/true, &is_cache_miss, &admitted,
         /*update_metrics=*/true);
     if (access.referenced_data_size > 0 && inserted == InsertResult::ADMITTED) {
-      // TODO: Should we check for an error here?
-      auto s = sim_cache_->Insert(row_key, /*value=*/nullptr,
-                                  access.referenced_data_size,
-                                  /*deleter=*/nullptr,
-                                  /*handle=*/nullptr, Cache::Priority::HIGH);
-      s.PermitUncheckedError();
+      sim_cache_->Insert(row_key, /*value=*/nullptr,
+                         access.referenced_data_size, /*deleter=*/nullptr,
+                         /*handle=*/nullptr, Cache::Priority::HIGH);
       status.row_key_status[row_key] = InsertResult::INSERTED;
     }
     return;
