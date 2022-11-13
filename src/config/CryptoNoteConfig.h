@@ -21,7 +21,7 @@ namespace CryptoNote
 {
     namespace parameters
     {
-        const uint64_t DIFFICULTY_TARGET = 30; // seconds
+        const uint64_t DIFFICULTY_TARGET = 9; // seconds
 
         const uint32_t CRYPTONOTE_MAX_BLOCK_NUMBER = 500'000'000;
 
@@ -35,9 +35,12 @@ namespace CryptoNote
 
         const size_t CRYPTONOTE_MAX_TX_SIZE = 1'000'000'000;
 
-        const uint64_t CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 3914525;
+        // All Cash2 addresses start with a '2'
+        const uint64_t CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 0x6;
 
-        const uint32_t CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW = 40;
+        const uint32_t CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW_1 = 60;
+        const uint32_t CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW_2 = 400;
+        const uint32_t CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW = CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW_2;
 
         const uint64_t CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT = 60 * 60 * 2;
 
@@ -49,22 +52,22 @@ namespace CryptoNote
 
         const size_t BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V3 = 11;
 
-        // MONEY_SUPPLY - total number coins to be generated
-        const uint64_t MONEY_SUPPLY = UINT64_C(1'000'000'000'000'00);
+        // 15,000,000.000000000 total coins to be generated
+        const uint64_t MONEY_SUPPLY = UINT64_C(15000000000000000);
 
-        const uint32_t ZAWY_DIFFICULTY_BLOCK_INDEX = 187'000;
+        const uint32_t ZAWY_DIFFICULTY_BLOCK_INDEX = 0;
 
         const size_t ZAWY_DIFFICULTY_V2 = 0;
 
         const uint8_t ZAWY_DIFFICULTY_DIFFICULTY_BLOCK_VERSION = 3;
 
-        const uint64_t LWMA_2_DIFFICULTY_BLOCK_INDEX = 620'000;
+        const uint64_t LWMA_2_DIFFICULTY_BLOCK_INDEX = 1;
 
-        const uint64_t LWMA_2_DIFFICULTY_BLOCK_INDEX_V2 = 700'000;
+        const uint64_t LWMA_2_DIFFICULTY_BLOCK_INDEX_V2 = 2;
 
-        const uint64_t LWMA_2_DIFFICULTY_BLOCK_INDEX_V3 = 800'000;
+        const uint64_t LWMA_2_DIFFICULTY_BLOCK_INDEX_V3 = 3;
 
-        const unsigned EMISSION_SPEED_FACTOR = 25;
+        const unsigned EMISSION_SPEED_FACTOR = 24;
 
         static_assert(EMISSION_SPEED_FACTOR <= 8 * sizeof(uint64_t), "Bad EMISSION_SPEED_FACTOR");
 
@@ -93,10 +96,12 @@ namespace CryptoNote
 
         const size_t CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE = 600;
 
-        const size_t CRYPTONOTE_DISPLAY_DECIMAL_POINT = 2;
+        // Number of digits after the decimal point
+        const size_t CRYPTONOTE_DISPLAY_DECIMAL_POINT = 9;
 
-        /* TODO: Remove? */
-        const uint64_t MINIMUM_FEE = UINT64_C(10);
+        const uint64_t MINIMUM_FEE_1 = UINT64_C(0); // free transactions
+        const uint64_t MINIMUM_FEE_2 = UINT64_C(10000000); // 0.01
+        const uint64_t MINIMUM_FEE = MINIMUM_FEE_2;
 
         /* Fee per byte is rounded up in chunks. This helps makes estimates
          * more accurate. It's suggested to make this a power of two, to relate
@@ -116,26 +121,26 @@ namespace CryptoNote
         /* This section defines our minimum and maximum mixin counts required for transactions */
         const uint64_t MINIMUM_MIXIN_V1 = 0;
 
-        const uint64_t MAXIMUM_MIXIN_V1 = 100;
+        const uint64_t MAXIMUM_MIXIN_V1 = 3;
 
-        const uint64_t MINIMUM_MIXIN_V2 = 7;
+        const uint64_t MINIMUM_MIXIN_V2 = 0;
 
-        const uint64_t MAXIMUM_MIXIN_V2 = 7;
+        const uint64_t MAXIMUM_MIXIN_V2 = 3;
 
-        const uint64_t MINIMUM_MIXIN_V3 = 3;
+        const uint64_t MINIMUM_MIXIN_V3 = 0;
 
         const uint64_t MAXIMUM_MIXIN_V3 = 3;
 
         /* The heights to activate the mixin limits at */
-        const uint32_t MIXIN_LIMITS_V1_HEIGHT = 440'000;
+        const uint32_t MIXIN_LIMITS_V1_HEIGHT = 0;
 
-        const uint32_t MIXIN_LIMITS_V2_HEIGHT = 620'000;
+        const uint32_t MIXIN_LIMITS_V2_HEIGHT = 1;
 
-        const uint32_t MIXIN_LIMITS_V3_HEIGHT = 800'000;
+        const uint32_t MIXIN_LIMITS_V3_HEIGHT = 2;
 
         /* The mixin to use by default with wallet software */
         /* DEFAULT_MIXIN_V0 is the mixin used before MIXIN_LIMITS_V1_HEIGHT is started */
-        const uint64_t DEFAULT_MIXIN_V0 = 3;
+        const uint64_t DEFAULT_MIXIN_V0 = 1;
 
         const uint64_t DEFAULT_MIXIN_V1 = MAXIMUM_MIXIN_V1;
 
@@ -147,28 +152,28 @@ namespace CryptoNote
 
         const uint64_t DEFAULT_DUST_THRESHOLD_V2 = UINT64_C(0);
 
-        const uint32_t DUST_THRESHOLD_V2_HEIGHT = MIXIN_LIMITS_V2_HEIGHT;
+        const uint32_t DUST_THRESHOLD_V2_HEIGHT = 0;
 
-        const uint32_t FUSION_DUST_THRESHOLD_HEIGHT_V2 = 800'000;
+        const uint32_t FUSION_DUST_THRESHOLD_HEIGHT_V2 = 0;
 
         const uint64_t EXPECTED_NUMBER_OF_BLOCKS_PER_DAY = 24 * 60 * 60 / DIFFICULTY_TARGET;
 
-        const size_t DIFFICULTY_WINDOW = 17;
+        const size_t DIFFICULTY_WINDOW = 3600;
 
-        const size_t DIFFICULTY_WINDOW_V1 = 2'880;
+        const size_t DIFFICULTY_WINDOW_V1 = 3600;
 
-        const size_t DIFFICULTY_WINDOW_V2 = 2'880;
+        const size_t DIFFICULTY_WINDOW_V2 = 3600;
 
-        const uint64_t DIFFICULTY_WINDOW_V3 = 60;
+        const uint64_t DIFFICULTY_WINDOW_V3 = 3600;
 
         const uint64_t DIFFICULTY_BLOCKS_COUNT_V3 = DIFFICULTY_WINDOW_V3 + 1;
 
-        const size_t DIFFICULTY_CUT = 0; // timestamps to cut after sorting
+        const size_t DIFFICULTY_CUT = 60; // timestamps to cut after sorting
         const size_t DIFFICULTY_CUT_V1 = 60;
 
         const size_t DIFFICULTY_CUT_V2 = 60;
 
-        const size_t DIFFICULTY_LAG = 0; // !!!
+        const size_t DIFFICULTY_LAG = 155555; // !!!
         const size_t DIFFICULTY_LAG_V1 = 15;
 
         const size_t DIFFICULTY_LAG_V2 = 15;
@@ -265,41 +270,11 @@ namespace CryptoNote
 
         /* Block heights we are going to have hard forks at */
         const uint64_t FORK_HEIGHTS[] = {
-            187'000, // 0
-            350'000, // 1
-            440'000, // 2
-            620'000, // 3
-            700'000, // 4
-            800'000, // 5
-            1'000'000, // 6
-            1'200'000, // 7
-            1'300'000, // 8
-            1'400'000, // 9
-            1'600'000, // 10
-            1'800'000, // 11
-            2'000'000, // 12
-            2'200'000, // 13
-            2'400'000, // 14
-            2'600'000, // 15
-            2'800'000, // 16
-            3'000'000, // 17
-            3'200'000, // 18
-            3'400'000, // 19
-            3'600'000, // 20
-            3'800'000, // 21
-            4'000'000, // 22
-            4'200'000, // 23
-            4'400'000, // 24
-            4'600'000, // 25
-            4'800'000, // 26
-            5'000'000, // 27
-            5'200'000, // 28
-            5'400'000, // 29
-            5'500'000, // 30
+            420016,
         };
 
         /* MAKE SURE TO UPDATE THIS VALUE WITH EVERY MAJOR RELEASE BEFORE A FORK */
-        const uint64_t SOFTWARE_SUPPORTED_FORK_INDEX = 30;
+        const uint64_t SOFTWARE_SUPPORTED_FORK_INDEX = 0;
 
         const uint64_t FORK_HEIGHTS_SIZE = sizeof(FORK_HEIGHTS) / sizeof(*FORK_HEIGHTS);
 
@@ -327,7 +302,7 @@ namespace CryptoNote
         const char MINER_CONFIG_FILE_NAME[] = "miner_conf.json";
     } // namespace parameters
 
-    const char CRYPTONOTE_NAME[] = "TurtleCoin";
+    const char CRYPTONOTE_NAME[] = "Cash2";
 
     const uint8_t TRANSACTION_VERSION_1 = 1;
 
@@ -362,9 +337,8 @@ namespace CryptoNote
     const uint64_t BLOCKS_SYNCHRONIZING_DEFAULT_COUNT = 100; // by default, blocks count in blocks downloading
     const size_t COMMAND_RPC_GET_BLOCKS_FAST_MAX_COUNT = 1'000;
 
-    const int P2P_DEFAULT_PORT = 11'897;
-
-    const int RPC_DEFAULT_PORT = 11'898;
+    const int P2P_DEFAULT_PORT = 12275;
+    const int RPC_DEFAULT_PORT = 12276;
 
     const int SERVICE_DEFAULT_PORT = 8'070;
 
@@ -415,14 +389,15 @@ namespace CryptoNote
     const std::string LICENSE_URL = "https://github.com/turtlecoin/turtlecoin/blob/master/LICENSE";
 
     const static boost::uuids::uuid CRYPTONOTE_NETWORK = {
-        {0xb5, 0x0c, 0x4a, 0x6c, 0xcf, 0x52, 0x57, 0x41, 0x65, 0xf9, 0x91, 0xa4, 0xb6, 0xc1, 0x43, 0xe9}};
+        {0x43, 0x52, 0x59, 0x50, 0x54, 0x4f, 0x4e, 0x4f, 0x54, 0x45, 0x00, 0x12, 0x10, 0x11, 0x01, 0x10}};
 
     const char *const SEED_NODES[] = {
-        "145.239.88.119:11897", // cision
-        "165.227.252.132:11897", // iburnmycd
-        "148.251.178.238:11897", // hv
-        "45.32.138.7:11897", // extra
-        "46.214.70.196:11897", // CuveeRO
-        "89.203.235.107:11897" // CuveeCZ
+        "seed1.cash2.org:12275",
+        "seed2.cash2.org:12275",
+        "seed3.cash2.org:12275",
+        "seed4.cash2.org:12275",
+        "seed5.cash2.org:12275",
+        "seed6.cash2.org:12275",
+        "seed7.cash2.org:12275",
     };
 } // namespace CryptoNote
