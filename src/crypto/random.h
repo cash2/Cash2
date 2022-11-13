@@ -1,4 +1,5 @@
 // Copyright (c) 2019, The TurtleCoin Developers
+// Copyright (c) 2018-2022 The Cash2 developers
 
 #pragma once
 
