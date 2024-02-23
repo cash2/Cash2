@@ -1,17 +1,19 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018-2019, The TurtleCoin Developers
 // Copyright (c) 2018-2022 The Cash2 developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+//
+// Please see the included LICENSE file for more information.
 
 #pragma once
 
-namespace CryptoNote {
+namespace CryptoNote
+{
+    template<typename T> class IObservable
+    {
+      public:
+        virtual void addObserver(T *observer) = 0;
 
-template <typename T>
-class IObservable {
-public:
-  virtual void addObserver(T* observer) = 0;
-  virtual void removeObserver(T* observer) = 0;
-};
+        virtual void removeObserver(T *observer) = 0;
+    };
 
-}
+} // namespace CryptoNote
